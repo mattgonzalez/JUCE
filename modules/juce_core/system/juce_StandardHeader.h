@@ -66,6 +66,7 @@
 #include <optional>
 #include <queue>
 #include <set>
+#include <stack>
 #include <sstream>
 #include <thread>
 #include <typeindex>

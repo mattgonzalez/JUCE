@@ -572,6 +572,11 @@ void Graphics::strokePath (const Path& path,
                            const PathStrokeType& strokeType,
                            const AffineTransform& transform) const
 {
+    if (context.drawPath(path, strokeType, transform))
+    {
+        return;
+    }
+
     Path stroke;
     strokeType.createStrokedPath (stroke, path, transform, context.getPhysicalPixelScaleFactor());
     fillPath (stroke);
@@ -597,6 +602,11 @@ void Graphics::drawRect (Rectangle<float> r, const float lineThickness) const
 {
     jassert (r.getWidth() >= 0.0f && r.getHeight() >= 0.0f);
 
+    if (context.drawRect(r, lineThickness))
+    {
+        return;
+    }
+
     RectangleList<float> rects;
     rects.addWithoutMerging (r.removeFromTop    (lineThickness));
     rects.addWithoutMerging (r.removeFromBottom (lineThickness));
@@ -608,6 +618,11 @@ void Graphics::drawRect (Rectangle<float> r, const float lineThickness) const
 //==============================================================================
 void Graphics::fillEllipse (Rectangle<float> area) const
 {
+    if (context.fillEllipse(area))
+    {
+        return;
+    }
+
     Path p;
     p.addEllipse (area);
     fillPath (p);
@@ -625,6 +640,11 @@ void Graphics::drawEllipse (float x, float y, float width, float height, float l
 
 void Graphics::drawEllipse (Rectangle<float> area, float lineThickness) const
 {
+    if (context.drawEllipse(area, lineThickness))
+    {
+        return;
+    }
+
     Path p;
 
     if (approximatelyEqual (area.getWidth(), area.getHeight()))
@@ -649,6 +669,11 @@ void Graphics::fillRoundedRectangle (float x, float y, float width, float height
 
 void Graphics::fillRoundedRectangle (Rectangle<float> r, const float cornerSize) const
 {
+    if (context.fillRoundedRectangle(r, cornerSize))
+    {
+        return;
+    }
+
     Path p;
     p.addRoundedRectangle (r, cornerSize);
     fillPath (p);
@@ -662,6 +687,11 @@ void Graphics::drawRoundedRectangle (float x, float y, float width, float height
 
 void Graphics::drawRoundedRectangle (Rectangle<float> r, float cornerSize, float lineThickness) const
 {
+    if (context.drawRoundedRectangle(r, cornerSize, lineThickness))
+    {
+        return;
+    }
+    
     Path p;
     p.addRoundedRectangle (r, cornerSize);
     strokePath (p, PathStrokeType (lineThickness));

@@ -108,7 +108,7 @@ namespace DirectWriteTypeLayout
             if (! (baselineOriginY >= -1.0e10f && baselineOriginY <= 1.0e10f))
                 baselineOriginY = 0; // DirectWrite sometimes sends NaNs in this parameter
 
-            if (! approximatelyEqual (baselineOriginY, lastOriginY))
+            if (baselineOriginY != lastOriginY)
             {
                 lastOriginY = baselineOriginY;
                 ++currentLine;
@@ -239,7 +239,7 @@ namespace DirectWriteTypeLayout
             case Justification::left:                   break;
             case Justification::right:                  alignment = DWRITE_TEXT_ALIGNMENT_TRAILING; break;
             case Justification::horizontallyCentred:    alignment = DWRITE_TEXT_ALIGNMENT_CENTER; break;
-            case Justification::horizontallyJustified:  break; // DirectWrite cannot justify text, default to left alignment
+            case Justification::horizontallyJustified:  alignment = DWRITE_TEXT_ALIGNMENT_JUSTIFIED; break; // DirectWrite cannot justify text, default to left alignment
             default:                                    jassertfalse; break; // Illegal justification flags
         }
 
@@ -444,24 +444,44 @@ namespace DirectWriteTypeLayout
         }
     }
 
-    static inline void drawToD2DContext (const AttributedString& text,
-                                         const Rectangle<float>& area,
-                                         ID2D1RenderTarget& renderTarget,
-                                         IDWriteFactory& directWriteFactory,
-                                         IDWriteFontCollection& fontCollection)
+    static inline ComSmartPtr<IDWriteTextLayout> createDirectWriteTextLayout(const AttributedString& text,
+        Rectangle<float>& area,
+        IDWriteFactory& directWriteFactory,
+        IDWriteFontCollection& fontCollection,
+        ID2D1RenderTarget& renderTarget)
     {
         ComSmartPtr<IDWriteTextLayout> dwTextLayout;
 
-        if (setupLayout (text, area.getWidth(), area.getHeight(), renderTarget,
-                         directWriteFactory, fontCollection, dwTextLayout))
+        if (setupLayout(text, area.getWidth(), area.getHeight(), renderTarget,
+            directWriteFactory, fontCollection, dwTextLayout))
         {
-            ComSmartPtr<ID2D1SolidColorBrush> d2dBrush;
-            renderTarget.CreateSolidColorBrush (D2D1::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
-                                                d2dBrush.resetAndGetPointerAddress());
+            //
+            // Calling SetParagraphAlignment for vertical alignment didn't work with some of the text layouts in the JUCE demo;
+            // do it manually here instead.
+            //
+            switch (text.getJustification().getOnlyVerticalFlags())
+            {
+            case Justification::verticallyCentred:
+            {
+                DWRITE_TEXT_METRICS metrics;
+                dwTextLayout->GetMetrics(&metrics);
+                area.translate(0.0f, ((float)area.getHeight() - metrics.height) * 0.5f);
+                break;
+            }
 
-            renderTarget.DrawTextLayout (D2D1::Point2F ((float) area.getX(), (float) area.getY()),
-                                         dwTextLayout, d2dBrush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            case Justification::bottom:
+            {
+                DWRITE_TEXT_METRICS metrics;
+                dwTextLayout->GetMetrics(&metrics);
+                area.translate(0.0f, (float)area.getHeight() - metrics.height);
+                break;
+            }
+            }
+
+            return dwTextLayout;
         }
+
+        return {};
     }
 }
 
@@ -490,16 +510,21 @@ bool TextLayout::createNativeLayout ([[maybe_unused]] const AttributedString& te
         return false;
 
     SharedResourcePointer<Direct2DFactories> factories;
+    jassert(MessageManager::getInstance()->currentThreadHasLockedMessageManager());
 
-    if (factories->d2dFactory != nullptr
-        && factories->directWriteFactory != nullptr
-        && factories->systemFonts != nullptr
-        && factories->directWriteRenderTarget != nullptr)
+    auto d2dFactory = factories->getDirect2DFactory();
+    auto directWriteFactory = factories->getDirectWriteFactory();
+    auto systemFonts = factories->getSystemFonts();
+    auto directWriteRenderTarget = factories->getDirectWriteRenderTarget();
+    if (d2dFactory != nullptr
+        && directWriteFactory
+        && systemFonts
+        && directWriteRenderTarget)
     {
-        DirectWriteTypeLayout::createLayout (*this, text,
-                                             *factories->directWriteFactory,
-                                             *factories->systemFonts,
-                                             *factories->directWriteRenderTarget);
+        DirectWriteTypeLayout::createLayout(*this, text,
+            *directWriteFactory,
+            *systemFonts,
+            *directWriteRenderTarget);
 
         return true;
     }

@@ -409,6 +409,11 @@ static bool isLowLatencyMode (WASAPIDeviceMode deviceMode) noexcept
     return deviceMode == WASAPIDeviceMode::sharedLowLatency;
 }
 
+static bool isLoopbackMode(WASAPIDeviceMode deviceMode) noexcept
+{
+    return deviceMode == WASAPIDeviceMode::loopback;
+}
+
 static bool supportsSampleRateConversion (WASAPIDeviceMode deviceMode) noexcept
 {
     return deviceMode == WASAPIDeviceMode::shared;
@@ -487,7 +492,9 @@ public:
 
             (void) check (client->GetBufferSize (&actualBufferSize));
             createSessionEventCallback();
-            return check (client->SetEventHandle (clientEvent));
+
+            auto hr = client->SetEventHandle(clientEvent);
+            return check (hr);
         }
 
         return false;
@@ -831,6 +838,9 @@ private:
             streamFlags |= (0x80000000    /*AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM*/
                             | 0x8000000); /*AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY*/
 
+        if (isLoopbackMode (deviceMode))
+            streamFlags |= 0x00020000; /* AUDCLNT_STREAMFLAGS_LOOPBACK */
+
         return streamFlags;
     }
 
@@ -929,9 +939,16 @@ public:
 
     bool open (double newSampleRate, const BigInteger& newChannels, int bufferSizeSamples)
     {
-        return openClient (newSampleRate, newChannels, bufferSizeSamples)
+#if 0
+        return 
                 && (numChannels == 0 || check (client->GetService (__uuidof (IAudioCaptureClient),
                                                                    (void**) captureClient.resetAndGetPointerAddress())));
+#else
+        bool ok = openClient(newSampleRate, newChannels, bufferSizeSamples);
+        auto hr = client->GetService(__uuidof (IAudioCaptureClient),
+            (void**)captureClient.resetAndGetPointerAddress());
+        return ok && (numChannels == 0 || check(hr));
+#endif
     }
 
     void close()
@@ -1638,7 +1655,8 @@ private:
 
             auto flow = getDataFlow (device);
 
-            if (deviceId == inputDeviceId && flow == eCapture)
+            if ((deviceId == inputDeviceId && flow == eCapture) ||
+                (deviceId == inputDeviceId && flow == eRender))
                 inputDevice.reset (new WASAPIInputDevice (device, deviceMode));
             else if (deviceId == outputDeviceId && flow == eRender)
                 outputDevice.reset (new WASAPIOutputDevice (device, deviceMode));
@@ -1752,6 +1770,12 @@ public:
 
         auto outputIndex = devices.outputDeviceNames.indexOf (outputDeviceName);
         auto inputIndex  = devices.inputDeviceNames .indexOf (inputDeviceName);
+
+        auto mode = deviceMode;
+        if (devices.outputDeviceNames.contains(inputDeviceName))
+        {
+            mode = WASAPIDeviceMode::loopback;
+        }
 
         if (outputIndex >= 0 || inputIndex >= 0)
         {
@@ -1908,6 +1932,9 @@ private:
                 const int index = (deviceId == defaultRenderer) ? 0 : -1;
                 result.outputDeviceIds.insert (index, deviceId);
                 result.outputDeviceNames.insert (index, name);
+
+                result.inputDeviceIds.add(deviceId);
+                result.inputDeviceNames.add(name);
             }
             else if (flow == eCapture)
             {
@@ -1941,6 +1968,7 @@ private:
         if (mode == WASAPIDeviceMode::shared)            return "Windows Audio";
         if (mode == WASAPIDeviceMode::sharedLowLatency)  return "Windows Audio (Low Latency Mode)";
         if (mode == WASAPIDeviceMode::exclusive)         return "Windows Audio (Exclusive Mode)";
+        if (mode == WASAPIDeviceMode::loopback)         return "Windows Audio (Loopback Mode)";
 
         jassertfalse;
         return {};

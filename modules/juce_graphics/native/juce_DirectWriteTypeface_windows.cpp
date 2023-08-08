@@ -85,10 +85,13 @@ public:
             if (d2d1CreateFactory != nullptr)
             {
                 D2D1_FACTORY_OPTIONS options;
+#if JUCE_DEBUG
+                options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+#else
                 options.debugLevel = D2D1_DEBUG_LEVEL_NONE;
-
-                d2d1CreateFactory (D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof (ID2D1Factory), &options,
-                                   (void**) d2dFactory.resetAndGetPointerAddress());
+#endif
+                d2d1CreateFactory (D2D1_FACTORY_TYPE_MULTI_THREADED, __uuidof (ID2D1Factory1), &options,
+                                   (void**) d2dSharedFactory.resetAndGetPointerAddress());
             }
         }
 
@@ -103,10 +106,12 @@ public:
                                      (IUnknown**) directWriteFactory.resetAndGetPointerAddress());
 
                 if (directWriteFactory != nullptr)
-                    directWriteFactory->GetSystemFontCollection (systemFonts.resetAndGetPointerAddress());
+                {
+                    directWriteFactory->GetSystemFontCollection(systemFonts.resetAndGetPointerAddress());
+                }
             }
 
-            if (d2dFactory != nullptr)
+            if (d2dSharedFactory != nullptr)
             {
                 auto d2dRTProp = D2D1::RenderTargetProperties (D2D1_RENDER_TARGET_TYPE_SOFTWARE,
                                                                D2D1::PixelFormat (DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -115,7 +120,7 @@ public:
                                                                D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE,
                                                                D2D1_FEATURE_LEVEL_DEFAULT);
 
-                d2dFactory->CreateDCRenderTarget (&d2dRTProp, directWriteRenderTarget.resetAndGetPointerAddress());
+                d2dSharedFactory->CreateDCRenderTarget (&d2dRTProp, directWriteRenderTarget.resetAndGetPointerAddress());
             }
         }
 
@@ -124,18 +129,113 @@ public:
 
     ~Direct2DFactories()
     {
-        d2dFactory = nullptr;  // (need to make sure these are released before deleting the DynamicLibrary objects)
+#if JUCE_DIRECT2D
+        if (directWriteFactory != nullptr)
+        {
+            //
+            // Unregister all the custom font stuff and then clear the array before releasing the factories
+            //
+            for (auto customFontCollectionLoader : customFontCollectionLoaders)
+            {
+                directWriteFactory->UnregisterFontCollectionLoader(customFontCollectionLoader);
+                directWriteFactory->UnregisterFontFileLoader(customFontCollectionLoader->getFontFileLoader());
+            }
+
+            customFontCollectionLoaders.clear();
+        }
+#endif
+        d2dSharedFactory = nullptr;  // (need to make sure these are released before deleting the DynamicLibrary objects)
         directWriteFactory = nullptr;
         systemFonts = nullptr;
         directWriteRenderTarget = nullptr;
     }
 
-    ComSmartPtr<ID2D1Factory> d2dFactory;
-    ComSmartPtr<IDWriteFactory> directWriteFactory;
-    ComSmartPtr<IDWriteFontCollection> systemFonts;
-    ComSmartPtr<ID2D1DCRenderTarget> directWriteRenderTarget;
+#if JUCE_DIRECT2D
+    IDWriteFontFamily* const getFontFamilyForRawData(const void* data, size_t dataSize)
+    {
+        //
+        // Hopefully the raw data here is pointing to a TrueType font file in memory. 
+        // This creates a custom font collection loader (one custom font per font collection)
+        //
+        if (directWriteFactory != nullptr)
+        {
+            DirectWriteCustomFontCollectionLoader* customFontCollectionLoader = nullptr;
+            for (auto loader : customFontCollectionLoaders)
+            {
+                if (loader->hasRawData(data, dataSize))
+                {
+                    customFontCollectionLoader = loader;
+                    break;
+                }
+            }
+
+            if (customFontCollectionLoader == nullptr)
+            {
+                customFontCollectionLoader = customFontCollectionLoaders.add(new DirectWriteCustomFontCollectionLoader{ data, dataSize });
+
+                directWriteFactory->RegisterFontFileLoader(customFontCollectionLoader->getFontFileLoader());
+                directWriteFactory->RegisterFontCollectionLoader(customFontCollectionLoader);
+
+                directWriteFactory->CreateCustomFontCollection(customFontCollectionLoader,
+                    &customFontCollectionLoader->key,
+                    sizeof(customFontCollectionLoader->key),
+                    customFontCollectionLoader->customFontCollection.resetAndGetPointerAddress());
+            }
+
+            if (customFontCollectionLoader != nullptr && customFontCollectionLoader->customFontCollection != nullptr)
+            {
+                IDWriteFontFamily* directWriteFontFamily = nullptr;
+                auto hr = customFontCollectionLoader->customFontCollection->GetFontFamily(0, &directWriteFontFamily);
+                if (SUCCEEDED(hr))
+                {
+                    return directWriteFontFamily;
+                }
+            }
+        }
+
+        return nullptr;
+    }
+#endif
+
+    IDWriteFactory* const getDirectWriteFactory() const
+    {
+        jassert(MessageManager::getInstance()->isThisTheMessageThread());
+        return directWriteFactory;
+    }
+
+    IDWriteFontCollection* const getSystemFonts() const
+    {
+        jassert(MessageManager::getInstance()->isThisTheMessageThread());
+        return systemFonts;
+    }
+
+#if JUCE_DIRECT2D
+    OwnedArray<DirectWriteCustomFontCollectionLoader>& getCustomFontCollectionLoaders()
+    {
+        jassert(MessageManager::getInstance()->isThisTheMessageThread());
+        return customFontCollectionLoaders;
+    }
+#endif
+
+    ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
+    {
+        return directWriteRenderTarget;
+    }
+
+    ID2D1Factory1* const getDirect2DFactory() const
+    {
+        return d2dSharedFactory;
+    }
 
 private:
+    ComSmartPtr<ID2D1Factory1> d2dSharedFactory;
+    ComSmartPtr<IDWriteFactory> directWriteFactory;
+    ComSmartPtr<IDWriteFontCollection> systemFonts;
+#if JUCE_DIRECT2D
+    OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
+#endif
+    ComSmartPtr<ID2D1DCRenderTarget> directWriteRenderTarget;
+
     DynamicLibrary direct2dDll, directWriteDll;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DFactories)
@@ -183,31 +283,73 @@ public:
             hr = dwFont->CreateFontFace (dwFontFace.resetAndGetPointerAddress());
         }
 
-        if (dwFontFace != nullptr)
-        {
-            DWRITE_FONT_METRICS dwFontMetrics;
-            dwFontFace->GetMetrics (&dwFontMetrics);
-
-            // All Font Metrics are in design units so we need to get designUnitsPerEm value
-            // to get the metrics into Em/Design Independent Pixels
-            designUnitsPerEm = dwFontMetrics.designUnitsPerEm;
-
-            ascent = std::abs ((float) dwFontMetrics.ascent);
-            auto totalSize = ascent + std::abs ((float) dwFontMetrics.descent);
-            ascent /= totalSize;
-            unitsToHeightScaleFactor = (float) designUnitsPerEm / totalSize;
-
-            auto tempDC = GetDC (nullptr);
-            auto dpi = (float) (GetDeviceCaps (tempDC, LOGPIXELSX) + GetDeviceCaps (tempDC, LOGPIXELSY)) / 2.0f;
-            heightToPointsFactor = (dpi / (float) GetDeviceCaps (tempDC, LOGPIXELSY)) * unitsToHeightScaleFactor;
-            ReleaseDC (nullptr, tempDC);
-
-            auto pathAscent  = (1024.0f * dwFontMetrics.ascent)  / (float) designUnitsPerEm;
-            auto pathDescent = (1024.0f * dwFontMetrics.descent) / (float) designUnitsPerEm;
-            auto pathScale   = 1.0f / (std::abs (pathAscent) + std::abs (pathDescent));
-            pathTransform = AffineTransform::scale (pathScale);
-        }
+        initializeFromFontFace();
     }
+   
+#if JUCE_DIRECT2D
+    //
+    // Alternate constructor for WindowsDirectWriteTypeface to create the typeface from TTF data in memory
+    //
+    WindowsDirectWriteTypeface (const void* data, size_t dataSize) :
+        Typeface({}, {}) // set the typeface name & style as empty initially
+    {
+        //
+        // Get the DirectWrite font family for the raw data
+        //
+        auto fontFamily = factories->getFontFamilyForRawData(data, dataSize);
+        if (fontFamily == nullptr)
+        {
+            return;
+        }
+
+        //
+        // Get the JUCE typeface name from the DirectWrite font family
+        //
+        {
+            ComSmartPtr<IDWriteLocalizedStrings> familyNames;
+            auto hr = fontFamily->GetFamilyNames(familyNames.resetAndGetPointerAddress());
+            if (FAILED(hr))
+            {
+                return;
+            }
+
+            name = getLocalisedName(familyNames);
+        }
+
+        //
+        // Get the JUCE typeface style from the DirectWrite font and get the font face
+        // 
+        // Only supports one font per family
+        // 
+        {
+            ComSmartPtr<IDWriteFont> directWriteFont;
+            auto hr = fontFamily->GetFont(0, directWriteFont.resetAndGetPointerAddress());
+            if (FAILED(hr))
+            {
+                return;
+            }
+
+            ComSmartPtr<IDWriteLocalizedStrings> faceNames;
+            hr = directWriteFont->GetFaceNames(faceNames.resetAndGetPointerAddress());
+            if (FAILED(hr))
+            {
+                return;
+            }
+
+            fontFound = true;
+
+            style = getLocalisedName(faceNames);
+
+            hr = directWriteFont->CreateFontFace(dwFontFace.resetAndGetPointerAddress());
+            if (FAILED(hr))
+            {
+                return;
+            }
+        }
+
+        initializeFromFontFace();
+    }
+#endif
 
     bool loadedOk() const noexcept          { return dwFontFace != nullptr; }
     BOOL isFontFound() const noexcept       { return fontFound; }
@@ -284,6 +426,37 @@ private:
     int designUnitsPerEm = 0;
     AffineTransform pathTransform;
     BOOL fontFound = false;
+
+    //
+    // D.R.Y. since this code is common to both constructors
+    //
+    void initializeFromFontFace()
+    {
+        if (dwFontFace != nullptr)
+        {
+            DWRITE_FONT_METRICS dwFontMetrics;
+            dwFontFace->GetMetrics(&dwFontMetrics);
+
+            // All Font Metrics are in design units so we need to get designUnitsPerEm value
+            // to get the metrics into Em/Design Independent Pixels
+            designUnitsPerEm = dwFontMetrics.designUnitsPerEm;
+
+            ascent = std::abs((float)dwFontMetrics.ascent);
+            auto totalSize = ascent + std::abs((float)dwFontMetrics.descent);
+            ascent /= totalSize;
+            unitsToHeightScaleFactor = (float)designUnitsPerEm / totalSize;
+
+            auto tempDC = GetDC(nullptr);
+            auto dpi = (float)(GetDeviceCaps(tempDC, LOGPIXELSX) + GetDeviceCaps(tempDC, LOGPIXELSY)) / 2.0f;
+            heightToPointsFactor = (dpi / (float)GetDeviceCaps(tempDC, LOGPIXELSY)) * unitsToHeightScaleFactor;
+            ReleaseDC(nullptr, tempDC);
+
+            auto pathAscent = (1024.0f * dwFontMetrics.ascent) / (float)designUnitsPerEm;
+            auto pathDescent = (1024.0f * dwFontMetrics.descent) / (float)designUnitsPerEm;
+            auto pathScale = 1.0f / (std::abs(pathAscent) + std::abs(pathDescent));
+            pathTransform = AffineTransform::scale(pathScale);
+        }
+    }
 
     struct PathGeometrySink  : public ComBaseClassHelper<IDWriteGeometrySink>
     {

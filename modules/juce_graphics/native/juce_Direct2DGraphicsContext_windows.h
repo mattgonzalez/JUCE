@@ -26,16 +26,113 @@
 namespace juce
 {
 
-#ifndef _WINDEF_
+#if ! defined(_WINDEF_) && ! defined(__INTELLISENSE__)
 class HWND__; // Forward or never
 typedef HWND__* HWND;
 #endif
 
-class Direct2DLowLevelGraphicsContext   : public LowLevelGraphicsContext
+#if JUCE_DIRECT2D_METRICS
+
+namespace direct2d
+{
+    struct PaintStats : public ReferenceCountedObject
+    {
+        enum
+        {
+            messageThreadPaintDuration,
+            renderThreadPaintDuration,
+            presentDuration,
+            present1Duration,
+            swapChainEventInterval,
+            swapChainMessageTransitTime,
+            swapChainMessageInterval,
+            vblankToBeginDraw,
+
+            numStats
+        };
+
+        StringArray const accumulatorNames {
+            "messageThreadPaintDuration",
+            "renderThreadPaintDuration",
+            "presentDuration",
+            "present1Duration",
+            "swapChainEventInterval",
+            "swapChainMessageTransitTime",
+            "swapChainMessageInterval",
+            "VBlank to BeginDraw"
+        };
+
+        int64 const creationTime = Time::getMillisecondCounter();
+        double const millisecondsPerTick = 1000.0 / (double) Time::getHighResolutionTicksPerSecond();
+        int paintCount = 0;
+        int presentCount = 0;
+        int present1Count = 0;
+        int64 lastPaintStartTicks = 0;
+        uint64 lockAcquireMaxTicks = 0;
+
+        ~PaintStats()
+        {
+        }
+
+        using Ptr = ReferenceCountedObjectPtr<PaintStats>;
+
+        StatisticsAccumulator<double> const& getAccumulator (int index) const
+        {
+            return accumulators[index];
+        }
+
+        void addValueTicks (int index, int64 ticks)
+        {
+            addValueMsec (index, Time::highResolutionTicksToSeconds (ticks) * 1000.0);
+        }
+
+        void addValueMsec (int index, double value)
+        {
+            accumulators[index].addValue (value);
+        }
+
+    private:
+        StatisticsAccumulator<double> accumulators[numStats];
+    };
+
+    struct ScopedElapsedTime
+    {
+        ScopedElapsedTime (PaintStats::Ptr stats_, int accumulatorIndex_) : stats (stats_),
+                                                                            accumulatorIndex (accumulatorIndex_)
+        {
+        }
+
+        ~ScopedElapsedTime()
+        {
+            auto finishTicks = Time::getHighResolutionTicks();
+            stats->addValueTicks (accumulatorIndex, finishTicks - startTicks);
+        }
+
+        int64 startTicks = Time::getHighResolutionTicks();
+        PaintStats::Ptr stats;
+        int accumulatorIndex;
+    };
+} // namespace direct2d
+
+#endif
+
+#if JUCE_ETW_TRACELOGGING
+
+struct ETWEventProvider
+{
+    ETWEventProvider();
+    ~ETWEventProvider();
+};
+
+#endif
+
+class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext (HWND);
-    ~Direct2DLowLevelGraphicsContext();
+    Direct2DLowLevelGraphicsContext (HWND, bool opaque_);
+    ~Direct2DLowLevelGraphicsContext() override;
+
+    void handleChildWindowChange (bool visible);
 
     //==============================================================================
     bool isVectorDevice() const override { return false; }
@@ -67,7 +164,9 @@ public:
     void fillRect (const Rectangle<int>&, bool replaceExistingContents) override;
     void fillRect (const Rectangle<float>&) override;
     void fillRectList (const RectangleList<float>&) override;
+    bool drawRect (const Rectangle<float>&, float) override;
     void fillPath (const Path&, const AffineTransform&) override;
+    bool drawPath (const Path&, const PathStrokeType& strokeType, const AffineTransform&) override;
     void drawImage (const Image& sourceImage, const AffineTransform&) override;
 
     //==============================================================================
@@ -75,27 +174,53 @@ public:
     void setFont (const Font&) override;
     const Font& getFont() override;
     void drawGlyph (int glyphNumber, const AffineTransform&) override;
+    bool supportsGlyphRun() override { return true; }
+    void drawGlyphRun (Array<PositionedGlyph> const& glyphs, 
+        int startIndex, 
+        int numGlyphs, 
+        const AffineTransform& transform,
+                       Rectangle<float> underlineArea) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
-    void resized();
-    void clear();
+    void startResizing();
+    void resize();
+    void resize (int width, int height);
+    void finishResizing();
+    void restoreWindow();
 
-    void start();
-    void end();
+    void addDeferredRepaint (Rectangle<int> deferredRepaint);
+    void addInvalidWindowRegionToDeferredRepaints();
+    bool startFrame();
+    void endFrame();
+
+    void setScaleFactor (double scale_);
+    double getScaleFactor() const;
+
+    bool drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness) override;
+    bool fillRoundedRectangle (Rectangle<float> area, float cornerSize) override;
+
+    bool drawEllipse (Rectangle<float> area, float lineThickness) override;
+    bool fillEllipse (Rectangle<float> area) override;
+
+    std::function<void()> swapChainReadyCallback = nullptr;
+
+    static uint32 constexpr customMessageID = 0x400 + 0xd2d; // WM_USER + 0xd2d
+    static int constexpr minWindowSize = 1;
+    static int constexpr maxWindowSize = 16384;
 
     //==============================================================================
 private:
-    struct SavedState;
-
-    HWND hwnd;
-
-    SavedState* currentState;
-    OwnedArray<SavedState> states;
-
-    Rectangle<int> bounds;
+    struct ClientSavedState;
+    ClientSavedState* currentState = nullptr;
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;
+
+#if JUCE_DIRECT2D_METRICS
+    direct2d::PaintStats::Ptr stats;
+#endif
+
+    void drawGlyphCommon(int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsContext)
 };

@@ -948,9 +948,6 @@ public:
 Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, bool opaque_)
     : currentState (nullptr),
       pimpl (new Pimpl { *this, hwnd_, opaque_ })
-#if JUCE_DIRECT2D_METRICS
-    ,stats(new direct2d::PaintStats))
-#endif
 {
     resize();
 }
@@ -1575,12 +1572,5 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon(int numGlyphs, const Affin
         fillRect(underlineArea);
     }
 }
-
-#if JUCE_DIRECT2D_METRICS
-void Direct2DLowLevelGraphicsContext::setStats (direct2d::PaintStats::Ptr stats_)
-{
-    stats = stats_;
-}
-#endif
 
 } // namespace juce

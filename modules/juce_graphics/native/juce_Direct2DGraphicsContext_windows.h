@@ -74,6 +74,18 @@ namespace direct2d
         {
         }
 
+        void reset()
+        {
+            for (auto& accumulator : accumulators)
+            {
+                accumulator.reset();
+            }
+            lastPaintStartTicks = 0;
+            paintCount = 0;
+            present1Count = 0;
+            lockAcquireMaxTicks = 0;
+        }
+
         using Ptr = ReferenceCountedObjectPtr<PaintStats>;
 
         StatisticsAccumulator<double> const& getAccumulator (int index) const
@@ -208,6 +220,10 @@ public:
     static int constexpr minWindowSize = 1;
     static int constexpr maxWindowSize = 16384;
 
+#if JUCE_DIRECT2D_METRICS
+    direct2d::PaintStats::Ptr stats;
+#endif
+
     //==============================================================================
 private:
     struct ClientSavedState;
@@ -215,10 +231,6 @@ private:
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;
-
-#if JUCE_DIRECT2D_METRICS
-    direct2d::PaintStats::Ptr stats;
-#endif
 
     void drawGlyphCommon(int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
 

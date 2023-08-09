@@ -159,7 +159,7 @@ namespace direct2d
             void start()
             {
                 jassert (MessageManager::getInstance()->isThisTheMessageThread());
-                startThread (Thread::Priority::low);
+                startThread (Thread::Priority::normal);
             }
 
             void stop()

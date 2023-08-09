@@ -661,6 +661,7 @@ public:
     void addDeferredRepaint(Rectangle<int> deferredRepaint)
     {
         deferredRepaints.add(deferredRepaint);
+        prepare();
     }
 
     void addInvalidWindowRegionToDeferredRepaints()
@@ -668,6 +669,7 @@ public:
         updateRegion.getRECTAndValidate(parentHwnd);
         updateRegion.addToRectangleList(deferredRepaints);
         updateRegion.clear();
+        prepare();
     }
 
     bool allocateResources()

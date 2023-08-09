@@ -42,13 +42,6 @@ namespace direct2d
             messageThread.stop();
         }
 
-        void setSize()
-        {
-            RECT r;
-            GetClientRect(GetParent(childHwnd), &r);
-            setSize({ r.right - r.left, r.bottom - r.top });
-        }
-
         void setSize (Rectangle<int> size)
         {
             TRACE_LOG_D2D(etw::childWindowSetSize);

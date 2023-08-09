@@ -39,7 +39,6 @@
 
     -minimize calls to SetTransform
     -text analyzer?
-    -ClipToImageAlphaOp doesn't look right with shear transforms
     -ID2D1DrawingStateBlock?
     -recycle state structs
     -use std::stack for layers
@@ -610,10 +609,6 @@ public:
         {
             resize(windowSize);
         }
-
-#if DIRECT2D_CHILD_WINDOW
-        //ShowWindow(childWindow.childHwnd, SW_SHOW);
-#endif
     }
 
     void resize(Rectangle<int> size)
@@ -625,12 +620,6 @@ public:
             //
             // Require the entire window to be repainted
             //
-#if DIRECT2D_CHILD_WINDOW
-            if (resizing)
-            {
-                //ShowWindow(childWindow.childHwnd, SW_HIDE);
-            }
-#endif
             windowSize = size;
             deferredRepaints = size;
 
@@ -639,7 +628,7 @@ public:
 #if DIRECT2D_CHILD_WINDOW
                 childWindow.setSize(size);
 #endif
-                swap.resize(size, 1.0, deviceContext, opaqueFlag);
+                swap.resize(size, (float) dpiScalingFactor, deviceContext, opaqueFlag);
             }
         }
     }
@@ -701,26 +690,6 @@ public:
         // Cheesy resize
         //
         auto parentWindowSize = getParentClientRect();
-
-#if 0
-        if (parentWindowSize != swap.getSize())
-        {
-            if (!areResourcesAllocated())
-            {
-                return nullptr;
-            }
-
-#if DIRECT2D_CHILD_WINDOW
-            childWindow.setSize (parentWindowSize);
-#endif
-            auto hr =  swap.resize(parentWindowSize, 1.0, deviceResources.deviceContext, opaqueFlag);
-            if (FAILED (hr))
-            {
-                teardown();
-                return nullptr;
-            }
-        }
-#endif
 
         //
         // Paint if:

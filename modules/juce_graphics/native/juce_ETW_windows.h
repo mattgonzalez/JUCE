@@ -1,11 +1,5 @@
 #pragma once
 
-#if JUCE_ETW_TRACELOGGING
-
-#define JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE ETWGlobalTraceLoggingProvider
-
-TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
-
 namespace juce
 {
     namespace etw
@@ -35,11 +29,20 @@ namespace juce
             resize,
             swapChainMessage,
             parentWindowMessage,
-            childWindowMessage
+            childWindowMessage,
+            direct2dStartFrame,
+            childWindowSetSize,
+            createResource,
+            presentIdleFrame
         };
     }
 }
 
+#if JUCE_ETW_TRACELOGGING
+
+#define JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE ETWGlobalTraceLoggingProvider
+
+TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
 
 #define TraceLoggingWriteWrapper(hProvider, eventName, ...) TraceLoggingWrite(hProvider, eventName, __VA_ARGS__)
 
@@ -48,6 +51,29 @@ namespace juce
 #define TraceLoggingWriteWrapper(hProvider, eventName, ...)
 
 #endif
+
+#define TRACE_LOG_D2D(code) \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   "D2D start frame ", \
+                   TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
+                   TraceLoggingInt32 (code, "code"))
+
+#define TRACE_LOG_D2D_CREATE_RESOURCE(name) \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   "D2D start frame ", \
+                   TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
+                   TraceLoggingString(name), \
+                   TraceLoggingInt32 (etw::createResource, "code"))
+
+#define TRACE_LOG_D2D_START_FRAME \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   "D2D start frame ", \
+                   TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
+                   TraceLoggingInt32 (etw::direct2dStartFrame, "code"))
+
 
 #define TRACE_LOG_D2D_PAINT_START(frameNumber) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
@@ -135,9 +161,10 @@ namespace juce
                        TraceLoggingInt32 (etw::parentWindowMessage, "code"))
 
 
-#define TRACE_LOG_CHILD_WINDOW_MESSAGE                                  \
+#define TRACE_LOG_CHILD_WINDOW_MESSAGE(message)                            \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
                        "Child window message",                   \
                        TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                        TraceLoggingKeyword (etw::messageKeyword), \
+                       TraceLoggingInt32(message, "message"), \
                        TraceLoggingInt32 (etw::childWindowMessage, "code"))

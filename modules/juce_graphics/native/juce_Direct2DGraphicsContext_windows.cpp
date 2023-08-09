@@ -484,10 +484,6 @@ private:
             return E_FAIL;
         }
 
-#if DIRECT2D_CHILD_WINDOW
-        childWindow.setSize(parentWindowSize);
-#endif
-
         if (!deviceResources.canPaint())
         {
             if (auto hr = deviceResources.create(sharedFactories->getDirect2DFactory()); FAILED(hr))
@@ -498,6 +494,10 @@ private:
 
         if (!swap.canPaint())
         {
+#if DIRECT2D_CHILD_WINDOW
+            childWindow.setSize(parentWindowSize);
+#endif
+
             if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory, opaqueFlag); FAILED (hr))
             {
                 return hr;
@@ -536,18 +536,23 @@ private:
         return swapChainReadyThread.eventSignaled.compare_exchange_weak(expected, false);
     }
 
+#if 0
     void swapChainSignaledReady() override
     {
+#if 0
+
         if (owner.swapChainReadyCallback)
         {
             owner.swapChainReadyCallback();
         }
+#endif
     }
 
     void swapChainTimedOut() override
     {
         teardown();
     }
+#endif
 
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
@@ -1006,6 +1011,8 @@ void Direct2DLowLevelGraphicsContext::addInvalidWindowRegionToDeferredRepaints()
 
 bool Direct2DLowLevelGraphicsContext::startFrame()
 {
+    TRACE_LOG_D2D_START_FRAME;
+
     Rectangle<int> initialClipBounds;
     if (currentState = pimpl->startFrame (initialClipBounds); currentState != nullptr)
     {
@@ -1019,7 +1026,10 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
         return true;
     }
 
-    pimpl->presentLastFrameAgain();
+    //
+    // Present the last frame again to keep the swap chain event firing
+    //
+    pimpl->presentIdleFrame();
 
     return false;
 }

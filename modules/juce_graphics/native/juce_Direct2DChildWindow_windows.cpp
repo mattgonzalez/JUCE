@@ -51,6 +51,8 @@ namespace direct2d
 
         void setSize (Rectangle<int> size)
         {
+            TRACE_LOG_D2D(etw::childWindowSetSize);
+
             SetWindowPos(childHwnd, nullptr, 0, 0,
                 size.getWidth(), size.getHeight(), SWP_DEFERERASE | SWP_NOREDRAW);
         }
@@ -94,7 +96,6 @@ namespace direct2d
             LPARAM lParam)
         {
             //Logger::outputDebugString("child window proc " + String::toHexString((int)message));
-            TRACE_LOG_CHILD_WINDOW_MESSAGE;
 
             if (WM_CREATE == message)
             {
@@ -229,6 +230,9 @@ namespace direct2d
                         {
                             return;
                         }
+
+                        //Logger::outputDebugString("child window msg " + String::toHexString((int)message.message));
+                        TRACE_LOG_CHILD_WINDOW_MESSAGE(message.message);
 
                         TranslateMessage (&message);
                         DispatchMessage (&message);

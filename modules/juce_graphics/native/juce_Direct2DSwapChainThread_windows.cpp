@@ -72,6 +72,7 @@ namespace direct2d
                         {
                             ComSmartPtr<IDXGIAdapter> dxgiAdapter;
                             hr = dxgiDevice->GetAdapter (dxgiAdapter.resetAndGetPointerAddress());
+                            TRACE_LOG_D2D_CREATE_RESOURCE("dxgiAdapter");
                             if (SUCCEEDED (hr))
                             {
                                 hr = dxgiAdapter->GetParent (__uuidof (dxgiFactory), reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
@@ -79,9 +80,11 @@ namespace direct2d
                                 {
                                     ComSmartPtr<ID2D1Device> direct2DDevice;
                                     hr = direct2dFactory->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
+                                    TRACE_LOG_D2D_CREATE_RESOURCE("dxgiDevice");
                                     if (SUCCEEDED (hr))
                                     {
                                         hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, deviceContext.resetAndGetPointerAddress());
+                                        TRACE_LOG_D2D_CREATE_RESOURCE("deviceContext");
                                         if (SUCCEEDED (hr))
                                         {
                                             deviceContext->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
@@ -144,7 +147,6 @@ namespace direct2d
 
         HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory, bool opaque)
         {
-            DBG("create swap chain " << size.toString());
             if (dxgiFactory && direct3DDevice && (! chain || ! chain2) && hwnd)
             {
                 HRESULT hr = S_OK;
@@ -190,6 +192,8 @@ namespace direct2d
 
                 if (SUCCEEDED (hr))
                 {
+                    TRACE_LOG_D2D_CREATE_RESOURCE("swapchain");
+
                     //
                     // Get the waitable swap chain presentation event and set the maximum frame latency
                     //
@@ -235,6 +239,8 @@ namespace direct2d
 
                     hr = deviceContext->CreateBitmapFromDxgiSurface (surface, bitmapProperties, buffer.resetAndGetPointerAddress());
                     jassert (SUCCEEDED (hr));
+
+                    TRACE_LOG_D2D_CREATE_RESOURCE("swapchain buffer");
 
                     if (SUCCEEDED (hr))
                     {

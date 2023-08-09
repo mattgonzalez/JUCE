@@ -839,21 +839,48 @@ public:
         frameNumber++;
     }
 
-    void presentLastFrameAgain()
+    void presentIdleFrame()
     {
-        bool ready = allocateResources();
-        ready |= swap.state == direct2d::SwapChain::bufferFilled;
-        ready |= deferredRepaints.getNumRectangles() > 0;
-        if (ready)
+        TRACE_LOG_D2D(etw::presentIdleFrame);
+
+        if (allocateResources())
         {
             if (checkAndClearSwapChainReadyFlag())
             {
-                TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_START(-frameNumber);
+                switch (swap.state)
+                {
+                case direct2d::SwapChain::bufferAllocated:
+                {
+                    deviceResources.deviceContext->SetTarget(swap.buffer);
+                    deviceResources.deviceContext->BeginDraw();
+                    deviceResources.deviceContext->Clear();
+                    auto hr = deviceResources.deviceContext->EndDraw();
+                    deviceResources.deviceContext->SetTarget(nullptr);
+                    if (SUCCEEDED(hr))
+                    {
+                        hr = swap.chain->Present(swap.presentSyncInterval, 0);
+                        jassert(SUCCEEDED(hr));
+                    }
 
-                auto hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
-                jassert(SUCCEEDED(hr));
+                    swap.state = direct2d::SwapChain::bufferFilled;
 
-                TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
+                    break;
+                }
+
+                case direct2d::SwapChain::bufferFilled:
+                {
+                    //
+                    // Present the same buffer again without flipping the swap chain
+                    //
+                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_START(-frameNumber);
+
+                    auto hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
+                    jassert(SUCCEEDED(hr));
+
+                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
+                    break;
+                }
+                }
             }
         }
     }

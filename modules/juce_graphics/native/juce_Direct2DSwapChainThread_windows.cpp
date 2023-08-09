@@ -405,6 +405,8 @@ namespace direct2d
 
         void messageCallback() override
         {
+            TRACE_LOG_SWAP_CHAIN_MESSAGE;
+
             if (swapChainListener)
             {
                 swapChainListener->swapChainSignaledReady ();

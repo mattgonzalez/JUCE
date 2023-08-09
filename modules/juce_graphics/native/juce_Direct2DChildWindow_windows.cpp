@@ -94,6 +94,7 @@ namespace direct2d
             LPARAM lParam)
         {
             //Logger::outputDebugString("child window proc " + String::toHexString((int)message));
+            TRACE_LOG_CHILD_WINDOW_MESSAGE;
 
             if (WM_CREATE == message)
             {

@@ -698,31 +698,6 @@ public:
 #endif
 
         //
-        // Cheesy resize
-        //
-        auto parentWindowSize = getParentClientRect();
-
-#if 0
-        if (parentWindowSize != swap.getSize())
-        {
-            if (!areResourcesAllocated())
-            {
-                return nullptr;
-            }
-
-#if DIRECT2D_CHILD_WINDOW
-            childWindow.setSize (parentWindowSize);
-#endif
-            auto hr =  swap.resize(parentWindowSize, 1.0, deviceResources.deviceContext, opaqueFlag);
-            if (FAILED (hr))
-            {
-                teardown();
-                return nullptr;
-            }
-        }
-#endif
-
-        //
         // Paint if:
         //      resources are allocated
         //      deferredRepaints has areas to be painted
@@ -740,7 +715,7 @@ public:
         //
         if (swap.state == direct2d::SwapChain::bufferAllocated)
         {
-            deferredRepaints = parentWindowSize;
+            deferredRepaints = swap.getSize();
         }
 
         auto paintBounds = deferredRepaints.getBounds();

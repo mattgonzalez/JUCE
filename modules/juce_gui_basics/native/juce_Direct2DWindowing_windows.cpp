@@ -268,6 +268,8 @@ private:
     {
         //DBG ("D2D peerWindowProc " << String::toHexString ((int) message));
 
+        TRACE_LOG_PARENT_WINDOW_MESSAGE(message);
+
         switch (message)
         {
             case WM_NCCALCSIZE:

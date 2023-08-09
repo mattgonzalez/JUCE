@@ -32,7 +32,10 @@ namespace juce
             presentDoNotSequenceEnd,
             swapChainThreadEvent,
             waitForVBlankDone,
-            resize
+            resize,
+            swapChainMessage,
+            parentWindowMessage,
+            childWindowMessage
         };
     }
 }
@@ -101,6 +104,13 @@ namespace juce
                        TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
                        TraceLoggingInt32 (etw::swapChainThreadEvent, "code"))
 
+#define TRACE_LOG_SWAP_CHAIN_MESSAGE                                  \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
+                       "Swap chain ready message",                   \
+                       TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                       TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
+                       TraceLoggingInt32 (etw::swapChainMessage, "code"))
+
 #define TRACE_LOG_JUCE_VBLANK_THREAD_EVENT                          \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
                        "VBlankThread WaitForVBlank done",           \
@@ -115,3 +125,19 @@ namespace juce
                               TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
                                TraceLoggingInt32 (message, "message"),\
                               TraceLoggingInt32 (etw::resize, "code"))
+
+#define TRACE_LOG_PARENT_WINDOW_MESSAGE(message)                               \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
+                       "Parent window message",                   \
+                       TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                       TraceLoggingKeyword (etw::messageKeyword), \
+                       TraceLoggingInt32 (message, "message"),\
+                       TraceLoggingInt32 (etw::parentWindowMessage, "code"))
+
+
+#define TRACE_LOG_CHILD_WINDOW_MESSAGE                                  \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
+                       "Child window message",                   \
+                       TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                       TraceLoggingKeyword (etw::messageKeyword), \
+                       TraceLoggingInt32 (etw::childWindowMessage, "code"))

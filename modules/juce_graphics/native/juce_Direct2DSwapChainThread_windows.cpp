@@ -144,6 +144,7 @@ namespace direct2d
 
         HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory, bool opaque)
         {
+            DBG("create swap chain " << size.toString());
             if (dxgiFactory && direct3DDevice && (! chain || ! chain2) && hwnd)
             {
                 HRESULT hr = S_OK;
@@ -282,6 +283,11 @@ namespace direct2d
                     hr = createBuffer (deviceContext, opaque);
                 }
 
+                if (FAILED(hr))
+                {
+                    release();
+                }
+
                 return hr;
             }
 
@@ -390,15 +396,27 @@ namespace direct2d
         virtual ~SwapChainListener() = default;
 
         virtual void swapChainSignaledReady() = 0;
+        virtual void swapChainTimedOut() = 0;
 
         JUCE_DECLARE_WEAK_REFERENCEABLE (SwapChainListener)
     };
 
-    struct SwapChainReadyMessage : public CallbackMessage
+    struct SwapChainMessage : public CallbackMessage
     {
-        SwapChainReadyMessage (SwapChainListener* swapChainListener_, int64 swapChainReadyTicks_)
-            : swapChainListener (swapChainListener_),
-            swapChainReadyTicks (swapChainReadyTicks_)
+        SwapChainMessage (SwapChainListener* swapChainListener_)
+            : swapChainListener (swapChainListener_)
+        {
+        }
+        ~SwapChainMessage() override = default;
+
+        WeakReference<SwapChainListener> swapChainListener;
+    };
+
+    struct SwapChainReadyMessage : public SwapChainMessage
+    {
+        SwapChainReadyMessage(SwapChainListener* swapChainListener_, int64 swapChainReadyTicks_) :
+            SwapChainMessage(swapChainListener_),
+            swapChainReadyTicks(swapChainReadyTicks_)
         {
         }
         ~SwapChainReadyMessage() override = default;
@@ -407,18 +425,28 @@ namespace direct2d
         {
             if (swapChainListener)
             {
-                swapChainListener->swapChainSignaledReady ();
+                swapChainListener->swapChainSignaledReady();
             }
         }
 
-        static void createAndPost (SwapChainListener* swapChainListener_, int64 swapChainReadyTicks_)
-        {
-            (new SwapChainReadyMessage { swapChainListener_, swapChainReadyTicks_ })->post();
-        }
-
-        WeakReference<SwapChainListener> swapChainListener;
-        int64 messageCreationTicks = Time::getHighResolutionTicks();
         int64 swapChainReadyTicks;
+    };
+
+    struct SwapChainTimeoutMessage : public SwapChainMessage
+    {
+        SwapChainTimeoutMessage(SwapChainListener* swapChainListener_) :
+            SwapChainMessage(swapChainListener_)
+        {
+        }
+        ~SwapChainTimeoutMessage() override = default;
+
+        void messageCallback() override
+        {
+            if (swapChainListener)
+            {
+                swapChainListener->swapChainTimedOut();
+            }
+        }
     };
 
     //==============================================================================
@@ -472,7 +500,8 @@ namespace direct2d
 
             while (!threadShouldExit())
             {
-                auto waitResult = WaitForMultipleObjects(2, events, FALSE, INFINITE);
+                int constexpr timeoutMsec = 100;
+                auto waitResult = WaitForMultipleObjects(2, events, FALSE, timeoutMsec);
                 switch (waitResult)
                 {
                 case WAIT_OBJECT_0 + shutdownEvent:
@@ -486,7 +515,16 @@ namespace direct2d
 
                     eventSignaled.store(true);
 
-                    SwapChainReadyMessage::createAndPost(swapChainListener, Time::getHighResolutionTicks());
+                    (new SwapChainReadyMessage{ swapChainListener, Time::getHighResolutionTicks() })->post();
+                    break;
+                }
+
+                case WAIT_TIMEOUT:
+                {
+                    //
+                    // Swap chain event didn't fire
+                    //
+                    (new SwapChainTimeoutMessage{ swapChainListener })->post();
                     break;
                 }
 

@@ -472,17 +472,21 @@ private:
 
     HRESULT prepare()
     {
-        auto size = getParentClientRect();
+        auto parentWindowSize = getParentClientRect();
 #if DIRECT2D_CHILD_WINDOW
         auto swapChainHwnd = childWindow.childHwnd;
 #else
         auto swapChainHwnd = parentHwnd;
 #endif
 
-        if (!swapChainHwnd || size.isEmpty())
+        if (!swapChainHwnd || parentWindowSize.isEmpty())
         {
             return E_FAIL;
         }
+
+#if DIRECT2D_CHILD_WINDOW
+        childWindow.setSize(parentWindowSize);
+#endif
 
         if (!deviceResources.canPaint())
         {
@@ -494,7 +498,7 @@ private:
 
         if (!swap.canPaint())
         {
-            if (auto hr = swap.create (swapChainHwnd, size, deviceResources.direct3DDevice, deviceResources.dxgiFactory, opaqueFlag); FAILED (hr))
+            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory, opaqueFlag); FAILED (hr))
             {
                 return hr;
             }
@@ -538,6 +542,11 @@ private:
         {
             owner.swapChainReadyCallback();
         }
+    }
+
+    void swapChainTimedOut() override
+    {
+        teardown();
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
@@ -628,7 +637,8 @@ public:
 #if DIRECT2D_CHILD_WINDOW
                 childWindow.setSize(size);
 #endif
-                swap.resize(size, (float) dpiScalingFactor, deviceContext, opaqueFlag);
+                auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext, opaqueFlag);
+                jassert(SUCCEEDED(hr));
             }
         }
     }
@@ -660,7 +670,7 @@ public:
         updateRegion.clear();
     }
 
-    bool areResourcesAllocated()
+    bool allocateResources()
     {
         //
         // Is everything set up?
@@ -697,7 +707,7 @@ public:
         //      deferredRepaints has areas to be painted
         //      the swap chain is ready
         //
-        bool ready = areResourcesAllocated();
+        bool ready = allocateResources();
         ready |= deferredRepaints.getNumRectangles() > 0;
         if (!ready)
         {
@@ -817,6 +827,11 @@ public:
                 swap.state = direct2d::SwapChain::bufferFilled;
             }
 
+            if (FAILED(hr))
+            {
+                teardown();
+            }
+
             TRACE_LOG_D2D_PRESENT1_END (frameNumber);
         }
 
@@ -827,9 +842,9 @@ public:
         frameNumber++;
     }
 
-    void presentLastFrame()
+    void presentLastFrameAgain()
     {
-        bool ready = areResourcesAllocated();
+        bool ready = allocateResources();
         ready |= swap.state == direct2d::SwapChain::bufferFilled;
         ready |= deferredRepaints.getNumRectangles() > 0;
         if (ready)
@@ -980,7 +995,7 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
         return true;
     }
 
-    pimpl->presentLastFrame();
+    pimpl->presentLastFrameAgain();
 
     return false;
 }

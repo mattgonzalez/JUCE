@@ -440,7 +440,7 @@ public:
 
 //==============================================================================
 
-struct Direct2DLowLevelGraphicsContext::Pimpl : public direct2d::SwapChainListener
+struct Direct2DLowLevelGraphicsContext::Pimpl
 {
 private:
     Direct2DLowLevelGraphicsContext& owner;
@@ -552,12 +552,12 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, bool opaque_) : owner(owner_),
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque_) : owner(owner_),
         opaqueFlag(opaque_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
-        swapChainReadyThread(this),
+        swapChainReadyThread(listener_),
         parentHwnd(hwnd_)
     {
     }
@@ -924,9 +924,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, bool opaque_)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque_)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, opaque_ })
+      pimpl (new Pimpl { *this, hwnd_, listener_, opaque_ })
 {
     resize();
 }

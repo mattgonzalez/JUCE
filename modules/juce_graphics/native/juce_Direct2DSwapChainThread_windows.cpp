@@ -391,16 +391,6 @@ namespace direct2d
     // SwapChainReadyMessage
     //
 
-    struct SwapChainListener
-    {
-        virtual ~SwapChainListener() = default;
-
-        virtual void swapChainSignaledReady() = 0;
-        virtual void swapChainTimedOut() = 0;
-
-        JUCE_DECLARE_WEAK_REFERENCEABLE (SwapChainListener)
-    };
-
     struct SwapChainMessage : public CallbackMessage
     {
         SwapChainMessage (SwapChainListener* swapChainListener_)

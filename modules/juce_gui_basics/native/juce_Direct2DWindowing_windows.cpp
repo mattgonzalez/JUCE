@@ -41,7 +41,7 @@
 
 #if JUCE_DIRECT2D
 
-class Direct2DComponentPeer : public HWNDComponentPeer
+class Direct2DComponentPeer : public HWNDComponentPeer, public direct2d::SwapChainListener
 {
 public:
     enum
@@ -144,10 +144,20 @@ private:
         HWNDComponentPeer::handlePaintMessage();
     }
 
+    void swapChainSignaledReady()
+    {
+        //         vBlankListeners.call ([] (auto& l)
+        //                               { l.onVBlank(); });
+
+        if (direct2DContext)
+        {
+            handleDirect2DPaint();
+        }
+    }
+
     void handleDirect2DSwapChainReady()
     {
-        vBlankListeners.call ([] (auto& l)
-                              { l.onVBlank(); });
+        vBlankListeners.call ([] (auto& l) { l.onVBlank(); });
 
         if (direct2DContext)
         {
@@ -202,16 +212,11 @@ private:
         {
             VBlankDispatcher::getInstance()->removeListener (*this);
 
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, component.isOpaque());
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
 #endif
             direct2DContext->setScaleFactor (getPlatformScaleFactor());
-
-            direct2DContext->swapChainReadyCallback = [this]()
-            {
-                handleDirect2DSwapChainReady();
-            };
         }
     }
 

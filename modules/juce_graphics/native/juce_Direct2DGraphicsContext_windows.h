@@ -128,6 +128,19 @@ namespace direct2d
 
 #endif
 
+namespace direct2d
+{
+    struct SwapChainListener
+    {
+        virtual ~SwapChainListener() = default;
+
+        virtual void swapChainSignaledReady() = 0;
+        virtual void swapChainTimedOut() {}
+
+        JUCE_DECLARE_WEAK_REFERENCEABLE(SwapChainListener)
+    };
+};
+
 #if JUCE_ETW_TRACELOGGING
 
 struct ETWEventProvider
@@ -141,7 +154,7 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext (HWND, bool opaque_);
+    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const, bool opaque_);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleChildWindowChange (bool visible);
@@ -213,8 +226,6 @@ public:
 
     bool drawEllipse (Rectangle<float> area, float lineThickness) override;
     bool fillEllipse (Rectangle<float> area) override;
-
-    std::function<void()> swapChainReadyCallback = nullptr;
 
     static uint32 constexpr customMessageID = 0x400 + 0xd2d; // WM_USER + 0xd2d
     static int constexpr minWindowSize = 1;

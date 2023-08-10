@@ -221,7 +221,7 @@ private:
         {
             VBlankDispatcher::getInstance()->removeListener (*this);
 
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this, component.isOpaque());
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this);
 #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
 #endif

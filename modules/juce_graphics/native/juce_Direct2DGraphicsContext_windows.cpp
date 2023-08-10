@@ -282,10 +282,9 @@ public:
         return {};
     }
 
-    void setOpacity (float newOpacity, float windowAlpha)
+    void setOpacity (float newOpacity)
     {
         fillType.setOpacity (newOpacity);
-        updateCurrentBrushOpacity(windowAlpha);
     }
 
     void clearFill()
@@ -297,7 +296,7 @@ public:
         currentBrush = nullptr;
     }
 
-    void updateCurrentBrush (ID2D1DeviceContext* const deviceContext, float windowAlpha)
+    void updateCurrentBrush (ID2D1DeviceContext* const deviceContext)
     {
         if (fillType.isColour())
         {
@@ -369,7 +368,6 @@ public:
         }
 
         updateColourBrush();
-        updateCurrentBrushOpacity(windowAlpha);
     }
 
     void updateColourBrush()
@@ -378,14 +376,6 @@ public:
         {
             auto colour = direct2d::colourToD2D (fillType.colour);
             colourBrush->SetColor (colour);
-        }
-    }
-
-    void updateCurrentBrushOpacity(float windowAlpha)
-    {
-        if (currentBrush)
-        {
-            currentBrush->SetOpacity(fillType.getOpacity() * windowAlpha);
         }
     }
 
@@ -496,12 +486,12 @@ private:
             childWindow.setSize(parentWindowSize);
 #endif
 
-            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory, opaqueWindowFlag); FAILED (hr))
+            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory); FAILED (hr))
             {
                 return hr;
             }
 
-            if (auto hr = swap.createBuffer(deviceResources.deviceContext, opaqueWindowFlag); FAILED(hr))
+            if (auto hr = swap.createBuffer(deviceResources.deviceContext); FAILED(hr))
             {
                 return hr;
             }
@@ -509,7 +499,7 @@ private:
 
         if (!compositionTree.canPaint())
         {
-            if (auto hr = compositionTree.create (deviceResources.dxgiDevice, swapChainHwnd, swap.chain, opaqueWindowFlag); FAILED(hr))
+            if (auto hr = compositionTree.create (deviceResources.dxgiDevice, swapChainHwnd, swap.chain); FAILED(hr))
             {
                 return hr;
             }
@@ -555,13 +545,12 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaqueWindowFlag_) : owner(owner_),
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_) : owner(owner_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
         swapChainReadyThread(listener_),
-        parentHwnd(hwnd_),
-        opaqueWindowFlag(false)
+        parentHwnd(hwnd_)
     {
     }
 
@@ -637,7 +626,7 @@ public:
 #if DIRECT2D_CHILD_WINDOW
                 childWindow.setSize(size);
 #endif
-                auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext, opaqueWindowFlag);
+                auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
                 jassert(SUCCEEDED(hr));
             }
         }
@@ -944,7 +933,6 @@ public:
     HWND parentHwnd = nullptr;
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
-    bool opaqueWindowFlag = false;
 
 #if JUCE_DIRECT2D_METRICS
     int64 paintStartTicks = 0;
@@ -953,9 +941,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaqueWindowFlag_)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_, opaqueWindowFlag_ })
+      pimpl (new Pimpl { *this, hwnd_, listener_ })
 {
     resize();
 }
@@ -972,13 +960,6 @@ void Direct2DLowLevelGraphicsContext::handleChildWindowChange (bool visible)
 void Direct2DLowLevelGraphicsContext::setWindowAlpha(float alpha)
 {
     windowAlpha = alpha;
-    if (auto deviceContext = pimpl->getDeviceContext())
-    {
-        if (currentState)
-        {
-            currentState->updateCurrentBrush(deviceContext, windowAlpha);
-        }
-    }
 }
 
 void Direct2DLowLevelGraphicsContext::startResizing()
@@ -1032,7 +1013,12 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 
         setFont (currentState->font);
 
-        currentState->updateCurrentBrush(pimpl->getDeviceContext(), windowAlpha);
+        currentState->updateCurrentBrush(pimpl->getDeviceContext());
+
+        if (windowAlpha < 1.0f)
+        {
+            beginTransparencyLayer(windowAlpha);
+        }
 
         return true;
     }
@@ -1217,7 +1203,7 @@ void Direct2DLowLevelGraphicsContext::beginTransparencyLayer (float opacity)
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushTransparencyLayer(opacity * windowAlpha, deviceContext);
+        currentState->pushTransparencyLayer(opacity, deviceContext);
     }
 }
 
@@ -1234,13 +1220,13 @@ void Direct2DLowLevelGraphicsContext::setFill (const FillType& fillType)
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->fillType = fillType;
-        currentState->updateCurrentBrush(deviceContext, windowAlpha);
+        currentState->updateCurrentBrush(deviceContext);
     }
 }
 
 void Direct2DLowLevelGraphicsContext::setOpacity (float newOpacity)
 {
-    currentState->setOpacity(newOpacity, windowAlpha);
+    currentState->setOpacity(newOpacity);
 }
 
 void Direct2DLowLevelGraphicsContext::setInterpolationQuality (Graphics::ResamplingQuality quality)

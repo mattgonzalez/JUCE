@@ -145,7 +145,7 @@ namespace direct2d
             release();
         }
 
-        HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory, bool opaque)
+        HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
         {
             if (dxgiFactory && direct3DDevice && !chain && hwnd)
             {
@@ -167,26 +167,12 @@ namespace direct2d
                 swapChainDescription.SwapEffect = swapEffect;
                 swapChainDescription.Flags = swapChainFlags;
 
-                if (opaque)
-                {
-                    swapChainDescription.Scaling = DXGI_SCALING_NONE;
-                    swapChainDescription.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-                    hr = dxgiFactory->CreateSwapChainForHwnd (direct3DDevice,
-                                                              hwnd,
-                                                              &swapChainDescription,
-                                                              nullptr,
-                                                              nullptr,
-                                                              chain.resetAndGetPointerAddress());
-                }
-                else
-                {
-                    swapChainDescription.Scaling = DXGI_SCALING_STRETCH;
-                    swapChainDescription.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-                    hr = dxgiFactory->CreateSwapChainForComposition (direct3DDevice,
-                                                                     &swapChainDescription,
-                                                                     nullptr,
-                                                                     chain.resetAndGetPointerAddress());
-                }
+                swapChainDescription.Scaling = DXGI_SCALING_STRETCH;
+                swapChainDescription.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+                hr = dxgiFactory->CreateSwapChainForComposition(direct3DDevice,
+                    &swapChainDescription,
+                    nullptr,
+                    chain.resetAndGetPointerAddress());
                 jassert (SUCCEEDED (hr));
 
                 if (SUCCEEDED (hr))
@@ -224,7 +210,7 @@ namespace direct2d
             return S_OK;
         }
 
-        HRESULT createBuffer (ID2D1DeviceContext* const deviceContext, bool opaque)
+        HRESULT createBuffer (ID2D1DeviceContext* const deviceContext)
         {
             if (deviceContext && chain && ! buffer)
             {
@@ -235,7 +221,7 @@ namespace direct2d
                     D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
                     bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
                     bitmapProperties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-                    bitmapProperties.pixelFormat.alphaMode = opaque ? D2D1_ALPHA_MODE_IGNORE : D2D1_ALPHA_MODE_PREMULTIPLIED;
+                    bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
 
                     hr = deviceContext->CreateBitmapFromDxgiSurface (surface, bitmapProperties, buffer.resetAndGetPointerAddress());
                     jassert (SUCCEEDED (hr));
@@ -270,7 +256,7 @@ namespace direct2d
                 state >= bufferAllocated;
         }
 
-        HRESULT resize (Rectangle<int> newSize, float dpiScalingFactor, ID2D1DeviceContext* const deviceContext, bool opaque)
+        HRESULT resize (Rectangle<int> newSize, float dpiScalingFactor, ID2D1DeviceContext* const deviceContext)
         {
             if (chain)
             {
@@ -286,7 +272,7 @@ namespace direct2d
                 auto hr = chain->ResizeBuffers (0, scaledSize.getWidth(), scaledSize.getHeight(), DXGI_FORMAT_B8G8R8A8_UNORM, swapChainFlags);
                 if (SUCCEEDED (hr))
                 {
-                    hr = createBuffer (deviceContext, opaque);
+                    hr = createBuffer (deviceContext);
                 }
 
                 if (FAILED(hr))
@@ -336,14 +322,9 @@ namespace direct2d
     class CompositionTree
     {
     public:
-        HRESULT create (IDXGIDevice* const dxgiDevice, HWND hwnd, IDXGISwapChain1* const swapChain, bool opaqueFlag)
+        HRESULT create (IDXGIDevice* const dxgiDevice, HWND hwnd, IDXGISwapChain1* const swapChain)
         {
             HRESULT hr = S_OK;
-
-            if (opaqueFlag)
-            {
-                return S_OK;
-            }
 
             if (dxgiDevice && ! compositionDevice)
             {

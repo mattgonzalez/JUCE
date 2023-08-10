@@ -215,7 +215,7 @@ public:
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();
-    bool startFrame();
+    bool startFrame(float alpha);
     void endFrame();
 
     void setScaleFactor (double scale_);

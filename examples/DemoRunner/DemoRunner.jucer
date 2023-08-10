@@ -212,8 +212,9 @@
     <VS2022 targetFolder="Builds/VisualStudio2022" smallIcon="YyqWd2" bigIcon="YyqWd2"
             extraCompilerFlags="/w44265 /w45038 /w44062">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="DemoRunner"/>
-        <CONFIGURATION isDebug="0" name="Release" useRuntimeLibDLL="0" targetName="DemoRunner"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="DemoRunner" defines="JUCE_DIRECT2D=1"/>
+        <CONFIGURATION isDebug="0" name="Release" useRuntimeLibDLL="0" targetName="DemoRunner"
+                       defines="JUCE_DIRECT2D=1&#10;"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_video" path="../../modules"/>

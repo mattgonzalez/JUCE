@@ -1701,17 +1701,19 @@ public:
     HWNDComponentPeer (Component& comp, int windowStyleFlags, 
         HWND parent, 
         bool nonRepainting, 
-        int currentRenderingEngine_ = softwareRenderingEngine, 
-        std::function<DWORD (DWORD)> adjustWindowStyleFlags_ = nullptr)
+        int currentRenderingEngine_ = softwareRenderingEngine)
         : ComponentPeer (comp, windowStyleFlags),
           dontRepaint (nonRepainting),
           parentToAddTo (parent),
-            currentRenderingEngine (currentRenderingEngine_),
-            adjustWindowStyleFlags(adjustWindowStyleFlags_)
+          currentRenderingEngine (currentRenderingEngine_)
     {
-        callFunctionIfNotLocked (&createWindowCallback, this);
+    }
 
-        setTitle (component.getName());
+    virtual void initialise()
+    {
+        callFunctionIfNotLocked(&createWindowCallback, this);
+
+        setTitle(component.getName());
         updateShadower();
 
         getNativeRealtimeModifiers = []
@@ -1719,11 +1721,11 @@ public:
             HWNDComponentPeer::updateKeyModifiers();
 
             int mouseMods = 0;
-            if (HWNDComponentPeer::isKeyDown (VK_LBUTTON))  mouseMods |= ModifierKeys::leftButtonModifier;
-            if (HWNDComponentPeer::isKeyDown (VK_RBUTTON))  mouseMods |= ModifierKeys::rightButtonModifier;
-            if (HWNDComponentPeer::isKeyDown (VK_MBUTTON))  mouseMods |= ModifierKeys::middleButtonModifier;
+            if (HWNDComponentPeer::isKeyDown(VK_LBUTTON))  mouseMods |= ModifierKeys::leftButtonModifier;
+            if (HWNDComponentPeer::isKeyDown(VK_RBUTTON))  mouseMods |= ModifierKeys::rightButtonModifier;
+            if (HWNDComponentPeer::isKeyDown(VK_MBUTTON))  mouseMods |= ModifierKeys::middleButtonModifier;
 
-            ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withoutMouseButtons().withFlags (mouseMods);
+            ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withoutMouseButtons().withFlags(mouseMods);
 
             return ModifierKeys::currentModifiers;
         };
@@ -1731,9 +1733,9 @@ public:
         updateCurrentMonitorAndRefreshVBlankDispatcher();
 
         if (parentToAddTo != nullptr)
-            monitorUpdateTimer.emplace (1000, [this] { updateCurrentMonitorAndRefreshVBlankDispatcher(); });
+            monitorUpdateTimer.emplace(1000, [this] { updateCurrentMonitorAndRefreshVBlankDispatcher(); });
 
-        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
+        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration{ hwnd };
     }
 
     ~HWNDComponentPeer() override
@@ -2398,7 +2400,6 @@ protected:
     HWND hwnd, parentToAddTo;
     std::unique_ptr<DropShadower> shadower;
     int currentRenderingEngine;
-    std::function<DWORD(DWORD)> adjustWindowStyleFlags;
     uint32 lastPaintTime = 0;
     ULONGLONG lastMagnifySize = 0;
     bool fullScreen = false, isDragging = false, isMouseOver = false,
@@ -2587,6 +2588,11 @@ protected:
         return nullptr;
     }
 
+    virtual DWORD adjustWindowStyleFlags(DWORD exstyle)
+    {
+        return exstyle;
+    }
+
     void createWindow()
     {
         DWORD exstyle = 0;
@@ -2628,10 +2634,7 @@ protected:
         if ((styleFlags & windowIgnoresMouseClicks) != 0)   exstyle |= WS_EX_TRANSPARENT;
         if ((styleFlags & windowIsSemiTransparent) != 0)    exstyle |= WS_EX_LAYERED;
         
-        if (adjustWindowStyleFlags)
-        {
-            exstyle = adjustWindowStyleFlags (exstyle);
-        }
+        exstyle = adjustWindowStyleFlags (exstyle);
 
         hwnd = CreateWindowEx (exstyle, WindowClassHolder::getInstance()->getWindowClassName(),
                                L"", type, 0, 0, 0, 0, parentToAddTo, nullptr,
@@ -4681,7 +4684,9 @@ ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
 #else
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    return new HWNDComponentPeer (*this, styleFlags, (HWND) parentHWND, false);
+    auto peer = new HWNDComponentPeer (*this, styleFlags, (HWND) parentHWND, false);
+    peer->initialise();
+    return peer;
 }
 #endif
 

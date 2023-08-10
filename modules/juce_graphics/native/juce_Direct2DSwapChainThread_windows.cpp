@@ -147,13 +147,12 @@ namespace direct2d
 
         HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory, bool opaque)
         {
-            if (dxgiFactory && direct3DDevice && (! chain || ! chain2) && hwnd)
+            if (dxgiFactory && direct3DDevice && !chain && hwnd)
             {
                 HRESULT hr = S_OK;
 
                 buffer = nullptr;
                 chain = nullptr;
-                chain2 = nullptr;
 
                 //
                 // Make the waitable swap chain
@@ -197,6 +196,7 @@ namespace direct2d
                     //
                     // Get the waitable swap chain presentation event and set the maximum frame latency
                     //
+                    ComSmartPtr<IDXGISwapChain2> chain2;
                     chain.QueryInterface<IDXGISwapChain2> (chain2);
                     if (chain2)
                     {
@@ -317,7 +317,6 @@ namespace direct2d
         uint32 const presentSyncInterval = 1;
         uint32 const presentFlags = 0;
         ComSmartPtr<IDXGISwapChain1> chain;
-        ComSmartPtr<IDXGISwapChain2> chain2;
         ComSmartPtr<ID2D1Bitmap1> buffer;
         HANDLE swapChainEvent = nullptr;
         enum State

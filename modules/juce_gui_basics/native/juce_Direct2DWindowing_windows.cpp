@@ -55,25 +55,31 @@ public:
             windowStyleFlags, 
             parent,
             nonRepainting,
-            renderingEngine,
-            [this](DWORD exStyleFlags)
-            {
-                if (currentRenderingEngine == direct2DRenderingEngine)
-                {
-                    exStyleFlags &= ~WS_EX_TRANSPARENT;
-                    exStyleFlags &= ~WS_EX_LAYERED;
-                    exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
-                }
-
-                return exStyleFlags;
-            })
+            renderingEngine)
     {
+    }
+
+    void initialise() override
+    {
+        HWNDComponentPeer::initialise();
         updateDirect2DContext();
     }
 
     ~Direct2DComponentPeer() override
     {
         direct2DContext = nullptr;
+    }
+
+    DWORD adjustWindowStyleFlags(DWORD exStyleFlags) override
+    {
+        if (currentRenderingEngine == direct2DRenderingEngine)
+        {
+            exStyleFlags &= ~WS_EX_TRANSPARENT;
+            exStyleFlags &= ~WS_EX_LAYERED;
+            exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+        }
+
+        return exStyleFlags;
     }
 
     void updateBorderSize() override
@@ -85,7 +91,8 @@ public:
 
     void setAlpha (float newAlpha) override
     {
-        if (direct2DContext)
+        DBG("peer set alpha " << newAlpha);
+        if (currentRenderingEngine == direct2DRenderingEngine)
         {
             // nothing to do! already covered by paintEntireComponent
             component.repaint();
@@ -172,7 +179,7 @@ private:
         //
         // startFrame returns true if there are any areas to be painted and if the renderer is ready to go
         //
-        if (direct2DContext->startFrame())
+        if (direct2DContext->startFrame(component.getAlpha()))
         {
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
@@ -349,8 +356,11 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    int renderingEngine = getProperties()["Direct2D"] ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
-    return new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };
+    auto d2dProperty = getProperties()["Direct2D"];
+    int renderingEngine = (bool)d2dProperty ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
+    auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };
+    peer->initialise();
+    return peer;
 }
 
 #endif

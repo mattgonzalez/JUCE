@@ -221,11 +221,11 @@ public:
     void pushTransparencyLayer (float opacity, ID2D1DeviceContext* const deviceContext)
     {
         pushLayer (D2D1::LayerParameters (D2D1::InfiniteRect(),
-                                          nullptr,
-                                          D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
-                                          D2D1::IdentityMatrix(),
-                                          opacity),
-                   deviceContext);
+            nullptr,
+            D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+            D2D1::IdentityMatrix(),
+            opacity),
+            deviceContext);
     }
 
     void popLayers (ID2D1DeviceContext* deviceContext)
@@ -1002,7 +1002,7 @@ void Direct2DLowLevelGraphicsContext::addInvalidWindowRegionToDeferredRepaints()
     pimpl->addInvalidWindowRegionToDeferredRepaints();
 }
 
-bool Direct2DLowLevelGraphicsContext::startFrame()
+bool Direct2DLowLevelGraphicsContext::startFrame(float alpha)
 {
     TRACE_LOG_D2D_START_FRAME;
 
@@ -1015,6 +1015,11 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
         }
 
         setFont (currentState->font);
+
+        if (alpha < 1.0f)
+        {
+            //beginTransparencyLayer(alpha);
+        }
 
         return true;
     }

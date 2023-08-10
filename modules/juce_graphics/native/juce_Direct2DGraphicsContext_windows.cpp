@@ -193,7 +193,6 @@ public:
         //
         // Pass nullptr for the PushLayer layer parameter to allow Direct2D to manage the layers (Windows 8 or later)
         deviceContext->SetTransform (D2D1::IdentityMatrix());
-
         deviceContext->PushLayer (layerParameters, nullptr);
 
         pushedLayers.push (PushedLayer {});
@@ -460,13 +459,9 @@ private:
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
 
     int frameNumber = 0;
-    int64 startTicks = Time::getHighResolutionTicks();
-    int64 startPaintTicks = 0;
-    int64 finishPaintTicks = 0;
     RectangleList<int> deferredRepaints;
     Rectangle<int> windowSize;
     Rectangle<int> previousWindowSize;
-    bool resizing = false;
     int dirtyRectanglesCapacity = 0;
     HeapBlock<RECT> dirtyRectangles;
 
@@ -612,13 +607,10 @@ public:
     void startResizing()
     {
         previousWindowSize = windowSize;
-        resizing = true;
     }
 
     void finishResizing()
     {
-        resizing = false;
-
         if (previousWindowSize != windowSize)
         {
             resize(windowSize);
@@ -740,8 +732,6 @@ public:
 
         TRACE_LOG_D2D_PAINT_START(frameNumber);
 
-        startPaintTicks = Time::getHighResolutionTicks();
-
         initialClipBounds = paintBounds;
 
         //
@@ -836,8 +826,6 @@ public:
 
             TRACE_LOG_D2D_PRESENT1_END (frameNumber);
         }
-
-        finishPaintTicks = Time::getHighResolutionTicks();
 
         deferredRepaints.clear();
 
@@ -953,7 +941,7 @@ public:
 
 #if JUCE_DIRECT2D_METRICS
     int64 paintStartTicks = 0;
-    int64 lastSwapChainReadyMessageTicks = 0;
+    int64 paintEndTicks = 0;
 #endif
 };
 

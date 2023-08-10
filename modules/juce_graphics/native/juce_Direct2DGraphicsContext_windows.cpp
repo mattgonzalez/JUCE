@@ -1251,6 +1251,11 @@ void Direct2DLowLevelGraphicsContext::fillRect (const Rectangle<float>& r)
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
         deviceContext->FillRectangle (direct2d::rectangleToRectF (r), currentState->currentBrush);
     }
@@ -1266,6 +1271,11 @@ bool Direct2DLowLevelGraphicsContext::drawRect (const Rectangle<float>& r, float
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
         deviceContext->DrawRectangle (direct2d::rectangleToRectF (r), currentState->currentBrush, lineThickness);
     }
@@ -1277,6 +1287,11 @@ void Direct2DLowLevelGraphicsContext::fillPath (const Path& p, const AffineTrans
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return;
+        }
+
         if (auto geometry = direct2d::pathToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(), p, transform))
         {
             deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
@@ -1289,6 +1304,11 @@ bool Direct2DLowLevelGraphicsContext::drawPath (const Path& p, const PathStrokeT
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         if (auto factory = pimpl->sharedFactories->getDirect2DFactory())
         {
             if (auto geometry = direct2d::pathToPathGeometry (factory, p, transform))
@@ -1390,6 +1410,11 @@ void Direct2DLowLevelGraphicsContext::drawLine (const Line<float>& line)
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
         deviceContext->DrawLine (D2D1::Point2F (line.getStartX(), line.getStartY()),
                                  D2D1::Point2F (line.getEndX(), line.getEndY()),
@@ -1417,6 +1442,11 @@ void Direct2DLowLevelGraphicsContext::drawGlyph (int glyphNumber, const AffineTr
 
 bool Direct2DLowLevelGraphicsContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
 {
+    if (currentState->fillType.isInvisible())
+    {
+        return true;
+    }
+
     auto deviceContext = pimpl->getDeviceContext();
     auto directWriteFactory = pimpl->sharedFactories->getDirectWriteFactory();
     auto fontCollection = pimpl->sharedFactories->getSystemFonts();
@@ -1457,6 +1487,11 @@ bool Direct2DLowLevelGraphicsContext::drawRoundedRectangle (Rectangle<float> are
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
         D2D1_ROUNDED_RECT roundedRect {
             direct2d::rectangleToRectF (area),
@@ -1465,6 +1500,7 @@ bool Direct2DLowLevelGraphicsContext::drawRoundedRectangle (Rectangle<float> are
         };
         deviceContext->DrawRoundedRectangle (roundedRect, currentState->currentBrush, lineThickness);
     }
+
     return true;
 }
 
@@ -1472,6 +1508,11 @@ bool Direct2DLowLevelGraphicsContext::fillRoundedRectangle (Rectangle<float> are
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
         D2D1_ROUNDED_RECT roundedRect {
             direct2d::rectangleToRectF (area),
@@ -1480,6 +1521,7 @@ bool Direct2DLowLevelGraphicsContext::fillRoundedRectangle (Rectangle<float> are
         };
         deviceContext->FillRoundedRectangle (roundedRect, currentState->currentBrush);
     }
+
     return true;
 }
 
@@ -1487,6 +1529,11 @@ bool Direct2DLowLevelGraphicsContext::drawEllipse (Rectangle<float> area, float 
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
 
         auto centre = area.getCentre();
@@ -1504,6 +1551,11 @@ bool Direct2DLowLevelGraphicsContext::fillEllipse (Rectangle<float> area)
 {
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return true;
+        }
+
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
 
         auto centre = area.getCentre();
@@ -1521,6 +1573,11 @@ void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const
 {
     if (numGlyphs > 0 && (startIndex + numGlyphs) <= glyphs.size())
     {
+        if (currentState->fillType.isInvisible())
+        {
+            return;
+        }
+
         //
         // Fill the array of glyph indices and offsets
         //
@@ -1554,6 +1611,11 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon(int numGlyphs, const Affin
 
     auto dwriteFontFace = currentState->getFontFace();
     if (dwriteFontFace.fontFace == nullptr)
+    {
+        return;
+    }
+
+    if (currentState->fillType.isInvisible())
     {
         return;
     }

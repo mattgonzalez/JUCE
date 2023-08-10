@@ -54,17 +54,17 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
 
 #define TRACE_LOG_D2D(code) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
-                   "D2D start frame ", \
+                   # code, \
                    TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                    TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
                    TraceLoggingInt32 (code, "code"))
 
 #define TRACE_LOG_D2D_CREATE_RESOURCE(name) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
-                   "D2D start frame ", \
+                   "Create " # name, \
                    TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                    TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
-                   TraceLoggingString(name), \
+                   TraceLoggingString(name, "resource"), \
                    TraceLoggingInt32 (etw::createResource, "code"))
 
 #define TRACE_LOG_D2D_START_FRAME \
@@ -73,7 +73,6 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
                    TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                    TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
                    TraceLoggingInt32 (etw::direct2dStartFrame, "code"))
-
 
 #define TRACE_LOG_D2D_PAINT_START(frameNumber) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \

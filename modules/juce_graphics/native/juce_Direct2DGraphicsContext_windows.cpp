@@ -873,6 +873,11 @@ public:
                     TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
                     break;
                 }
+
+                default:
+                {
+                    break;
+                }
                 }
             }
         }
@@ -1377,7 +1382,8 @@ void Direct2DLowLevelGraphicsContext::drawImage (const Image& image, const Affin
     {
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransformWith (transform)));
 
-        Image::BitmapData bitmapData { image, Image::BitmapData::readOnly };
+        auto argbImage = image.convertedToFormat(Image::ARGB);
+        Image::BitmapData bitmapData { argbImage, Image::BitmapData::readOnly };
 
         auto bitmapProperties = D2D1::BitmapProperties();
         bitmapProperties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;

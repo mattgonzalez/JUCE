@@ -91,10 +91,12 @@ public:
 
     void setAlpha (float newAlpha) override
     {
-        DBG("peer set alpha " << newAlpha);
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
-            // nothing to do! already covered by paintEntireComponent
+            if (direct2DContext)
+            {
+                direct2DContext->setWindowAlpha(newAlpha);
+            }
             component.repaint();
             return;
         }
@@ -179,7 +181,7 @@ private:
         //
         // startFrame returns true if there are any areas to be painted and if the renderer is ready to go
         //
-        if (direct2DContext->startFrame(component.getAlpha()))
+        if (direct2DContext->startFrame())
         {
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
@@ -246,9 +248,14 @@ private:
                 {
                     if (auto peer = safeComponent->getPeer())
                     {
+                        bool focused = safeComponent->hasKeyboardFocus(true);
                         auto componentStyleFlags = peer->getStyleFlags();
                         safeComponent->removeFromDesktop();
                         safeComponent->addToDesktop (componentStyleFlags);
+                        if (focused)
+                        {
+                            safeComponent->toFront(true);
+                        }
                     }
                 } });
         }
@@ -278,8 +285,6 @@ private:
 
     LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam) override
     {
-        //DBG ("D2D peerWindowProc " << String::toHexString ((int) message));
-
         TRACE_LOG_PARENT_WINDOW_MESSAGE(message);
 
         switch (message)

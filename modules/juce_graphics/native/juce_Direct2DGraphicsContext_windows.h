@@ -158,6 +158,7 @@ public:
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleChildWindowChange (bool visible);
+    void setWindowAlpha(float alpha);
 
     //==============================================================================
     bool isVectorDevice() const override { return false; }
@@ -215,7 +216,7 @@ public:
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();
-    bool startFrame(float alpha);
+    bool startFrame();
     void endFrame();
 
     void setScaleFactor (double scale_);
@@ -239,6 +240,7 @@ public:
 private:
     struct ClientSavedState;
     ClientSavedState* currentState = nullptr;
+    float windowAlpha = 1.0f;
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;

@@ -243,18 +243,21 @@ private:
             component.getProperties().set ("Direct2D", currentRenderingEngine == direct2DRenderingEngine);
 
             Component::SafePointer<Component> safeComponent = &getComponent();
-            MessageManager::callAsync ([safeComponent]() {
+            bool active = GetActiveWindow() == hwnd;
+            MessageManager::callAsync([safeComponent, active]() {
                 if (safeComponent)
                 {
                     if (auto peer = safeComponent->getPeer())
                     {
-                        bool focused = safeComponent->hasKeyboardFocus(true);
                         auto componentStyleFlags = peer->getStyleFlags();
                         safeComponent->removeFromDesktop();
-                        safeComponent->addToDesktop (componentStyleFlags);
-                        if (focused)
+                        safeComponent->addToDesktop(componentStyleFlags);
+                        if (active)
                         {
-                            safeComponent->toFront(true);
+                            if (auto newPeer = safeComponent->getPeer())
+                            {
+                                SetActiveWindow((HWND)newPeer->getNativeHandle());
+                            }
                         }
                     }
                 } });

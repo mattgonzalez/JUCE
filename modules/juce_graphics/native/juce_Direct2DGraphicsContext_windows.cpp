@@ -524,24 +524,6 @@ private:
         return swapChainReadyThread.eventSignaled.compare_exchange_weak(expected, false);
     }
 
-#if 0
-    void swapChainSignaledReady() override
-    {
-#if 0
-
-        if (owner.swapChainReadyCallback)
-        {
-            owner.swapChainReadyCallback();
-        }
-#endif
-    }
-
-    void swapChainTimedOut() override
-    {
-        teardown();
-    }
-#endif
-
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
@@ -1009,6 +991,9 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
             clipToRectangleList (paintAreas);
         }
 
+        //
+        // Clear the buffer to transparent black *after* setting the clip region
+        //
         pimpl->getDeviceContext()->Clear();
 
         setFont (currentState->font);

@@ -154,7 +154,7 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const);
+    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const, bool opaque);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleChildWindowChange (bool visible);
@@ -240,7 +240,6 @@ public:
 private:
     struct ClientSavedState;
     ClientSavedState* currentState = nullptr;
-    float windowAlpha = 1.0f;
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;

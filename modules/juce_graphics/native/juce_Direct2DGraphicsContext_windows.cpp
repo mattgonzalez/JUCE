@@ -527,13 +527,15 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_) : owner(owner_),
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque_) : owner(owner_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
         swapChainReadyThread(listener_),
-        parentHwnd(hwnd_)
+        parentHwnd(hwnd_),
+        opaque(opaque_)
     {
+        setWindowAlpha(1.0f);
     }
 
     ~Pimpl()
@@ -643,11 +645,6 @@ public:
         prepare();
     }
 
-    RectangleList<int> const& getDeferredRepaints() const noexcept
-    {
-        return deferredRepaints;
-    }
-
     bool allocateResources()
     {
         //
@@ -668,7 +665,13 @@ public:
         return true;
     }
 
-    ClientSavedState* startFrame()
+    void setWindowAlpha(float alpha)
+    {
+        backgroundColor = direct2d::colourToD2D(Colours::black.withAlpha(opaque ? windowAlpha : 0.0f));
+        windowAlpha = alpha;
+    }
+
+    ClientSavedState* startFrame(RectangleList<int>& paintAreas)
     {
 #if JUCE_DIRECT2D_METRICS
         paintStartTicks = Time::getHighResolutionTicks();
@@ -688,17 +691,33 @@ public:
         }
 
         //
-        // Paint the entire window or just part of it?
+        // Does the entire buffer need to be filled?
         //
         if (swap.state == direct2d::SwapChain::bufferAllocated)
         {
             deferredRepaints = swap.getSize();
         }
 
+        //
+        // Anything to paint?
+        //
         auto paintBounds = deferredRepaints.getBounds();
         if (! windowSize.intersects (paintBounds) || paintBounds.isEmpty())
         {
             return nullptr;
+        }
+
+        //
+        // If the window alpha is less than 1.0, clip to the union of the
+        // deferred repaints so the device context Clear() works correctly
+        //
+        if (windowAlpha < 1.0f)
+        {
+            paintAreas = paintBounds;
+        }
+        else
+        {
+            paintAreas = deferredRepaints;
         }
 
         //
@@ -818,7 +837,7 @@ public:
                 {
                     deviceResources.deviceContext->SetTarget(swap.buffer);
                     deviceResources.deviceContext->BeginDraw();
-                    deviceResources.deviceContext->Clear();
+                    deviceResources.deviceContext->Clear(backgroundColor);
                     auto hr = deviceResources.deviceContext->EndDraw();
                     deviceResources.deviceContext->SetTarget(nullptr);
                     if (SUCCEEDED(hr))
@@ -915,6 +934,9 @@ public:
     HWND parentHwnd = nullptr;
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
+    bool opaque = true;
+    float windowAlpha = 1.0f;
+    D2D1_COLOR_F backgroundColor{};
 
 #if JUCE_DIRECT2D_METRICS
     int64 paintStartTicks = 0;
@@ -923,9 +945,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_ })
+      pimpl (new Pimpl { *this, hwnd_, listener_, opaque })
 {
     resize();
 }
@@ -941,7 +963,7 @@ void Direct2DLowLevelGraphicsContext::handleChildWindowChange (bool visible)
 
 void Direct2DLowLevelGraphicsContext::setWindowAlpha(float alpha)
 {
-    windowAlpha = alpha;
+    pimpl->setWindowAlpha(alpha);
 }
 
 void Direct2DLowLevelGraphicsContext::startResizing()
@@ -983,26 +1005,48 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 {
     TRACE_LOG_D2D_START_FRAME;
 
-    if (currentState = pimpl->startFrame (); currentState != nullptr)
+    RectangleList<int> paintAreas;
+    if (currentState = pimpl->startFrame (paintAreas); currentState != nullptr)
     {
-        auto const& paintAreas = pimpl->getDeferredRepaints();
-        if (paintAreas.getBounds().isEmpty() == false)
+        if (auto deviceContext = pimpl->getDeviceContext())
         {
-            clipToRectangleList (paintAreas);
-        }
+            //
+            // Clip without transforming
+            // 
+            // Clear() only works with axis-aligned clip layers, so if the window alpha is less than 1.0f, the clip region has to be the union 
+            // of all the paint areas
+            //
+            if (paintAreas.getNumRectangles() == 1)
+            {
+                currentState->pushAxisAlignedClipLayer(paintAreas.getRectangle(0), deviceContext);
+            }
+            else
+            {
+                currentState->pushGeometryClipLayer(direct2d::rectListToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
+                    paintAreas,
+                    AffineTransform{},
+                    D2D1_FILL_MODE_WINDING),
+                    deviceContext);
+            }
 
-        //
-        // Clear the buffer to transparent black *after* setting the clip region
-        //
-        pimpl->getDeviceContext()->Clear();
+            //
+            // Clear the buffer *after* setting the clip region
+            // 
+            // For opaque windows, clear the background to black with the window alpha
+            // For non-opaque windows, clear the background to transparent black
+            // 
+            // In either case, add a transparency layer if the window alpha is less than 1.0
+            //
+            deviceContext->Clear(pimpl->backgroundColor);
+            if (pimpl->windowAlpha < 1.0f)
+            {
+                beginTransparencyLayer(pimpl->windowAlpha);
+            }
 
-        setFont (currentState->font);
+            setFont(currentState->font);
 
-        currentState->updateCurrentBrush(pimpl->getDeviceContext());
+            currentState->updateCurrentBrush(deviceContext);
 
-        if (windowAlpha < 1.0f)
-        {
-            beginTransparencyLayer(windowAlpha);
         }
 
         return true;

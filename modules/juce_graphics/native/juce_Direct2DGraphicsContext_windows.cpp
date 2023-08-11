@@ -24,51 +24,46 @@
 */
 
 /*
-    JUCE 7.0.6 merge
-            WASAPI loopback
-
-
     get rid of CS_OWNDC?
 
     -child window clipping?
 
-    -JUCE_DIRECT2D_METRICS fix build /     -conditional frame stats, frame history
+    -JUCE_DIRECT2D_METRICS fix build / conditional frame stats, frame history
     
-    -optimize save/restore state?
-
+    -optimize save/restore state
 
     -minimize calls to SetTransform
     -text analyzer?
     -ID2D1DrawingStateBlock?
     -recycle state structs
-    -use std::stack for layers
     -don't paint occluded windows
     -Multithreaded device context
     -reusable geometry for exclude clip rectangle
+    verify that the child window is created if DIRECT2D_CHILD_WINDOW is off
 
-    SetThreadDescription(
-                GetCurrentThread(),
-                L"Direct2DPresentation"
-            );
+    tried to move painting to a thread
+    WM_PAINT and deferred repaints
 
-    when to start threads in general
-
-    handle device context creation error / paint errors     -restart render thread on error?
+    handle device context creation error / paint errors     
+        restart render thread on error?
         watchdog timer?
 
-    OK-Check use of InvalidateRect & ValidateRect
-    OK-drawGlyphUnderline
-    OK-DPI scaling
+    OK JUCE 7.0.6 merge
+    OK when to start threads in general
+    OK use std::stack for layers
+    OK Check use of InvalidateRect & ValidateRect
+    OK drawGlyphUnderline
+    OK DPI scaling
     OK start/stop thread when window is visible
-    OK -logo highlights in juce animation demo
-    OK -check resize when auto-arranging windows
-    OK -single-channel bitmap for clip to image alpha
-    OK -transparency layer in software mode?
-    OK -check for empty dirty rectangles
+    OK logo highlights in juce animation demo
+    OK check resize when auto-arranging windows
+    OK single-channel bitmap for clip to image alpha
+    OK transparency layer in software mode?
+    OK check for empty dirty rectangles
     OK vblank in software mode
-    OK -fix ScopedBrushTransformInverter
-    OK -vblank attachment
-    OK -Always present
+    OK fix ScopedBrushTransformInverter
+    OK vblank attachment
+    OK Always present
 
     */
 
@@ -612,6 +607,10 @@ public:
 #endif
                 auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
                 jassert(SUCCEEDED(hr));
+                if (FAILED(hr))
+                {
+                    teardown();
+                }
             }
         }
     }
@@ -831,6 +830,8 @@ public:
         {
             if (checkAndClearSwapChainReadyFlag())
             {
+                HRESULT hr = S_OK;
+
                 switch (swap.state)
                 {
                 case direct2d::SwapChain::bufferAllocated:
@@ -838,7 +839,7 @@ public:
                     deviceResources.deviceContext->SetTarget(swap.buffer);
                     deviceResources.deviceContext->BeginDraw();
                     deviceResources.deviceContext->Clear(backgroundColor);
-                    auto hr = deviceResources.deviceContext->EndDraw();
+                    hr = deviceResources.deviceContext->EndDraw();
                     deviceResources.deviceContext->SetTarget(nullptr);
                     if (SUCCEEDED(hr))
                     {
@@ -858,7 +859,7 @@ public:
                     //
                     TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_START(-frameNumber);
 
-                    auto hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
+                    hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
                     jassert(SUCCEEDED(hr));
 
                     TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
@@ -869,6 +870,11 @@ public:
                 {
                     break;
                 }
+                }
+
+                if (FAILED(hr))
+                {
+                    teardown();
                 }
             }
         }
@@ -1624,15 +1630,20 @@ void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const
         auto indices = pimpl->glyphRun.glyphIndices.getData();
         auto offsets = pimpl->glyphRun.glyphOffsets.getData();
 
-        for (int i = 0; i < numGlyphs; ++i)
+        int numGlyphsToDraw = 0;
+        for (int sourceIndex = 0; sourceIndex < numGlyphs; ++sourceIndex)
         {
-            auto const& glyph = glyphs[i + startIndex];
-            indices[i] = (UINT16)glyph.getGlyphNumber();
-            offsets[i] = { glyph.getLeft() * inverseHScale, -glyph.getBaselineY() }; // note the essential minus sign before the baselineY value; negative offset goes down, positive goes up (opposite from JUCE)
-            jassert(pimpl->glyphRun.glyphAdvances[i] == 0.0f);
+            auto const& glyph = glyphs[sourceIndex + startIndex];
+            if (!glyph.isWhitespace())
+            {
+                indices[numGlyphsToDraw] = (UINT16)glyph.getGlyphNumber();
+                offsets[numGlyphsToDraw] = { glyph.getLeft() * inverseHScale, -glyph.getBaselineY() }; // note the essential minus sign before the baselineY value; negative offset goes down, positive goes up (opposite from JUCE)
+                jassert(pimpl->glyphRun.glyphAdvances[numGlyphsToDraw] == 0.0f);
+                ++numGlyphsToDraw;
+            }
         }
 
-        drawGlyphCommon(numGlyphs, transform, underlineArea);
+        drawGlyphCommon(numGlyphsToDraw, transform, underlineArea);
     }
 }
 

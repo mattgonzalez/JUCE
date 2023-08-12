@@ -2826,10 +2826,6 @@ protected:
     //==============================================================================
     virtual void handlePaintMessage()
     {
-#if JUCE_DIRECT2D_METRICS
-        direct2d::ScopedElapsedTime set{ paintStats, direct2d::PaintStats::messageThreadPaintDuration };
-#endif
-
         HRGN rgn = CreateRectRgn (0, 0, 0, 0);
         const int regionType = GetUpdateRgn (hwnd, rgn, false);
 

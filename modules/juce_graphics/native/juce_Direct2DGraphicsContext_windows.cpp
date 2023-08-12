@@ -672,10 +672,6 @@ public:
 
     ClientSavedState* startFrame(RectangleList<int>& paintAreas)
     {
-#if JUCE_DIRECT2D_METRICS
-        paintStartTicks = Time::getHighResolutionTicks();
-#endif
-
         //
         // Paint if:
         //      resources are allocated
@@ -758,13 +754,6 @@ public:
         deviceResources.deviceContext->SetTarget(nullptr);
 
         TRACE_LOG_D2D_PAINT_END(frameNumber);
-
-#if JUCE_DIRECT2D_METRICS
-        if (frameNumber > 1)
-        {
-            owner.stats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
-        }
-#endif
 
         //
         // Present the frame

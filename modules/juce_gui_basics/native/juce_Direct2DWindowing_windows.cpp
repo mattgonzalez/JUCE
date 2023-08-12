@@ -43,6 +43,12 @@
 
 class Direct2DComponentPeer : public HWNDComponentPeer, public direct2d::SwapChainListener
 {
+private:
+
+#if JUCE_DIRECT2D_METRICS
+    int64 lastPaintStartTicks = 0;
+#endif
+
 public:
     enum
     {
@@ -150,7 +156,20 @@ private:
             return;
         }
 
+#if JUCE_DIRECT2D_METRICS
+        auto paintStartTicks = Time::getHighResolutionTicks();
+#endif
+
         HWNDComponentPeer::handlePaintMessage();
+
+#if JUCE_DIRECT2D_METRICS
+        if (lastPaintStartTicks > 0)
+        {
+            paintStats->addValueTicks(direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+            paintStats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+        }
+        lastPaintStartTicks = paintStartTicks;
+#endif
     }
 
     void swapChainSignaledReady()
@@ -176,6 +195,10 @@ private:
 
     void handleDirect2DPaint()
     {
+#if JUCE_DIRECT2D_METRICS
+        auto paintStartTicks = Time::getHighResolutionTicks();
+#endif
+
         jassert (direct2DContext);
 
         //
@@ -185,6 +208,16 @@ private:
         {
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
+
+
+#if JUCE_DIRECT2D_METRICS
+            if (lastPaintStartTicks > 0)
+            {
+                paintStats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+                paintStats->addValueTicks(direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+            }
+            lastPaintStartTicks = paintStartTicks;
+#endif
             return;
         }
     }

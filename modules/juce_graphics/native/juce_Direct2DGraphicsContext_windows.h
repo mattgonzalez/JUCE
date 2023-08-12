@@ -40,7 +40,7 @@ namespace direct2d
         enum
         {
             messageThreadPaintDuration,
-            renderThreadPaintDuration,
+            frameInterval,
             presentDuration,
             present1Duration,
             swapChainEventInterval,
@@ -53,7 +53,7 @@ namespace direct2d
 
         StringArray const accumulatorNames {
             "messageThreadPaintDuration",
-            "renderThreadPaintDuration",
+            "frameInterval",
             "presentDuration",
             "present1Duration",
             "swapChainEventInterval",

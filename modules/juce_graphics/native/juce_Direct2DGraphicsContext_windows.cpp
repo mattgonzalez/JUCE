@@ -760,7 +760,10 @@ public:
         TRACE_LOG_D2D_PAINT_END(frameNumber);
 
 #if JUCE_DIRECT2D_METRICS
-        owner.stats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+        if (frameNumber > 1)
+        {
+            owner.stats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+        }
 #endif
 
         //

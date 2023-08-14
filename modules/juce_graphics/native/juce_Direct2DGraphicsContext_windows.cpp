@@ -39,7 +39,7 @@
     -don't paint occluded windows
     -Multithreaded device context
     -reusable geometry for exclude clip rectangle
-    verify that the child window is created if DIRECT2D_CHILD_WINDOW is off
+    verify that the child window is not created if DIRECT2D_CHILD_WINDOW is off
 
     tried to move painting to a thread
     WM_PAINT and deferred repaints
@@ -47,6 +47,8 @@
     handle device context creation error / paint errors     
         restart render thread on error?
         watchdog timer?
+
+    EndDraw D2DERR_RECREATE_TARGET
 
     OK JUCE 7.0.6 merge
     OK when to start threads in general

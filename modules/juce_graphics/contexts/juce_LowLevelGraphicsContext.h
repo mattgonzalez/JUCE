@@ -95,6 +95,7 @@ public:
     virtual bool drawPath(const Path&, const PathStrokeType&, const AffineTransform&) { return false; }
     virtual void drawImage (const Image&, const AffineTransform&) = 0;
     virtual void drawLine (const Line<float>&) = 0;
+    virtual bool drawLine(const Line<float>&, float) { return false; }
 
     virtual void setFont (const Font&) = 0;
     virtual const Font& getFont() = 0;

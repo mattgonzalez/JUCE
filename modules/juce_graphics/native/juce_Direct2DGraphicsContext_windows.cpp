@@ -1443,18 +1443,26 @@ void Direct2DLowLevelGraphicsContext::drawImage (const Image& image, const Affin
 
 void Direct2DLowLevelGraphicsContext::drawLine (const Line<float>& line)
 {
+    drawLine(line, 1.0f);
+}
+
+bool Direct2DLowLevelGraphicsContext::drawLine(const Line<float>& line, float lineThickness)
+{
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
-            return;
+            return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
-        deviceContext->DrawLine (D2D1::Point2F (line.getStartX(), line.getStartY()),
-                                 D2D1::Point2F (line.getEndX(), line.getEndY()),
-                                 currentState->currentBrush);
+        deviceContext->SetTransform(direct2d::transformToMatrix(currentState->currentTransform.getTransform()));
+        deviceContext->DrawLine(D2D1::Point2F(line.getStartX(), line.getStartY()),
+            D2D1::Point2F(line.getEndX(), line.getEndY()),
+            currentState->currentBrush, 
+            lineThickness);
     }
+
+    return true;
 }
 
 void Direct2DLowLevelGraphicsContext::setFont (const Font& newFont)

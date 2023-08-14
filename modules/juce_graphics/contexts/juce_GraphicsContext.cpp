@@ -781,6 +781,11 @@ void Graphics::drawLine (float x1, float y1, float x2, float y2, float lineThick
 
 void Graphics::drawLine (Line<float> line, const float lineThickness) const
 {
+    if (context.drawLine(line, lineThickness))
+    {
+        return;
+    }
+
     Path p;
     p.addLineSegment (line, lineThickness);
     fillPath (p);

@@ -40,7 +40,7 @@ namespace direct2d
             release();
         }
 
-        HRESULT create (ID2D1Factory1* const direct2dFactory)
+        HRESULT create (ID2D1Factory1* const direct2dFactory, double dpiScalingFactor)
         {
             HRESULT hr = S_OK;
 
@@ -97,10 +97,16 @@ namespace direct2d
                     jassert (SUCCEEDED (hr));
                 }
 
-                if (colourBrush == nullptr && deviceContext != nullptr)
+                if (deviceContext)
                 {
-                    hr = deviceContext->CreateSolidColorBrush (D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f), colourBrush.resetAndGetPointerAddress());
-                    jassertquiet (SUCCEEDED (hr));
+                    float dpi = (float)(USER_DEFAULT_SCREEN_DPI * dpiScalingFactor);
+                    deviceContext->SetDpi(dpi, dpi);
+
+                    if (colourBrush == nullptr)
+                    {
+                        hr = deviceContext->CreateSolidColorBrush(D2D1::ColorF::ColorF(0.0f, 0.0f, 0.0f, 1.0f), colourBrush.resetAndGetPointerAddress());
+                        jassertquiet(SUCCEEDED(hr));
+                    }
                 }
             }
 

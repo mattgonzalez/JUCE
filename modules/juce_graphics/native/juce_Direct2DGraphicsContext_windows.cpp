@@ -471,7 +471,7 @@ private:
 
         if (!deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create(sharedFactories->getDirect2DFactory()); FAILED(hr))
+            if (auto hr = deviceResources.create(sharedFactories->getDirect2DFactory(), dpiScalingFactor); FAILED(hr))
             {
                 return hr;
             }
@@ -524,12 +524,14 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque_) : owner(owner_),
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque_) :
+        owner(owner_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
         swapChainReadyThread(listener_),
         parentHwnd(hwnd_),
+        dpiScalingFactor(dpiScalingFactor_),
         opaque(opaque_)
     {
         setWindowAlpha(1.0f);
@@ -945,9 +947,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, bool opaque)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_, opaque })
+      pimpl (new Pimpl { *this, hwnd_, listener_, dpiScalingFactor_, opaque })
 {
     resize();
 }

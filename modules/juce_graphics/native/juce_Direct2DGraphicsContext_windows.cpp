@@ -1442,7 +1442,12 @@ void Direct2DLowLevelGraphicsContext::drawImage (const Image& image, const Affin
         deviceContext->CreateBitmap (size, bitmapData.data, bitmapData.lineStride, bitmapProperties, bitmap.resetAndGetPointerAddress());
         if (bitmap)
         {
-            deviceContext->DrawImage (bitmap, currentState->interpolationMode);
+            deviceContext->DrawBitmap (bitmap,
+                nullptr,
+                currentState->fillType.getOpacity(),
+                currentState->interpolationMode,
+                nullptr,
+                {});
         }
     }
 }

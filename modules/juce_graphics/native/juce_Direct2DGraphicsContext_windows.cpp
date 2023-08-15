@@ -526,12 +526,12 @@ private:
 public:
     Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque_) :
         owner(owner_),
+        dpiScalingFactor(dpiScalingFactor_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
         swapChainReadyThread(listener_),
         parentHwnd(hwnd_),
-        dpiScalingFactor(dpiScalingFactor_),
         opaque(opaque_)
     {
         setWindowAlpha(1.0f);

@@ -217,7 +217,7 @@ namespace direct2d
                         return;
                     }
 
-                    while (PeekMessage (&message, NULL, (UINT) 0, (UINT) 0, PM_REMOVE))
+                    while (PeekMessage (&message, nullptr, (UINT) 0, (UINT) 0, PM_REMOVE))
                     {
                         if (message.message == WM_QUIT)
                         {

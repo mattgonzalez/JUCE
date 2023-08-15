@@ -1258,6 +1258,10 @@ void Direct2DLowLevelGraphicsContext::setFill (const FillType& fillType)
 void Direct2DLowLevelGraphicsContext::setOpacity (float newOpacity)
 {
     currentState->setOpacity(newOpacity);
+    if (auto deviceContext = pimpl->getDeviceContext())
+    {
+        currentState->updateCurrentBrush(deviceContext);
+    }
 }
 
 void Direct2DLowLevelGraphicsContext::setInterpolationQuality (Graphics::ResamplingQuality quality)

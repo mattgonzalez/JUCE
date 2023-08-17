@@ -1458,7 +1458,7 @@ public:
 
     HMONITOR getMonitor() const noexcept { return monitor; }
 
-    void addListener (VBlankListener& listener)
+    void addListener_ (VBlankListener& listener)
     {
         listeners.push_back (listener);
     }

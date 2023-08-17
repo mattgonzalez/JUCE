@@ -466,8 +466,9 @@ namespace direct2d
 
         void start (HANDLE swapChainEventHandle_)
         {
+            jassertfalse;
             events[swapChainEvent] = swapChainEventHandle_;
-            startThread (Thread::Priority::highest);
+            //startThread (Thread::Priority::highest);
         }
 
         void stop()

@@ -91,6 +91,7 @@
 
 #include "juce_Direct2DHelpers_windows.cpp"
 #include "juce_Direct2DSwapChainThread_windows.cpp"
+#include "juce_Direct2DSwapChainDispatcher_windows.cpp"
 #include "juce_Direct2DChildWindow_windows.cpp"
 
 namespace juce

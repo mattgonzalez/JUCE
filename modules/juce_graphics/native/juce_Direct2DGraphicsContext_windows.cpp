@@ -683,7 +683,7 @@ public:
         //      the swap chain is ready
         //
         bool ready = allocateResources();
-        ready |= deferredRepaints.getNumRectangles() > 0;
+        ready &= deferredRepaints.getNumRectangles() > 0;
         if (!ready)
         {
             return nullptr;

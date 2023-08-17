@@ -41,7 +41,7 @@
 
 #if JUCE_DIRECT2D
 
-class Direct2DComponentPeer : public HWNDComponentPeer, public direct2d::SwapChainListener
+class Direct2DComponentPeer : public HWNDComponentPeer
 {
 private:
 
@@ -174,8 +174,12 @@ private:
 
     void onVBlank() override
     {
+        HWNDComponentPeer::onVBlank();
 
-
+        if (direct2DContext)
+        {
+            handleDirect2DPaint();
+        }
     }
 
     void swapChainSignaledReady()
@@ -214,7 +218,6 @@ private:
         {
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
-
 
 #if JUCE_DIRECT2D_METRICS
             if (lastPaintStartTicks > 0)
@@ -258,9 +261,7 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && !direct2DContext)
         {
-            //VBlankDispatcher::getInstance()->removeListener (*this);
-
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this, scaleFactor, component.isOpaque());
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, scaleFactor, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
 #endif

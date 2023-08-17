@@ -31,11 +31,10 @@ namespace direct2d
     class SwapChainDispatcher : protected Thread
     {
     private:
-        HANDLE shutdownEvent = nullptr;
+        HANDLE wakeEvent = nullptr;
         CriticalSection lock;
         struct SwapChain
         {
-            SwapChainListener* listener;
             HANDLE swapChainEvent;
         };
         Array<SwapChain> swapChains;
@@ -45,7 +44,7 @@ namespace direct2d
         SwapChainDispatcher()
             : Thread ("SwapChainDispatcher")
         {
-            shutdownEvent = CreateEvent (nullptr, FALSE, FALSE, nullptr);
+            wakeEvent = CreateEvent (nullptr, FALSE, FALSE, nullptr);
         }
 
         ~SwapChainDispatcher() override
@@ -53,39 +52,39 @@ namespace direct2d
             stop();
         }
 
-        void addSwapChain(SwapChainListener* const listener, HANDLE swapChainEvent)
+        int addSwapChain(HANDLE swapChainEvent)
         {
             {
                 ScopedLock locker{ lock };
 
-                for (auto const& swapChain : swapChains)
+                for (int index = 0; index < swapChains.size(); ++index)
                 {
-                    if (swapChain.listener == listener)
+                    if (swapChains[index].swapChainEvent == swapChainEvent)
                     {
-                        return;
+                        return index + 1;
                     }
                 }
 
-                swapChains.add({ listener, swapChainEvent });
+                swapChains.add({ swapChainEvent });
             }
 
             startThread(Thread::Priority::highest);
+
+            SetEvent(wakeEvent);
+
+            return swapChains.size();
         }
 
-        void removeSwapChain(SwapChainListener* const listener)
+        void removeSwapChain(int bitNumber)
         {
+            if (1 <= bitNumber && bitNumber < swapChains.size())
             {
                 ScopedLock locker{ lock };
 
-                for (auto const& swapChain : swapChains)
-                {
-                    if (swapChain.listener == listener)
-                    {
-                        swapChains.remove(&swapChain);
-                        return;
-                    }
-                }
+                swapChains.remove(bitNumber - 1);
             }
+
+            SetEvent(wakeEvent);
 
             if (swapChains.size() == 0)
             {
@@ -97,9 +96,16 @@ namespace direct2d
         {
             jassert(MessageManager::getInstance()->isThisTheMessageThread());
 
-            SetEvent(shutdownEvent);
+            SetEvent(wakeEvent);
             stopThread(1000);
-            CloseHandle(shutdownEvent);
+            CloseHandle(wakeEvent);
+        }
+
+        bool isSwapChainReady(int bitNumber)
+        {
+            int64 mask = 1LL << bitNumber;
+            auto readyFlags = atomicReadyFlags.fetch_and(~mask);
+            return (readyFlags & mask) != 0;
         }
 
         void run() override
@@ -109,12 +115,12 @@ namespace direct2d
                 //
                 // Copy event handles to local array
                 //
-                HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { shutdownEvent };
-                DWORD numWaitableObjects = 1;
+                HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent };
+                DWORD numWaitableObjects;
                 {
                     ScopedLock locker{ lock };
 
-                    numWaitableObjects = jmin(MAXIMUM_WAIT_OBJECTS - 1, swapChains.size());
+                    numWaitableObjects = 1 + jmin(MAXIMUM_WAIT_OBJECTS - 1, swapChains.size());
                     for (DWORD index = 0; index < numWaitableObjects - 1; ++index)
                     {
                         waitableObjects[index + 1] = swapChains[index].swapChainEvent;
@@ -132,15 +138,19 @@ namespace direct2d
                 if (WAIT_OBJECT_0 < waitResult && waitResult < WAIT_OBJECT_0 + numWaitableObjects)
                 {
                     int bitNumber = waitResult - WAIT_OBJECT_0;
-                    atomicReadyFlags.fetch_or(bitNumber);
+                    atomicReadyFlags.fetch_or(1LL << bitNumber);
                     continue;
                 }
 
+                //
+                // Maybe the wake event or an error?
+                //
                 switch (waitResult)
                 {
-                case WAIT_OBJECT_0: // shutdown event fired
+                case WAIT_OBJECT_0: // wake event fired
+                case WAIT_FAILED:
                 {
-                    return;
+                    break;
                 }
 
                 default:

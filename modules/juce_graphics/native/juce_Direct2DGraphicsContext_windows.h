@@ -128,19 +128,6 @@ namespace direct2d
 
 #endif
 
-namespace direct2d
-{
-    struct SwapChainListener
-    {
-        virtual ~SwapChainListener() = default;
-
-        virtual void swapChainSignaledReady() = 0;
-        virtual void swapChainTimedOut() {}
-
-        JUCE_DECLARE_WEAK_REFERENCEABLE(SwapChainListener)
-    };
-};
-
 #if JUCE_ETW_TRACELOGGING
 
 struct ETWEventProvider
@@ -154,7 +141,7 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const, double dpiScalingFactor, bool opaque);
+    Direct2DLowLevelGraphicsContext(HWND, double dpiScalingFactor, bool opaque);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleChildWindowChange (bool visible);

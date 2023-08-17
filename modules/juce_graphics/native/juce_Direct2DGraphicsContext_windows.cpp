@@ -90,7 +90,7 @@
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
-#include "juce_Direct2DSwapChainThread_windows.cpp"
+#include "juce_Direct2DResources_windows.cpp"
 #include "juce_Direct2DSwapChainDispatcher_windows.cpp"
 #include "juce_Direct2DChildWindow_windows.cpp"
 
@@ -190,6 +190,7 @@ public:
         // of Layer objects to keep track of how many layers need to be popped.
         //
         // Pass nullptr for the PushLayer layer parameter to allow Direct2D to manage the layers (Windows 8 or later)
+        //
         deviceContext->SetTransform (D2D1::IdentityMatrix());
         deviceContext->PushLayer (layerParameters, nullptr);
 
@@ -445,8 +446,9 @@ private:
     direct2d::SwapChain swap;
     direct2d::CompositionTree compositionTree;
     direct2d::UpdateRegion updateRegion;
-    direct2d::SwapChainReadyThread swapChainReadyThread;
     SharedResourcePointer<direct2d::SwapChainDispatcher> swapChainDispatcher;
+    int dispatcherBitNumber = -1;
+    bool swapChainReady = false;
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
 
@@ -506,7 +508,7 @@ private:
 
         if (swap.swapChainEvent)
         {
-            swapChainDispatcher->addSwapChain(swapChainReadyThread.swapChainListener, swap.swapChainEvent);
+            dispatcherBitNumber = swapChainDispatcher->addSwapChain(swap.swapChainEvent);
         }
 
         //swapChainReadyThread.start(swap.swapChainEvent);
@@ -516,28 +518,27 @@ private:
 
     void teardown()
     {
-        swapChainReadyThread.stop();
+        //swapChainReadyThread.stop();
+        swapChainDispatcher->removeSwapChain(dispatcherBitNumber);
         compositionTree.release();
         swap.release();
         deviceResources.release();
     }
 
-    bool checkAndClearSwapChainReadyFlag()
+    void checkSwapChainReady()
     {
-        bool expected = true;
-        return swapChainReadyThread.eventSignaled.compare_exchange_weak(expected, false);
+        swapChainReady |= swapChainDispatcher->isSwapChainReady(dispatcherBitNumber);
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque_) :
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_) :
         owner(owner_),
         dpiScalingFactor(dpiScalingFactor_),
 #if DIRECT2D_CHILD_WINDOW
         childWindow(childWindowClass.className, hwnd_),
 #endif
-        swapChainReadyThread(listener_),
         parentHwnd(hwnd_),
         opaque(opaque_)
     {
@@ -684,13 +685,19 @@ public:
     ClientSavedState* startFrame(RectangleList<int>& paintAreas)
     {
         //
+        // Update swap chain ready flag from dispatcher
+        //
+        checkSwapChainReady();
+
+        //
         // Paint if:
         //      resources are allocated
         //      deferredRepaints has areas to be painted
         //      the swap chain is ready
         //
         bool ready = allocateResources();
-        ready |= deferredRepaints.getNumRectangles() > 0;
+        ready &= deferredRepaints.getNumRectangles() > 0;
+        ready &= swapChainReady;
         if (!ready)
         {
             return nullptr;
@@ -724,14 +731,6 @@ public:
         else
         {
             paintAreas = deferredRepaints;
-        }
-
-        //
-        // Swap chain ready? Check this *last* so painting doesn't get stuck since this will clear the swap chain ready flag
-        //
-        if (!checkAndClearSwapChainReadyFlag())
-        {
-            return nullptr;
         }
 
         TRACE_LOG_D2D_PAINT_START(frameNumber);
@@ -821,66 +820,9 @@ public:
         }
 
         deferredRepaints.clear();
+        swapChainReady = false;
 
         frameNumber++;
-    }
-
-    void presentIdleFrame()
-    {
-        TRACE_LOG_D2D(etw::presentIdleFrame);
-
-        if (allocateResources())
-        {
-            if (checkAndClearSwapChainReadyFlag())
-            {
-                HRESULT hr = S_OK;
-
-                switch (swap.state)
-                {
-                case direct2d::SwapChain::bufferAllocated:
-                {
-                    deviceResources.deviceContext->SetTarget(swap.buffer);
-                    deviceResources.deviceContext->BeginDraw();
-                    deviceResources.deviceContext->Clear(backgroundColor);
-                    hr = deviceResources.deviceContext->EndDraw();
-                    deviceResources.deviceContext->SetTarget(nullptr);
-                    if (SUCCEEDED(hr))
-                    {
-                        hr = swap.chain->Present(swap.presentSyncInterval, 0);
-                        jassert(SUCCEEDED(hr));
-                    }
-
-                    swap.state = direct2d::SwapChain::bufferFilled;
-
-                    break;
-                }
-
-                case direct2d::SwapChain::bufferFilled:
-                {
-                    //
-                    // Present the same buffer again without flipping the swap chain
-                    //
-                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_START(-frameNumber);
-
-                    hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
-                    jassert(SUCCEEDED(hr));
-
-                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
-                    break;
-                }
-
-                default:
-                {
-                    break;
-                }
-                }
-
-                if (FAILED(hr))
-                {
-                    teardown();
-                }
-            }
-        }
     }
 
     void setScaleFactor(double scale_)
@@ -954,9 +896,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_, dpiScalingFactor_, opaque })
+      pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque })
 {
     resize();
 }
@@ -1060,11 +1002,6 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 
         return true;
     }
-
-    //
-    // Present the last frame again to keep the swap chain event firing
-    //
-    pimpl->presentIdleFrame();
 
     return false;
 }

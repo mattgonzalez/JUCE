@@ -441,7 +441,6 @@ namespace direct2d
     class SwapChainReadyThread : protected Thread
     {
     private:
-        SwapChainListener* const swapChainListener;
         HANDLE events[2] = {};
 
         enum
@@ -522,6 +521,7 @@ namespace direct2d
             }
         }
 
+        SwapChainListener* const swapChainListener;
         std::atomic<bool> eventSignaled;
     };
 

@@ -172,6 +172,12 @@ private:
 #endif
     }
 
+    void onVBlank() override
+    {
+
+
+    }
+
     void swapChainSignaledReady()
     {
         //         vBlankListeners.call ([] (auto& l)
@@ -185,7 +191,7 @@ private:
 
     void handleDirect2DSwapChainReady()
     {
-        vBlankListeners.call ([] (auto& l) { l.onVBlank(); });
+        //vBlankListeners.call ([] (auto& l) { l.onVBlank(); });
 
         if (direct2DContext)
         {
@@ -252,7 +258,7 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && !direct2DContext)
         {
-            VBlankDispatcher::getInstance()->removeListener (*this);
+            //VBlankDispatcher::getInstance()->removeListener (*this);
 
             direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this, scaleFactor, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS

@@ -446,6 +446,7 @@ private:
     direct2d::CompositionTree compositionTree;
     direct2d::UpdateRegion updateRegion;
     direct2d::SwapChainReadyThread swapChainReadyThread;
+    SharedResourcePointer<direct2d::SwapChainDispatcher> swapChainDispatcher;
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
 
@@ -503,7 +504,12 @@ private:
             }
         }
 
-        swapChainReadyThread.start(swap.swapChainEvent);
+        if (swap.swapChainEvent)
+        {
+            swapChainDispatcher->addSwapChain(swapChainReadyThread.swapChainListener, swap.swapChainEvent);
+        }
+
+        //swapChainReadyThread.start(swap.swapChainEvent);
 
         return S_OK;
     }

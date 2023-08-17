@@ -33,7 +33,12 @@ namespace direct2d
     private:
         HANDLE shutdownEvent = nullptr;
         CriticalSection lock;
-        Array<HANDLE> swapChainEvents;
+        struct SwapChain
+        {
+            SwapChainListener* listener;
+            HANDLE swapChainEvent;
+        };
+        Array<SwapChain> swapChains;
         std::atomic<int64> atomicReadyFlags;
 
     public:
@@ -46,20 +51,55 @@ namespace direct2d
         ~SwapChainDispatcher() override
         {
             stop();
-            CloseHandle(shutdownEvent);
         }
 
-        void start ()
+        void addSwapChain(SwapChainListener* const listener, HANDLE swapChainEvent)
         {
-            startThread (Thread::Priority::highest);
+            {
+                ScopedLock locker{ lock };
+
+                for (auto const& swapChain : swapChains)
+                {
+                    if (swapChain.listener == listener)
+                    {
+                        return;
+                    }
+                }
+
+                swapChains.add({ listener, swapChainEvent });
+            }
+
+            startThread(Thread::Priority::highest);
+        }
+
+        void removeSwapChain(SwapChainListener* const listener)
+        {
+            {
+                ScopedLock locker{ lock };
+
+                for (auto const& swapChain : swapChains)
+                {
+                    if (swapChain.listener == listener)
+                    {
+                        swapChains.remove(&swapChain);
+                        return;
+                    }
+                }
+            }
+
+            if (swapChains.size() == 0)
+            {
+                stop();
+            }
         }
 
         void stop()
         {
-            jassert (MessageManager::getInstance()->isThisTheMessageThread());
+            jassert(MessageManager::getInstance()->isThisTheMessageThread());
 
             SetEvent(shutdownEvent);
-            stopThread (1000);
+            stopThread(1000);
+            CloseHandle(shutdownEvent);
         }
 
         void run() override
@@ -74,8 +114,11 @@ namespace direct2d
                 {
                     ScopedLock locker{ lock };
 
-                    numWaitableObjects = jmin(MAXIMUM_WAIT_OBJECTS - 1, swapChainEvents.size());
-                    memcpy(waitableObjects + 1, swapChainEvents.getRawDataPointer(), numWaitableObjects - 1);
+                    numWaitableObjects = jmin(MAXIMUM_WAIT_OBJECTS - 1, swapChains.size());
+                    for (DWORD index = 0; index < numWaitableObjects - 1; ++index)
+                    {
+                        waitableObjects[index + 1] = swapChains[index].swapChainEvent;
+                    }
                 }
 
                 //

@@ -182,27 +182,6 @@ private:
         }
     }
 
-    void swapChainSignaledReady()
-    {
-        //         vBlankListeners.call ([] (auto& l)
-        //                               { l.onVBlank(); });
-
-        if (direct2DContext)
-        {
-            handleDirect2DPaint();
-        }
-    }
-
-    void handleDirect2DSwapChainReady()
-    {
-        //vBlankListeners.call ([] (auto& l) { l.onVBlank(); });
-
-        if (direct2DContext)
-        {
-            handleDirect2DPaint();
-        }
-    }
-
     void handleDirect2DPaint()
     {
 #if JUCE_DIRECT2D_METRICS

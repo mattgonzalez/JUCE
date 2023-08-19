@@ -1497,9 +1497,15 @@ private:
         while (! threadShouldExit())
         {
             if (output->WaitForVBlank() == S_OK)
+            {
+                TRACE_LOG_JUCE_VBLANK_THREAD_EVENT;
+
                 triggerAsyncUpdate();
+            }
             else
-                Thread::sleep (1);
+            {
+                Thread::sleep(1);
+            }
         }
     }
 

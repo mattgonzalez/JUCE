@@ -122,11 +122,12 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
                        TraceLoggingInt32 (frameNumber, "frame"),                       \
                        TraceLoggingInt32 (etw::presentDoNotSequenceEnd, "code"))
 
-#define TRACE_LOG_SWAP_CHAIN_EVENT                                  \
+#define TRACE_LOG_SWAP_CHAIN_EVENT(bitNumber) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
                        "Swap chain thread event",                   \
                        TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                        TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
+                       TraceLoggingInt32 (bitNumber, "bitNumber"), \
                        TraceLoggingInt32 (etw::swapChainThreadEvent, "code"))
 
 #define TRACE_LOG_SWAP_CHAIN_MESSAGE                                  \

@@ -138,6 +138,7 @@ namespace direct2d
                 if (WAIT_OBJECT_0 < waitResult && waitResult < WAIT_OBJECT_0 + numWaitableObjects)
                 {
                     int bitNumber = waitResult - WAIT_OBJECT_0;
+                    TRACE_LOG_SWAP_CHAIN_EVENT(bitNumber);
                     atomicReadyFlags.fetch_or(1LL << bitNumber);
                     continue;
                 }

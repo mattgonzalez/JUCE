@@ -927,6 +927,7 @@ add_library( ${BINARY_NAME}
     "../../../../../modules/juce_core/maths/juce_Expression.cpp"
     "../../../../../modules/juce_core/maths/juce_Expression.h"
     "../../../../../modules/juce_core/maths/juce_MathsFunctions.h"
+    "../../../../../modules/juce_core/maths/juce_MathsFunctions_test.cpp"
     "../../../../../modules/juce_core/maths/juce_NormalisableRange.h"
     "../../../../../modules/juce_core/maths/juce_Random.cpp"
     "../../../../../modules/juce_core/maths/juce_Random.h"
@@ -2837,6 +2838,7 @@ set_source_files_properties(
     "../../../../../modules/juce_core/maths/juce_Expression.cpp"
     "../../../../../modules/juce_core/maths/juce_Expression.h"
     "../../../../../modules/juce_core/maths/juce_MathsFunctions.h"
+    "../../../../../modules/juce_core/maths/juce_MathsFunctions_test.cpp"
     "../../../../../modules/juce_core/maths/juce_NormalisableRange.h"
     "../../../../../modules/juce_core/maths/juce_Random.cpp"
     "../../../../../modules/juce_core/maths/juce_Random.h"
@@ -3860,11 +3862,11 @@ set_source_files_properties(
     PROPERTIES HEADER_FILE_ONLY TRUE)
 
 if( JUCE_BUILD_CONFIGURATION MATCHES "DEBUG" )
-    target_compile_options( ${BINARY_NAME} PRIVATE -Wall -Wcast-align -Wfloat-equal -Wno-ignored-qualifiers -Wsign-compare -Wsign-conversion -Wstrict-aliasing -Wswitch-enum -Wuninitialized -Wunreachable-code -Wunused-parameter -Wshorten-64-to-32 -Wconversion -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wbool-conversion -Wextra-semi -Wshift-sign-overflow -Wshadow-all -Wnullable-to-nonnull-conversion -Wmissing-prototypes -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -Wunused-private-field -Winconsistent-missing-destructor-override "-fsigned-char" )
+    target_compile_options( ${BINARY_NAME} PRIVATE -Wall -Wcast-align -Wfloat-equal -Wno-ignored-qualifiers -Wsign-compare -Wsign-conversion -Wstrict-aliasing -Wswitch-enum -Wuninitialized -Wunreachable-code -Wunused-parameter -Wmissing-field-initializers -Wshadow-all -Wshorten-64-to-32 -Wconversion -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wbool-conversion -Wextra-semi -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wpedantic -Wdeprecated -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -Wunused-private-field -Winconsistent-missing-destructor-override "-fsigned-char" )
 endif()
 
 if( JUCE_BUILD_CONFIGURATION MATCHES "RELEASE" )
-    target_compile_options( ${BINARY_NAME} PRIVATE -Wall -Wcast-align -Wfloat-equal -Wno-ignored-qualifiers -Wsign-compare -Wsign-conversion -Wstrict-aliasing -Wswitch-enum -Wuninitialized -Wunreachable-code -Wunused-parameter -Wshorten-64-to-32 -Wconversion -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wbool-conversion -Wextra-semi -Wshift-sign-overflow -Wshadow-all -Wnullable-to-nonnull-conversion -Wmissing-prototypes -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -Wunused-private-field -Winconsistent-missing-destructor-override "-fsigned-char" )
+    target_compile_options( ${BINARY_NAME} PRIVATE -Wall -Wcast-align -Wfloat-equal -Wno-ignored-qualifiers -Wsign-compare -Wsign-conversion -Wstrict-aliasing -Wswitch-enum -Wuninitialized -Wunreachable-code -Wunused-parameter -Wmissing-field-initializers -Wshadow-all -Wshorten-64-to-32 -Wconversion -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wbool-conversion -Wextra-semi -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wpedantic -Wdeprecated -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -Wunused-private-field -Winconsistent-missing-destructor-override "-fsigned-char" )
 endif()
 
 find_library(log "log")

@@ -24,6 +24,9 @@
 */
 
 /*
+    
+    don't mix DXGI factory types
+
     get rid of CS_OWNDC?
 
     -child window clipping?
@@ -537,7 +540,6 @@ private:
 
 public:
     Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_,
-        direct2d::SwapChainListener* const listener_,
         double dpiScalingFactor_,
         bool opaque_,
         bool temporaryWindow_) :
@@ -581,7 +583,6 @@ public:
                 prepare();
                 deferredRepaints = size;
             }
-
         }
         else
         {
@@ -909,9 +910,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque, bool temporaryWindow)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, double dpiScalingFactor_, bool opaque, bool temporaryWindow)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_, dpiScalingFactor_, opaque, temporaryWindow })
+      pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque, temporaryWindow })
 {
     resize();
 }

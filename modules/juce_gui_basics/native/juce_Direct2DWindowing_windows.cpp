@@ -240,9 +240,7 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && !direct2DContext)
         {
-            VBlankDispatcher::getInstance()->removeListener (*this);
-
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, this, scaleFactor, component.isOpaque(), styleFlags & StyleFlags::windowIsTemporary);
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, scaleFactor, component.isOpaque(), styleFlags & StyleFlags::windowIsTemporary);
 #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
 #endif
@@ -385,8 +383,8 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dProperty = getProperties()["Direct2D"];
-    int renderingEngine = (bool)d2dProperty ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
+    auto d2dFlag = getProperties().getWithDefault("Direct2D", false);
+    int renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
     auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };
     peer->initialise();
     return peer;

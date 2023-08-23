@@ -192,9 +192,10 @@ namespace direct2d
                     chain.QueryInterface<IDXGISwapChain2> (chain2);
                     if (chain2)
                     {
-                        swapChainEvent = chain2->GetFrameLatencyWaitableObject();
-                        if (swapChainEvent == INVALID_HANDLE_VALUE)
+                        swapChainEvent = std::make_unique<direct2d::ScopedEvent>(chain2->GetFrameLatencyWaitableObject());
+                        if (swapChainEvent->getHandle() == INVALID_HANDLE_VALUE)
                         {
+                            swapChainEvent = nullptr;
                             return E_NOINTERFACE;
                         }
 
@@ -249,9 +250,8 @@ namespace direct2d
         void release()
         {
             buffer = nullptr;
-            chain = nullptr;
-            CloseHandle (swapChainEvent);
             swapChainEvent = nullptr;
+            chain = nullptr;
             state = idle;
         }
 
@@ -310,7 +310,7 @@ namespace direct2d
         uint32 const presentFlags = 0;
         ComSmartPtr<IDXGISwapChain1> chain;
         ComSmartPtr<ID2D1Bitmap1> buffer;
-        HANDLE swapChainEvent = nullptr;
+        std::unique_ptr<direct2d::ScopedEvent> swapChainEvent;
         enum State
         {
             idle,

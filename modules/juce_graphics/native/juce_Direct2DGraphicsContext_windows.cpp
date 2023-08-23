@@ -514,10 +514,8 @@ private:
 
         if (swap.swapChainEvent)
         {
-            dispatcherBitNumber = swapChainDispatcher->addSwapChain(swap.swapChainEvent);
+            dispatcherBitNumber = swapChainDispatcher->addSwapChain(swap.swapChainEvent->getHandle());
         }
-
-        //swapChainReadyThread.start(swap.swapChainEvent);
 
         return S_OK;
     }

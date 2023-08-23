@@ -31,7 +31,7 @@ namespace direct2d
     class SwapChainDispatcher : protected Thread
     {
     private:
-        HANDLE wakeEvent = nullptr;
+        direct2d::ScopedEvent wakeEvent;
         CriticalSection lock;
         struct SwapChain
         {
@@ -44,7 +44,6 @@ namespace direct2d
         SwapChainDispatcher()
             : Thread ("SwapChainDispatcher")
         {
-            wakeEvent = CreateEvent (nullptr, FALSE, FALSE, nullptr);
         }
 
         ~SwapChainDispatcher() override
@@ -70,7 +69,7 @@ namespace direct2d
 
             startThread(Thread::Priority::highest);
 
-            SetEvent(wakeEvent);
+            SetEvent(wakeEvent.getHandle());
 
             return swapChains.size();
         }
@@ -84,7 +83,7 @@ namespace direct2d
                 swapChains.remove(bitNumber - 1);
             }
 
-            SetEvent(wakeEvent);
+            SetEvent(wakeEvent.getHandle());
 
             if (swapChains.size() == 0)
             {
@@ -96,9 +95,8 @@ namespace direct2d
         {
             jassert(MessageManager::getInstance()->isThisTheMessageThread());
 
-            SetEvent(wakeEvent);
+            SetEvent(wakeEvent.getHandle());
             stopThread(1000);
-            CloseHandle(wakeEvent);
         }
 
         bool isSwapChainReady(int bitNumber)
@@ -115,7 +113,7 @@ namespace direct2d
                 //
                 // Copy event handles to local array
                 //
-                HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent };
+                HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent.getHandle() };
                 DWORD numWaitableObjects;
                 {
                     ScopedLock locker{ lock };

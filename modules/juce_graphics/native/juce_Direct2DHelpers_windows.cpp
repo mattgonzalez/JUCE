@@ -379,6 +379,31 @@ namespace direct2d
         HeapBlock<DWRITE_GLYPH_OFFSET> glyphOffsets;
     };
 
+    class ScopedEvent
+    {
+    public:
+        ScopedEvent(HANDLE handle_ ) :
+            handle(handle_)
+        {
+        }
+
+        ScopedEvent() :
+            handle(CreateEvent(nullptr, FALSE, FALSE, nullptr))
+        {}
+        ~ScopedEvent()
+        {
+            if (handle)
+            {
+                CloseHandle(handle);
+            }
+        }
+
+        HANDLE getHandle() const noexcept { return handle; }
+
+    private:
+        HANDLE handle = nullptr;
+    };
+
 } // namespace direct2d
 
 #if JUCE_ETW_TRACELOGGING

@@ -158,23 +158,24 @@ namespace direct2d
 
             void stop()
             {
+
                 jassert (MessageManager::getInstance()->isThisTheMessageThread());
 
-                SendMessage (owner->childHwnd, WM_CLOSE, 0, 0);
-                stopThread (100000);
-
-                if (threadQuitEvent)
+                if (isThreadRunning())
                 {
-                    CloseHandle (threadQuitEvent);
-                    threadQuitEvent = nullptr;
+                    SendMessage(owner->childHwnd, WM_CLOSE, 0, 0);
+                    stopThread(1000);
                 }
             }
 
             void run() override
             {
-                SetThreadDescription (GetCurrentThread(), L"Direct2DMessageThread");
+                SetThreadDescription (GetCurrentThread(), getThreadName().toUTF16());
 
                 HMODULE moduleHandle = (HMODULE) Process::getCurrentModuleInstanceHandle();
+
+                RECT parentRect{};
+                GetClientRect(owner->parentHwnd, &parentRect);
 
                 owner->childHwnd = CreateWindowEx (WS_EX_NOREDIRECTIONBITMAP,
                                                    owner->className.toWideCharPointer(),
@@ -182,13 +183,12 @@ namespace direct2d
                                                    WS_VISIBLE | WS_CHILD | WS_DISABLED, // Specify WS_DISABLED to pass input events to parent window
                                                    0,
                                                    0,
-                                                   0,
-                                                   0,
+                                                   parentRect.right - parentRect.left,
+                                                   parentRect.bottom - parentRect.top,
                                                    owner->parentHwnd,
                                                    nullptr,
                                                    moduleHandle,
                                                    owner);
-
                 if (owner->childHwnd)
                 {
                     PostMessage (GetParent (owner->childHwnd), Direct2DLowLevelGraphicsContext::customMessageID, 1, 0);
@@ -202,7 +202,7 @@ namespace direct2d
             {
                 MSG message;
                 DWORD waitResult;
-                HANDLE objects[] = { threadQuitEvent };
+                HANDLE objects[] = { threadQuitEvent.getHandle() };
 
                 while (! threadShouldExit())
                 {
@@ -234,7 +234,7 @@ namespace direct2d
             }
 
             ChildWindow* const owner;
-            HANDLE threadQuitEvent = nullptr;
+            direct2d::ScopedEvent threadQuitEvent;
         } messageThread;
     };
 

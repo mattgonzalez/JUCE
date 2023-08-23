@@ -710,6 +710,7 @@ public:
         //
         bool ready = allocateResources();
         ready &= deferredRepaints.getNumRectangles() > 0;
+        ready &= swapChainReady;
         if (!ready)
         {
             return nullptr;

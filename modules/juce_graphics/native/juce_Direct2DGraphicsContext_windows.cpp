@@ -437,8 +437,8 @@ private:
     double dpiScalingFactor = 1.0;
 
 #if DIRECT2D_CHILD_WINDOW
-    direct2d::ChildWindow::Class childWindowClass;
-    direct2d::ChildWindow childWindow;
+    SharedResourcePointer<direct2d::ChildWindow::Class> childWindowClass;
+    std::unique_ptr<direct2d::ChildWindow> childWindow;
 #endif
     direct2d::DeviceResources deviceResources;
     direct2d::SwapChain swap;
@@ -459,7 +459,7 @@ private:
     {
         auto parentWindowSize = getParentClientRect();
 #if DIRECT2D_CHILD_WINDOW
-        auto swapChainHwnd = childWindow.childHwnd;
+        auto swapChainHwnd = childWindow ? childWindow->childHwnd : parentHwnd;
 #else
         auto swapChainHwnd = parentHwnd;
 #endif
@@ -480,7 +480,10 @@ private:
         if (!swap.canPaint())
         {
 #if DIRECT2D_CHILD_WINDOW
-            childWindow.setSize(parentWindowSize);
+            if (childWindow)
+            {
+                childWindow->setSize(parentWindowSize);
+            }
 #endif
 
             if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory); FAILED (hr))
@@ -524,11 +527,15 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque_) :
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, 
+        direct2d::SwapChainListener* const listener_, 
+        double dpiScalingFactor_, 
+        bool opaque_,
+        bool temporaryWindow_) :
         owner(owner_),
         dpiScalingFactor(dpiScalingFactor_),
 #if DIRECT2D_CHILD_WINDOW
-        childWindow(childWindowClass.className, hwnd_),
+        childWindow(temporaryWindow_ ? nullptr : std::make_unique<direct2d::ChildWindow>(childWindowClass->className, hwnd_)),
 #endif
         swapChainReadyThread(listener_),
         parentHwnd(hwnd_),
@@ -543,7 +550,10 @@ public:
 
         teardown();
 #if DIRECT2D_CHILD_WINDOW
-        childWindow.close();
+        if (childWindow)
+        {
+            childWindow->close();
+        }
 #endif
     }
 
@@ -556,13 +566,14 @@ public:
 #if DIRECT2D_CHILD_WINDOW
         if (visible)
         {
-            if (childWindow.childHwnd)
+            if (childWindow && childWindow->childHwnd)
             {
                 auto size = getParentClientRect();
-                childWindow.setSize(size);
+                childWindow->setSize(size);
                 prepare();
                 deferredRepaints = size;
             }
+
         }
         else
         {
@@ -607,7 +618,10 @@ public:
             if (auto deviceContext = deviceResources.deviceContext)
             {
 #if DIRECT2D_CHILD_WINDOW
-                childWindow.setSize(size);
+                if (childWindow)
+                {
+                    childWindow->setSize(size);
+                }
 #endif
                 auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
                 jassert(SUCCEEDED(hr));
@@ -947,9 +961,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, direct2d::SwapChainListener* const listener_, double dpiScalingFactor_, bool opaque, bool temporaryWindow)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, listener_, dpiScalingFactor_, opaque })
+      pimpl (new Pimpl { *this, hwnd_, listener_, dpiScalingFactor_, opaque, temporaryWindow })
 {
     resize();
 }

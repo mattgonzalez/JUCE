@@ -154,7 +154,7 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const, double dpiScalingFactor, bool opaque);
+    Direct2DLowLevelGraphicsContext(HWND, direct2d::SwapChainListener* const, double dpiScalingFactor, bool opaque, bool temporaryWindow);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleChildWindowChange (bool visible);

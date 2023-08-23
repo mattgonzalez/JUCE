@@ -128,19 +128,6 @@ namespace direct2d
 
 #endif
 
-namespace direct2d
-{
-    struct SwapChainListener
-    {
-        virtual ~SwapChainListener() = default;
-
-        virtual void swapChainSignaledReady() = 0;
-        virtual void swapChainTimedOut() {}
-
-        JUCE_DECLARE_WEAK_REFERENCEABLE(SwapChainListener)
-    };
-};
-
 #if JUCE_ETW_TRACELOGGING
 
 struct ETWEventProvider
@@ -202,9 +189,9 @@ public:
     const Font& getFont() override;
     void drawGlyph (int glyphNumber, const AffineTransform&) override;
     bool supportsGlyphRun() override { return true; }
-    void drawGlyphRun (Array<PositionedGlyph> const& glyphs, 
-        int startIndex, 
-        int numGlyphs, 
+    void drawGlyphRun (Array<PositionedGlyph> const& glyphs,
+        int startIndex,
+        int numGlyphs,
         const AffineTransform& transform,
                        Rectangle<float> underlineArea) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;

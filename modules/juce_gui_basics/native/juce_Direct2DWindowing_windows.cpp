@@ -41,7 +41,7 @@
 
 #if JUCE_DIRECT2D
 
-class Direct2DComponentPeer : public HWNDComponentPeer, public direct2d::SwapChainListener
+class Direct2DComponentPeer : public HWNDComponentPeer
 {
 private:
 
@@ -57,8 +57,8 @@ public:
 
     //==============================================================================
     Direct2DComponentPeer(Component& comp, int windowStyleFlags, HWND parent, bool nonRepainting, int renderingEngine) :
-        HWNDComponentPeer(comp, 
-            windowStyleFlags, 
+        HWNDComponentPeer(comp,
+            windowStyleFlags,
             parent,
             nonRepainting,
             renderingEngine)
@@ -172,20 +172,9 @@ private:
 #endif
     }
 
-    void swapChainSignaledReady()
+    void onVBlank() override
     {
-        //         vBlankListeners.call ([] (auto& l)
-        //                               { l.onVBlank(); });
-
-        if (direct2DContext)
-        {
-            handleDirect2DPaint();
-        }
-    }
-
-    void handleDirect2DSwapChainReady()
-    {
-        vBlankListeners.call ([] (auto& l) { l.onVBlank(); });
+        HWNDComponentPeer::onVBlank();
 
         if (direct2DContext)
         {
@@ -208,7 +197,6 @@ private:
         {
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
-
 
 #if JUCE_DIRECT2D_METRICS
             if (lastPaintStartTicks > 0)
@@ -265,11 +253,11 @@ private:
     void setCurrentRenderingEngine ([[maybe_unused]] int index) override
     {
         //
-        // The WS_EX_NOREDIRECTIONBITMAP flag is required for Direct2D and 
+        // The WS_EX_NOREDIRECTIONBITMAP flag is required for Direct2D and
         // can only be configured when the window is created. Changing the renderer requires recreating the window.
-        // 
+        //
         // Recreate the window asynchronously to avoid an infinite recursive cycle of parentHierarchyChanged -> setCurrentRenderingEngine...
-        // 
+        //
         if (index != currentRenderingEngine)
         {
             currentRenderingEngine = jlimit (0, getAvailableRenderingEngines().size() - 1, index);
@@ -385,7 +373,7 @@ private:
                 break;
             }
 
-            default: 
+            default:
                 break;
         }
 

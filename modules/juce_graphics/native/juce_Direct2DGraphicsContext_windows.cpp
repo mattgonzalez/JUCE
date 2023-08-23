@@ -29,7 +29,7 @@
     -child window clipping?
 
     -JUCE_DIRECT2D_METRICS fix build / conditional frame stats, frame history
-    
+
     -optimize save/restore state
 
     -minimize calls to SetTransform
@@ -44,7 +44,7 @@
     tried to move painting to a thread
     WM_PAINT and deferred repaints
 
-    handle device context creation error / paint errors     
+    handle device context creation error / paint errors
         restart render thread on error?
         watchdog timer?
 
@@ -90,7 +90,8 @@
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
-#include "juce_Direct2DSwapChainThread_windows.cpp"
+#include "juce_Direct2DResources_windows.cpp"
+#include "juce_Direct2DSwapChainDispatcher_windows.cpp"
 #include "juce_Direct2DChildWindow_windows.cpp"
 
 namespace juce
@@ -189,6 +190,7 @@ public:
         // of Layer objects to keep track of how many layers need to be popped.
         //
         // Pass nullptr for the PushLayer layer parameter to allow Direct2D to manage the layers (Windows 8 or later)
+        //
         deviceContext->SetTransform (D2D1::IdentityMatrix());
         deviceContext->PushLayer (layerParameters, nullptr);
 
@@ -444,7 +446,9 @@ private:
     direct2d::SwapChain swap;
     direct2d::CompositionTree compositionTree;
     direct2d::UpdateRegion updateRegion;
-    direct2d::SwapChainReadyThread swapChainReadyThread;
+    SharedResourcePointer<direct2d::SwapChainDispatcher> swapChainDispatcher;
+    int dispatcherBitNumber = -1;
+    bool swapChainReady = false;
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
 
@@ -505,31 +509,36 @@ private:
             }
         }
 
-        swapChainReadyThread.start(swap.swapChainEvent);
+        if (swap.swapChainEvent)
+        {
+            dispatcherBitNumber = swapChainDispatcher->addSwapChain(swap.swapChainEvent);
+        }
+
+        //swapChainReadyThread.start(swap.swapChainEvent);
 
         return S_OK;
     }
 
     void teardown()
     {
-        swapChainReadyThread.stop();
+        //swapChainReadyThread.stop();
+        swapChainDispatcher->removeSwapChain(dispatcherBitNumber);
         compositionTree.release();
         swap.release();
         deviceResources.release();
     }
 
-    bool checkAndClearSwapChainReadyFlag()
+    void checkSwapChainReady()
     {
-        bool expected = true;
-        return swapChainReadyThread.eventSignaled.compare_exchange_weak(expected, false);
+        swapChainReady |= swapChainDispatcher->isSwapChainReady(dispatcherBitNumber);
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
 public:
-    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, 
-        direct2d::SwapChainListener* const listener_, 
-        double dpiScalingFactor_, 
+    Pimpl(Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_,
+        direct2d::SwapChainListener* const listener_,
+        double dpiScalingFactor_,
         bool opaque_,
         bool temporaryWindow_) :
         owner(owner_),
@@ -537,7 +546,6 @@ public:
 #if DIRECT2D_CHILD_WINDOW
         childWindow(temporaryWindow_ ? nullptr : std::make_unique<direct2d::ChildWindow>(childWindowClass->className, hwnd_)),
 #endif
-        swapChainReadyThread(listener_),
         parentHwnd(hwnd_),
         opaque(opaque_)
     {
@@ -691,6 +699,11 @@ public:
     ClientSavedState* startFrame(RectangleList<int>& paintAreas)
     {
         //
+        // Update swap chain ready flag from dispatcher
+        //
+        checkSwapChainReady();
+
+        //
         // Paint if:
         //      resources are allocated
         //      deferredRepaints has areas to be painted
@@ -731,14 +744,6 @@ public:
         else
         {
             paintAreas = deferredRepaints;
-        }
-
-        //
-        // Swap chain ready? Check this *last* so painting doesn't get stuck since this will clear the swap chain ready flag
-        //
-        if (!checkAndClearSwapChainReadyFlag())
-        {
-            return nullptr;
         }
 
         TRACE_LOG_D2D_PAINT_START(frameNumber);
@@ -788,7 +793,7 @@ public:
 	            dirtyRectangles.realloc(deferredRepaints.getNumRectangles());
 	            dirtyRectanglesCapacity = deferredRepaints.getNumRectangles();
 	        }
-	
+
 	        DXGI_PRESENT_PARAMETERS presentParameters {};
             if (swap.state == direct2d::SwapChain::bufferFilled)
             {
@@ -828,66 +833,9 @@ public:
         }
 
         deferredRepaints.clear();
+        swapChainReady = false;
 
         frameNumber++;
-    }
-
-    void presentIdleFrame()
-    {
-        TRACE_LOG_D2D(etw::presentIdleFrame);
-
-        if (allocateResources())
-        {
-            if (checkAndClearSwapChainReadyFlag())
-            {
-                HRESULT hr = S_OK;
-
-                switch (swap.state)
-                {
-                case direct2d::SwapChain::bufferAllocated:
-                {
-                    deviceResources.deviceContext->SetTarget(swap.buffer);
-                    deviceResources.deviceContext->BeginDraw();
-                    deviceResources.deviceContext->Clear(backgroundColor);
-                    hr = deviceResources.deviceContext->EndDraw();
-                    deviceResources.deviceContext->SetTarget(nullptr);
-                    if (SUCCEEDED(hr))
-                    {
-                        hr = swap.chain->Present(swap.presentSyncInterval, 0);
-                        jassert(SUCCEEDED(hr));
-                    }
-
-                    swap.state = direct2d::SwapChain::bufferFilled;
-
-                    break;
-                }
-
-                case direct2d::SwapChain::bufferFilled:
-                {
-                    //
-                    // Present the same buffer again without flipping the swap chain
-                    //
-                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_START(-frameNumber);
-
-                    hr = swap.chain->Present(swap.presentSyncInterval, DXGI_PRESENT_DO_NOT_SEQUENCE);
-                    jassert(SUCCEEDED(hr));
-
-                    TRACE_LOG_PRESENT_DO_NOT_SEQUENCE_END(-frameNumber);
-                    break;
-                }
-
-                default:
-                {
-                    break;
-                }
-                }
-
-                if (FAILED(hr))
-                {
-                    teardown();
-                }
-            }
-        }
     }
 
     void setScaleFactor(double scale_)
@@ -945,7 +893,7 @@ public:
     {
         return deviceResources.deviceContext;
     }
-    
+
     SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND parentHwnd = nullptr;
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
@@ -1028,8 +976,8 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
         {
             //
             // Clip without transforming
-            // 
-            // Clear() only works with axis-aligned clip layers, so if the window alpha is less than 1.0f, the clip region has to be the union 
+            //
+            // Clear() only works with axis-aligned clip layers, so if the window alpha is less than 1.0f, the clip region has to be the union
             // of all the paint areas
             //
             if (paintAreas.getNumRectangles() == 1)
@@ -1047,10 +995,10 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 
             //
             // Clear the buffer *after* setting the clip region
-            // 
+            //
             // For opaque windows, clear the background to black with the window alpha
             // For non-opaque windows, clear the background to transparent black
-            // 
+            //
             // In either case, add a transparency layer if the window alpha is less than 1.0
             //
             deviceContext->Clear(pimpl->backgroundColor);
@@ -1067,11 +1015,6 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 
         return true;
     }
-
-    //
-    // Present the last frame again to keep the swap chain event firing
-    //
-    pimpl->presentIdleFrame();
 
     return false;
 }
@@ -1136,9 +1079,9 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangleList (const RectangleList<i
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
-            clipRegion, 
-            currentState->currentTransform.getTransform(), 
-            D2D1_FILL_MODE_WINDING), 
+            clipRegion,
+            currentState->currentTransform.getTransform(),
+            D2D1_FILL_MODE_WINDING),
             deviceContext);
     }
 
@@ -1161,9 +1104,9 @@ void Direct2DLowLevelGraphicsContext::excludeClipRectangle (const Rectangle<int>
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
-            rectangles, 
-            currentState->currentTransform.getTransform(), 
-            D2D1_FILL_MODE_ALTERNATE), 
+            rectangles,
+            currentState->currentTransform.getTransform(),
+            D2D1_FILL_MODE_ALTERNATE),
             deviceContext);
     }
 }
@@ -1173,8 +1116,8 @@ void Direct2DLowLevelGraphicsContext::clipToPath (const Path& path, const Affine
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->pushGeometryClipLayer(direct2d::pathToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
-            path, 
-            currentState->currentTransform.getTransformWith (transform)), 
+            path,
+            currentState->currentTransform.getTransformWith (transform)),
             deviceContext);
     }
 }
@@ -1483,7 +1426,7 @@ bool Direct2DLowLevelGraphicsContext::drawLine(const Line<float>& line, float li
         deviceContext->SetTransform(direct2d::transformToMatrix(currentState->currentTransform.getTransform()));
         deviceContext->DrawLine(D2D1::Point2F(line.getStartX(), line.getStartY()),
             D2D1::Point2F(line.getEndX(), line.getEndY()),
-            currentState->currentBrush, 
+            currentState->currentBrush,
             lineThickness);
     }
 

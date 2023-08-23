@@ -220,7 +220,7 @@ private:
 
     void handleDirect2DResize()
     {
-        if (direct2DContext)
+        if (direct2DContext && component.isVisible())
         {
             direct2DContext->resize();
         }
@@ -314,7 +314,7 @@ private:
             case WM_NCCALCSIZE:
             {
                 TRACE_LOG_D2D_RESIZE (WM_NCCALCSIZE);
-                if (direct2DContext)
+                if (direct2DContext && component.isVisible())
                 {
                     RECT* rect = (RECT*) lParam;
                     direct2DContext->resize (rect->right - rect->left, rect->bottom - rect->top);
@@ -324,7 +324,7 @@ private:
 
             case WM_ENTERSIZEMOVE:
             {
-                if (direct2DContext)
+                if (direct2DContext && component.isVisible())
                 {
                     direct2DContext->startResizing();
                 }
@@ -333,7 +333,7 @@ private:
 
             case WM_EXITSIZEMOVE:
             {
-                if (direct2DContext)
+                if (direct2DContext && component.isVisible())
                 {
                     direct2DContext->finishResizing();
                 }

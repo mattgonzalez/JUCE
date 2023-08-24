@@ -311,9 +311,19 @@ private:
 
         switch (message)
         {
+            case WM_PAINT:
+            {
+                if (direct2DContext)
+                {
+                    direct2DContext->addInvalidWindowRegionToDeferredRepaints();
+                }
+                break;
+            }
+
             case WM_NCCALCSIZE:
             {
                 TRACE_LOG_D2D_RESIZE (WM_NCCALCSIZE);
+
                 if (direct2DContext && component.isVisible())
                 {
                     RECT* rect = (RECT*) lParam;
@@ -361,8 +371,21 @@ private:
                 break;
             }
 
+            case WM_SHOWWINDOW:
+            {
+                if (direct2DContext)
+                {
+                    direct2DContext->handleParentWindowChange(wParam);
+                    handleDirect2DPaint();
+                }
+                break;
+            }
+
             case Direct2DLowLevelGraphicsContext::customMessageID:
             {
+                //
+                // Child window received WM_SHOWWINDOW
+                //
                 if (direct2DContext)
                 {
                     direct2DContext->handleChildWindowChange (wParam);
@@ -383,8 +406,9 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dFlag = getProperties().getWithDefault("Direct2D", false);
+    auto d2dFlag = getProperties().getWithDefault("Direct2D", true);
     int renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
+
     auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };
     peer->initialise();
     return peer;

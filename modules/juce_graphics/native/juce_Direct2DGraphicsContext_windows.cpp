@@ -42,7 +42,7 @@
     -don't paint occluded windows
     -Multithreaded device context
     -reusable geometry for exclude clip rectangle
-    verify that the child window is not created if DIRECT2D_CHILD_WINDOW is off
+    verify that the child window is not created if JUCE_DIRECT2D_CHILD_WINDOW is off
 
     tried to move painting to a thread
     WM_PAINT and deferred repaints
@@ -88,13 +88,13 @@
 
 #endif
 
-#ifndef DIRECT2D_CHILD_WINDOW
-#define DIRECT2D_CHILD_WINDOW 1
+#ifndef JUCE_DIRECT2D_CHILD_WINDOW
+#define JUCE_DIRECT2D_CHILD_WINDOW 1
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
-#include "juce_Direct2DResources_windows.cpp"
 #include "juce_Direct2DSwapChainDispatcher_windows.cpp"
+#include "juce_Direct2DResources_windows.cpp"
 #include "juce_Direct2DChildWindow_windows.cpp"
 
 namespace juce
@@ -441,7 +441,7 @@ private:
     Direct2DLowLevelGraphicsContext& owner;
     double dpiScalingFactor = 1.0;
 
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
     SharedResourcePointer<direct2d::ChildWindow::Class> childWindowClass;
     std::unique_ptr<direct2d::ChildWindow> childWindow;
 #endif
@@ -449,8 +449,6 @@ private:
     direct2d::SwapChain swap;
     direct2d::CompositionTree compositionTree;
     direct2d::UpdateRegion updateRegion;
-    SharedResourcePointer<direct2d::SwapChainDispatcher> swapChainDispatcher;
-    int dispatcherBitNumber = -1;
     bool swapChainReady = false;
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
@@ -465,7 +463,7 @@ private:
     HRESULT prepare()
     {
         auto parentWindowSize = getParentClientRect();
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
         auto swapChainHwnd = childWindow ? childWindow->childHwnd : parentHwnd;
 #else
         auto swapChainHwnd = parentHwnd;
@@ -486,7 +484,7 @@ private:
 
         if (!swap.canPaint())
         {
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
             if (childWindow)
             {
                 childWindow->setSize(parentWindowSize);
@@ -512,18 +510,11 @@ private:
             }
         }
 
-        if (swap.swapChainEvent)
-        {
-            dispatcherBitNumber = swapChainDispatcher->addSwapChain(swap.swapChainEvent->getHandle());
-        }
-
         return S_OK;
     }
 
     void teardown()
     {
-        //swapChainReadyThread.stop();
-        swapChainDispatcher->removeSwapChain(dispatcherBitNumber);
         compositionTree.release();
         swap.release();
         deviceResources.release();
@@ -531,7 +522,7 @@ private:
 
     void checkSwapChainReady()
     {
-        swapChainReady |= swapChainDispatcher->isSwapChainReady(dispatcherBitNumber);
+        swapChainReady |= swap.swapChainDispatcher->isSwapChainReady(swap.dispatcherBitNumber);
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
@@ -543,11 +534,9 @@ public:
         bool temporaryWindow_) :
         owner(owner_),
         dpiScalingFactor(dpiScalingFactor_),
-#if DIRECT2D_CHILD_WINDOW
-        childWindow(temporaryWindow_ ? nullptr : std::make_unique<direct2d::ChildWindow>(childWindowClass->className, hwnd_)),
-#endif
         parentHwnd(hwnd_),
-        opaque(opaque_)
+        opaque(opaque_),
+        parentWindowIsTemporary(temporaryWindow_)
     {
         setWindowAlpha(1.0f);
     }
@@ -557,7 +546,7 @@ public:
         popAllSavedStates();
 
         teardown();
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
         if (childWindow)
         {
             childWindow->close();
@@ -565,13 +554,52 @@ public:
 #endif
     }
 
-#if DIRECT2D_CHILD_WINDOW
+    void handleParentWindowChange(bool visible)
+    {
+#if JUCE_DIRECT2D_CHILD_WINDOW
+        auto parentWindowSize = getParentClientRect();
+        if (windowSize.isEmpty() && parentWindowSize.getWidth() <= 1 || parentWindowSize.getHeight() <= 1)
+        {
+            return;
+        }
+
+        if (visible && childWindow == nullptr)
+        {
+            if (!parentWindowIsTemporary)
+            {
+                childWindow = std::make_unique<direct2d::ChildWindow>(childWindowClass->className, parentHwnd);
+            }
+
+            auto size = getParentClientRect();
+            prepare();
+            resize();
+            deferredRepaints = size;
+        }
+        else
+        {
+            teardown();
+            childWindow = nullptr;
+        }
+#else
+        if (visible)
+        {
+            prepare();
+            resize();
+        }
+        else
+        {
+            teardown();
+        }
+#endif
+    }
+
+#if JUCE_DIRECT2D_CHILD_WINDOW
     void handleChildWindowChange(bool visible)
 #else
     void handleChildWindowChange(bool)
 #endif
     {
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
         if (visible)
         {
             if (childWindow && childWindow->childHwnd)
@@ -612,30 +640,32 @@ public:
 
     void resize(Rectangle<int> size)
     {
-        if (!size.isEmpty())
+        if (windowSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1)
         {
-            prepare();
+            return;
+        }
 
-            //
-            // Require the entire window to be repainted
-            //
-            windowSize = size;
-            deferredRepaints = size;
+        prepare();
 
-            if (auto deviceContext = deviceResources.deviceContext)
+        //
+        // Require the entire window to be repainted
+        //
+        windowSize = size;
+        deferredRepaints = size;
+
+        if (auto deviceContext = deviceResources.deviceContext)
+        {
+#if JUCE_DIRECT2D_CHILD_WINDOW
+            if (childWindow)
             {
-#if DIRECT2D_CHILD_WINDOW
-                if (childWindow)
-                {
-                    childWindow->setSize(size);
-                }
+                childWindow->setSize(size);
+            }
 #endif
-                auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
-                jassert(SUCCEEDED(hr));
-                if (FAILED(hr))
-                {
-                    teardown();
-                }
+            auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
+            jassert(SUCCEEDED(hr));
+            if (FAILED(hr))
+            {
+                teardown();
             }
         }
     }
@@ -650,7 +680,7 @@ public:
         //
         // Child window still has the original window size
         //
-#if DIRECT2D_CHILD_WINDOW
+#if JUCE_DIRECT2D_CHILD_WINDOW
         resize(windowSize);
 #endif
     }
@@ -658,7 +688,6 @@ public:
     void addDeferredRepaint(Rectangle<int> deferredRepaint)
     {
         deferredRepaints.add(deferredRepaint);
-        prepare();
     }
 
     void addInvalidWindowRegionToDeferredRepaints()
@@ -666,9 +695,9 @@ public:
         updateRegion.getRECTAndValidate(parentHwnd);
         updateRegion.addToRectangleList(deferredRepaints);
         updateRegion.clear();
-        prepare();
     }
 
+#if 0
     bool allocateResources()
     {
         //
@@ -688,6 +717,7 @@ public:
 
         return true;
     }
+#endif
 
     void setWindowAlpha(float alpha)
     {
@@ -697,6 +727,8 @@ public:
 
     ClientSavedState* startFrame(RectangleList<int>& paintAreas)
     {
+        prepare();
+
         //
         // Update swap chain ready flag from dispatcher
         //
@@ -708,7 +740,13 @@ public:
         //      deferredRepaints has areas to be painted
         //      the swap chain is ready
         //
-        bool ready = allocateResources();
+        bool ready = deviceResources.canPaint();
+        ready &= swap.canPaint();
+        ready &= compositionTree.canPaint();
+#if JUCE_DIRECT2D_CHILD_WINDOW
+        //if (child)
+        //ready &= childWindow != nullptr;
+#endif
         ready &= deferredRepaints.getNumRectangles() > 0;
         ready &= swapChainReady;
         if (!ready)
@@ -899,6 +937,7 @@ public:
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
     bool opaque = true;
+    bool parentWindowIsTemporary = false;
     float windowAlpha = 1.0f;
     D2D1_COLOR_F backgroundColor{};
 
@@ -913,11 +952,15 @@ Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, do
     : currentState (nullptr),
       pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque, temporaryWindow })
 {
-    resize();
 }
 
 Direct2DLowLevelGraphicsContext::~Direct2DLowLevelGraphicsContext()
 {
+}
+
+void Direct2DLowLevelGraphicsContext::handleParentWindowChange(bool visible)
+{
+    pimpl->handleParentWindowChange (visible);
 }
 
 void Direct2DLowLevelGraphicsContext::handleChildWindowChange (bool visible)

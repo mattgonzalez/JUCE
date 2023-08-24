@@ -144,6 +144,7 @@ public:
     Direct2DLowLevelGraphicsContext(HWND, double dpiScalingFactor, bool opaque, bool temporaryWindow);
     ~Direct2DLowLevelGraphicsContext() override;
 
+    void handleParentWindowChange(bool visible);
     void handleChildWindowChange (bool visible);
     void setWindowAlpha(float alpha);
 

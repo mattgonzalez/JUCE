@@ -211,6 +211,11 @@ namespace direct2d
                     return E_NOINTERFACE;
                 }
 
+                if (swapChainEvent && swapChainEvent->getHandle())
+                {
+                    dispatcherBitNumber = swapChainDispatcher->addSwapChain(swapChainEvent->getHandle());
+                }
+
                 return hr;
             }
 
@@ -249,6 +254,11 @@ namespace direct2d
 
         void release()
         {
+            if (swapChainEvent)
+            {
+                swapChainDispatcher->removeSwapChain(swapChainEvent->getHandle());
+            }
+
             buffer = nullptr;
             swapChainEvent = nullptr;
             chain = nullptr;
@@ -311,6 +321,8 @@ namespace direct2d
         ComSmartPtr<IDXGISwapChain1> chain;
         ComSmartPtr<ID2D1Bitmap1> buffer;
         std::unique_ptr<direct2d::ScopedEvent> swapChainEvent;
+        int dispatcherBitNumber = -1;
+        SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;
         enum State
         {
             idle,

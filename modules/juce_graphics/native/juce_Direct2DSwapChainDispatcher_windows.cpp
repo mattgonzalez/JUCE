@@ -33,11 +33,7 @@ namespace direct2d
     private:
         direct2d::ScopedEvent wakeEvent;
         CriticalSection lock;
-        struct SwapChain
-        {
-            HANDLE swapChainEvent;
-        };
-        Array<SwapChain> swapChains;
+        Array<HANDLE> handles;
         std::atomic<int64> atomicReadyFlags;
 
     public:
@@ -56,36 +52,40 @@ namespace direct2d
             {
                 ScopedLock locker{ lock };
 
-                for (int index = 0; index < swapChains.size(); ++index)
+                int index = handles.indexOf(swapChainEvent);
+                if (index >= 0)
                 {
-                    if (swapChains[index].swapChainEvent == swapChainEvent)
-                    {
-                        return index + 1;
-                    }
+                    return index + 1;
                 }
 
-                swapChains.add({ swapChainEvent });
+                handles.add({ swapChainEvent });
             }
 
-            startThread(Thread::Priority::highest);
-
-            SetEvent(wakeEvent.getHandle());
-
-            return swapChains.size();
+            if (!isThreadRunning())
+            {
+                startThread(Thread::Priority::highest);
+            }
+            else
+            {
+                SetEvent(wakeEvent.getHandle());
+            }
+            
+            return handles.size();
         }
 
-        void removeSwapChain(int bitNumber)
+        void removeSwapChain(HANDLE swapChainEvent)
         {
-            if (1 <= bitNumber && bitNumber < swapChains.size())
             {
                 ScopedLock locker{ lock };
 
-                swapChains.remove(bitNumber - 1);
+                handles.removeAllInstancesOf(swapChainEvent);
             }
 
-            SetEvent(wakeEvent.getHandle());
-
-            if (swapChains.size() == 0)
+            if (handles.size() > 0)
+            {
+                SetEvent(wakeEvent.getHandle());
+            }
+            else
             {
                 stop();
             }
@@ -114,14 +114,14 @@ namespace direct2d
                 // Copy event handles to local array
                 //
                 HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent.getHandle() };
-                DWORD numWaitableObjects;
+                DWORD numWaitableObjects = 1;
                 {
                     ScopedLock locker{ lock };
 
-                    numWaitableObjects = 1 + jmin(MAXIMUM_WAIT_OBJECTS - 1, swapChains.size());
+                    numWaitableObjects += jmin(MAXIMUM_WAIT_OBJECTS - 1, handles.size());
                     for (DWORD index = 0; index < numWaitableObjects - 1; ++index)
                     {
-                        waitableObjects[index + 1] = swapChains[index].swapChainEvent;
+                        waitableObjects[index + 1] = handles[index];
                     }
                 }
 

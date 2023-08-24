@@ -553,91 +553,43 @@ public:
 #if JUCE_DIRECT2D_CHILD_WINDOW
         if (childHwnd)
         {
-            childWindowThread->close(childHwnd);
+            childWindowThread->removeChildWindow(childHwnd);
             childHwnd = nullptr;
         }
 #endif
     }
 
-    void handleParentWindowChange(bool visible)
+    void handleParentShowWindow()
     {
-#if 1
-        if (visible)
-        {
-            if (childHwnd == nullptr)
-            {
-                childWindowThread->postMessage(createWindowMessageID, 0, (LPARAM)parentHwnd);
-            }
-        }
-#else
-
 #if JUCE_DIRECT2D_CHILD_WINDOW
-        auto parentWindowSize = getParentClientRect();
-        if (windowSize.isEmpty() && parentWindowSize.getWidth() <= 1 || parentWindowSize.getHeight() <= 1)
-        {
-            return;
-        }
-
-        if (visible && childWindow == nullptr)
-        {
-            if (!parentWindowIsTemporary)
-            {
-                childWindow = std::make_unique<direct2d::ChildWindowThread>(childWindowClass->className, parentHwnd);
-            }
-
-            auto size = getParentClientRect();
-            prepare();
-            resize();
-            deferredRepaints = size;
-        }
-        else
-        {
-            teardown();
-            childWindow = nullptr;
-        }
+        childWindowThread->createChildForParentWindow(parentHwnd);
 #else
-        if (visible)
-        {
-            prepare();
-            resize();
-        }
-        else
-        {
-            teardown();
-        }
-#endif
+        handleWindowCreatedCommon();
 #endif
     }
 
 #if JUCE_DIRECT2D_CHILD_WINDOW
-    void handleChildWindowChange(HWND childHwnd_, bool visible)
+    void handleChildShowWindow(HWND childHwnd_)
 #else
-    void handleChildWindowChange(bool)
+    void handleChildShowWindow(HWND)
 #endif
     {
 #if JUCE_DIRECT2D_CHILD_WINDOW
         jassert (GetParent (childHwnd_) == parentHwnd);
+        jassert(childHwnd == nullptr);
 
-        if (childHwnd == nullptr)
-        {
-            childHwnd = childHwnd_;
-        }
-
-        if (visible)
-        {
-            if (childWindowThread && childHwnd_)
-            {
-                auto size = getParentClientRect();
-                childWindowThread->setSize(childHwnd_, size);
-                prepare();
-                deferredRepaints = size;
-            }
-        }
-        else
-        {
-            teardown();
-        }
+        childHwnd = childHwnd_;
+        handleWindowCreatedCommon();
 #endif
+    }
+
+    void handleWindowCreatedCommon()
+    {
+        prepare();
+
+        windowSize = getParentClientRect();
+        previousWindowSize = windowSize;
+        deferredRepaints = windowSize;
     }
 
     Rectangle<int> getParentClientRect() const
@@ -724,28 +676,6 @@ public:
         updateRegion.addToRectangleList(deferredRepaints);
         updateRegion.clear();
     }
-
-#if 0
-    bool allocateResources()
-    {
-        //
-        // Is everything set up?
-        //
-        if (!deviceResources.canPaint() || !swap.canPaint() || !compositionTree.canPaint())
-        {
-            //
-            // Allocate resources
-            //
-            auto hr = prepare();
-            if (FAILED(hr))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-#endif
 
     void setWindowAlpha(float alpha)
     {
@@ -987,14 +917,14 @@ Direct2DLowLevelGraphicsContext::~Direct2DLowLevelGraphicsContext()
 {
 }
 
-void Direct2DLowLevelGraphicsContext::handleParentWindowChange(bool visible)
+void Direct2DLowLevelGraphicsContext::handleParentShowWindow()
 {
-    pimpl->handleParentWindowChange (visible);
+    pimpl->handleParentShowWindow();
 }
 
-void Direct2DLowLevelGraphicsContext::handleChildWindowChange (void* childWindowHandle, bool visible)
+void Direct2DLowLevelGraphicsContext::handleChildShowWindow(void* childWindowHandle)
 {
-    pimpl->handleChildWindowChange ((HWND)childWindowHandle, visible);
+    pimpl->handleChildShowWindow((HWND)childWindowHandle);
 }
 
 void Direct2DLowLevelGraphicsContext::setWindowAlpha(float alpha)

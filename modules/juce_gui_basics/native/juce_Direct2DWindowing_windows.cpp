@@ -373,22 +373,22 @@ private:
 
             case WM_SHOWWINDOW:
             {
-                if (direct2DContext)
+                if (direct2DContext && wParam)
                 {
-                    direct2DContext->handleParentWindowChange(wParam);
+                    direct2DContext->handleParentShowWindow();
                     handleDirect2DPaint();
                 }
                 break;
             }
 
-            case Direct2DLowLevelGraphicsContext::customMessageID:
+            case Direct2DLowLevelGraphicsContext::childWindowCreatedMessageID:
             {
                 //
                 // Child window received WM_SHOWWINDOW
                 //
-                if (direct2DContext)
+                if (direct2DContext && wParam)
                 {
-                    direct2DContext->handleChildWindowChange ((void*)lParam, wParam);
+                    direct2DContext->handleChildShowWindow ((void*)lParam);
                     handleDirect2DPaint();
                 }
                 break;
@@ -406,7 +406,7 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dFlag = getProperties().getWithDefault("Direct2D", false);
+    auto d2dFlag = getProperties().getWithDefault("Direct2D", true);
     int renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
 
     auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };

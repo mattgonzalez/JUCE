@@ -144,8 +144,8 @@ public:
     Direct2DLowLevelGraphicsContext(HWND, double dpiScalingFactor, bool opaque, bool temporaryWindow);
     ~Direct2DLowLevelGraphicsContext() override;
 
-    void handleParentWindowChange(bool visible);
-    void handleChildWindowChange (void* childWindowHandle, bool visible);
+    void handleParentShowWindow();
+    void handleChildShowWindow(void* childWindowHandle);
     void setWindowAlpha(float alpha);
 
     //==============================================================================
@@ -219,10 +219,11 @@ public:
 
     enum
     {
-        createWindowMessageID = 0x400 + 0xd2d + 1
+        createChildWindowMessageID = 0x400 + 0xd2d, // WM_USER + 0xd2d
+        removeChildWindowMessageID,
+        childWindowCreatedMessageID
     };
 
-    static uint32 constexpr customMessageID = 0x400 + 0xd2d; // WM_USER + 0xd2d
     static int constexpr minWindowSize = 1;
     static int constexpr maxWindowSize = 16384;
 

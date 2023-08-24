@@ -95,6 +95,7 @@ namespace direct2d
         {
             jassert(MessageManager::getInstance()->isThisTheMessageThread());
 
+            signalThreadShouldExit();
             SetEvent(wakeEvent.getHandle());
             stopThread(1000);
         }

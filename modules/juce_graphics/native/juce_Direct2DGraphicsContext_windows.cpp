@@ -442,8 +442,7 @@ private:
     double dpiScalingFactor = 1.0;
 
 #if JUCE_DIRECT2D_CHILD_WINDOW
-    SharedResourcePointer<direct2d::ChildWindow::Class> childWindowClass;
-    std::unique_ptr<direct2d::ChildWindow> childWindow;
+    SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
 #endif
     direct2d::DeviceResources deviceResources;
     direct2d::SwapChain swap;
@@ -464,10 +463,15 @@ private:
     {
         auto parentWindowSize = getParentClientRect();
 #if JUCE_DIRECT2D_CHILD_WINDOW
-        auto swapChainHwnd = childWindow ? childWindow->childHwnd : parentHwnd;
+        auto swapChainHwnd = childHwnd ? childHwnd : parentHwnd;
 #else
         auto swapChainHwnd = parentHwnd;
 #endif
+
+        if (childHwnd == nullptr)
+        {
+            return E_FAIL;
+        }
 
         if (!swapChainHwnd || parentWindowSize.isEmpty())
         {
@@ -485,9 +489,9 @@ private:
         if (!swap.canPaint())
         {
 #if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childWindow)
+            if (childHwnd)
             {
-                childWindow->setSize(parentWindowSize);
+                childWindowThread->setSize(childHwnd, parentWindowSize);
             }
 #endif
 
@@ -547,15 +551,26 @@ public:
 
         teardown();
 #if JUCE_DIRECT2D_CHILD_WINDOW
-        if (childWindow)
+        if (childHwnd)
         {
-            childWindow->close();
+            childWindowThread->close(childHwnd);
+            childHwnd = nullptr;
         }
 #endif
     }
 
     void handleParentWindowChange(bool visible)
     {
+#if 1
+        if (visible)
+        {
+            if (childHwnd == nullptr)
+            {
+                childWindowThread->postMessage(createWindowMessageID, 0, (LPARAM)parentHwnd);
+            }
+        }
+#else
+
 #if JUCE_DIRECT2D_CHILD_WINDOW
         auto parentWindowSize = getParentClientRect();
         if (windowSize.isEmpty() && parentWindowSize.getWidth() <= 1 || parentWindowSize.getHeight() <= 1)
@@ -567,7 +582,7 @@ public:
         {
             if (!parentWindowIsTemporary)
             {
-                childWindow = std::make_unique<direct2d::ChildWindow>(childWindowClass->className, parentHwnd);
+                childWindow = std::make_unique<direct2d::ChildWindowThread>(childWindowClass->className, parentHwnd);
             }
 
             auto size = getParentClientRect();
@@ -591,21 +606,29 @@ public:
             teardown();
         }
 #endif
+#endif
     }
 
 #if JUCE_DIRECT2D_CHILD_WINDOW
-    void handleChildWindowChange(bool visible)
+    void handleChildWindowChange(HWND childHwnd_, bool visible)
 #else
     void handleChildWindowChange(bool)
 #endif
     {
 #if JUCE_DIRECT2D_CHILD_WINDOW
+        jassert (GetParent (childHwnd_) == parentHwnd);
+
+        if (childHwnd == nullptr)
+        {
+            childHwnd = childHwnd_;
+        }
+
         if (visible)
         {
-            if (childWindow && childWindow->childHwnd)
+            if (childWindowThread && childHwnd_)
             {
                 auto size = getParentClientRect();
-                childWindow->setSize(size);
+                childWindowThread->setSize(childHwnd_, size);
                 prepare();
                 deferredRepaints = size;
             }
@@ -645,6 +668,11 @@ public:
             return;
         }
 
+        if (childHwnd == nullptr)
+        {
+            return;
+        }
+
         prepare();
 
         //
@@ -656,9 +684,9 @@ public:
         if (auto deviceContext = deviceResources.deviceContext)
         {
 #if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childWindow)
+            if (childHwnd)
             {
-                childWindow->setSize(size);
+                childWindowThread->setSize(childHwnd, size);
             }
 #endif
             auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);
@@ -934,6 +962,7 @@ public:
 
     SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND parentHwnd = nullptr;
+    HWND childHwnd = nullptr;
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
     bool opaque = true;
@@ -963,9 +992,9 @@ void Direct2DLowLevelGraphicsContext::handleParentWindowChange(bool visible)
     pimpl->handleParentWindowChange (visible);
 }
 
-void Direct2DLowLevelGraphicsContext::handleChildWindowChange (bool visible)
+void Direct2DLowLevelGraphicsContext::handleChildWindowChange (void* childWindowHandle, bool visible)
 {
-    pimpl->handleChildWindowChange (visible);
+    pimpl->handleChildWindowChange ((HWND)childWindowHandle, visible);
 }
 
 void Direct2DLowLevelGraphicsContext::setWindowAlpha(float alpha)

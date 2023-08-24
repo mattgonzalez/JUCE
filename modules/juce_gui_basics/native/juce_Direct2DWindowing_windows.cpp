@@ -388,7 +388,7 @@ private:
                 //
                 if (direct2DContext)
                 {
-                    direct2DContext->handleChildWindowChange (wParam);
+                    direct2DContext->handleChildWindowChange ((void*)lParam, wParam);
                     handleDirect2DPaint();
                 }
                 break;
@@ -406,7 +406,7 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dFlag = getProperties().getWithDefault("Direct2D", true);
+    auto d2dFlag = getProperties().getWithDefault("Direct2D", false);
     int renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
 
     auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };

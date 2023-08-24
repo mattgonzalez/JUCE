@@ -145,7 +145,7 @@ public:
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleParentWindowChange(bool visible);
-    void handleChildWindowChange (bool visible);
+    void handleChildWindowChange (void* childWindowHandle, bool visible);
     void setWindowAlpha(float alpha);
 
     //==============================================================================
@@ -216,6 +216,11 @@ public:
 
     bool drawEllipse (Rectangle<float> area, float lineThickness) override;
     bool fillEllipse (Rectangle<float> area) override;
+
+    enum
+    {
+        createWindowMessageID = 0x400 + 0xd2d + 1
+    };
 
     static uint32 constexpr customMessageID = 0x400 + 0xd2d; // WM_USER + 0xd2d
     static int constexpr minWindowSize = 1;

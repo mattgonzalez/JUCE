@@ -3962,6 +3962,8 @@ protected:
 
     virtual LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam)
     {
+        //Logger::outputDebugString ("peerWindowProc " + String::toHexString ((int) message));
+
         switch (message)
         {
             //==============================================================================

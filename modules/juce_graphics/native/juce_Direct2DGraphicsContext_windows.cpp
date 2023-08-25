@@ -575,8 +575,8 @@ public:
 #endif
     {
 #if JUCE_DIRECT2D_CHILD_WINDOW
-        jassert (GetParent (childHwnd_) == parentHwnd);
-        jassert(childHwnd == nullptr);
+//         jassert (GetParent (childHwnd_) == parentHwnd);
+//         jassert(childHwnd == nullptr);
 
         childHwnd = childHwnd_;
         handleWindowCreatedCommon();
@@ -638,7 +638,7 @@ public:
 #if JUCE_DIRECT2D_CHILD_WINDOW
             if (childHwnd)
             {
-                childWindowThread->setSize(childHwnd, size);
+                childWindowThread->setSize(childHwnd, windowSize);
             }
 #endif
             auto hr = swap.resize(size, (float) dpiScalingFactor, deviceContext);

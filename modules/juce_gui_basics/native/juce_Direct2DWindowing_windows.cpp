@@ -305,8 +305,10 @@ private:
         return result;
     }
 
-    LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam) override
+    LRESULT peerWindowProc (HWND messageHwnd, UINT message, WPARAM wParam, LPARAM lParam) override
     {
+        //Logger::outputDebugString ("peerWindowProc d2d " + String::toHexString ((int) message));
+
         TRACE_LOG_PARENT_WINDOW_MESSAGE(message);
 
         switch (message)
@@ -317,7 +319,8 @@ private:
                 {
                     direct2DContext->addInvalidWindowRegionToDeferredRepaints();
                 }
-                break;
+                //ValidateRect(messageHwnd, nullptr);
+                return 0;
             }
 
             case WM_NCCALCSIZE:
@@ -357,11 +360,16 @@ private:
                     case SC_MAXIMIZE:
                     case SC_RESTORE:
                     {
-                        auto status = HWNDComponentPeer::peerWindowProc(h, message, wParam, lParam);
+                        if (messageHwnd == hwnd)
+                        {
+                            auto status = HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
 
-                        handleDirect2DResize();
+                            handleDirect2DResize();
 
-                        return status;
+                            return status;
+                        }
+
+                        break;
                     }
 
                     case SC_MINIMIZE:
@@ -398,7 +406,7 @@ private:
                 break;
         }
 
-        return HWNDComponentPeer::peerWindowProc(h, message, wParam, lParam);
+        return HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DComponentPeer)

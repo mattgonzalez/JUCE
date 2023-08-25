@@ -318,9 +318,9 @@ private:
                 if (direct2DContext)
                 {
                     direct2DContext->addInvalidWindowRegionToDeferredRepaints();
+                    return 0;
                 }
-                //ValidateRect(messageHwnd, nullptr);
-                return 0;
+                break;
             }
 
             case WM_NCCALCSIZE:

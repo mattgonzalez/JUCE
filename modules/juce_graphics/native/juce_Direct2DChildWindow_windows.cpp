@@ -160,7 +160,6 @@ namespace direct2d
                     return 0;
 
                 case WM_DESTROY:
-                    //PostMessage (hwnd, WM_QUIT, 0, 0);
                     return 0;
 
                 default:
@@ -242,7 +241,6 @@ namespace direct2d
                                                    nullptr,
                                                    moduleHandle,
                                                    owner);
-
                 if (childHwnd)
                 {
                     PostMessage (parentHwnd, Direct2DLowLevelGraphicsContext::childWindowCreatedMessageID, 1, (LPARAM)childHwnd);

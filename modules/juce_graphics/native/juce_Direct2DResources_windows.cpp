@@ -73,6 +73,7 @@ namespace direct2d
                             ComSmartPtr<IDXGIAdapter> dxgiAdapter;
                             hr = dxgiDevice->GetAdapter (dxgiAdapter.resetAndGetPointerAddress());
                             TRACE_LOG_D2D_CREATE_RESOURCE("dxgiAdapter");
+
                             if (SUCCEEDED (hr))
                             {
                                 hr = dxgiAdapter->GetParent (__uuidof (dxgiFactory), reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
@@ -88,6 +89,8 @@ namespace direct2d
                                         if (SUCCEEDED (hr))
                                         {
                                             deviceContext->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
+                                            TRACE_LOG_D2D(etw::createDeviceResources);
                                         }
                                     }
                                 }
@@ -203,6 +206,8 @@ namespace direct2d
                         if (SUCCEEDED (hr))
                         {
                             state = chainAllocated;
+
+                            TRACE_LOG_D2D(etw::createSwapChain);
                         }
                     }
                 }
@@ -242,6 +247,8 @@ namespace direct2d
 
                     if (SUCCEEDED (hr))
                     {
+                        TRACE_LOG_D2D(etw::createSwapChainBuffer);
+
                         state = bufferAllocated;
                     }
                 }

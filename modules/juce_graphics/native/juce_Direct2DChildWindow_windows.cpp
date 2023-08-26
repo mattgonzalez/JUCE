@@ -225,6 +225,8 @@ namespace direct2d
 
             HWND createChildWindow(HWND parentHwnd)
             {
+                TRACE_LOG_D2D(etw::createChildWindow);
+
                 RECT parentRect {};
                 GetClientRect (parentHwnd, &parentRect);
 

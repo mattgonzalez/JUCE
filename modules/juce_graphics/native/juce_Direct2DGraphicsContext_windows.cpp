@@ -91,7 +91,7 @@
 #endif
 
 #ifndef JUCE_DIRECT2D_CHILD_WINDOW
-#define JUCE_DIRECT2D_CHILD_WINDOW 1
+#define JUCE_DIRECT2D_CHILD_WINDOW 0
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
@@ -470,7 +470,7 @@ private:
         auto swapChainHwnd = parentHwnd;
 #endif
 
-        if (childHwnd == nullptr)
+        if (swapChainHwnd == nullptr)
         {
             return E_FAIL;
         }
@@ -577,9 +577,6 @@ public:
 #endif
     {
 #if JUCE_DIRECT2D_CHILD_WINDOW
-//         jassert (GetParent (childHwnd_) == parentHwnd);
-//         jassert(childHwnd == nullptr);
-
         childHwnd = childHwnd_;
         handleWindowCreatedCommon();
 #endif
@@ -622,11 +619,6 @@ public:
             return;
         }
 
-        if (childHwnd == nullptr)
-        {
-            return;
-        }
-
         prepare();
 
         //
@@ -662,9 +654,7 @@ public:
         //
         // Child window still has the original window size
         //
-#if JUCE_DIRECT2D_CHILD_WINDOW
         resize(windowSize);
-#endif
     }
 
     void addDeferredRepaint(Rectangle<int> deferredRepaint)
@@ -703,10 +693,6 @@ public:
         bool ready = deviceResources.canPaint();
         ready &= swap.canPaint();
         ready &= compositionTree.canPaint();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        //if (child)
-        //ready &= childWindow != nullptr;
-#endif
         ready &= deferredRepaints.getNumRectangles() > 0;
         ready &= swapChainReady;
         if (!ready)
@@ -894,7 +880,9 @@ public:
 
     SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND parentHwnd = nullptr;
+#if JUCE_DIRECT2D_CHILD_WINDOW
     HWND childHwnd = nullptr;
+#endif
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
     bool opaque = true;

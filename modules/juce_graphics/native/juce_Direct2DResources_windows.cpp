@@ -72,7 +72,6 @@ namespace direct2d
                         {
                             ComSmartPtr<IDXGIAdapter> dxgiAdapter;
                             hr = dxgiDevice->GetAdapter (dxgiAdapter.resetAndGetPointerAddress());
-                            TRACE_LOG_D2D_CREATE_RESOURCE("dxgiAdapter");
 
                             if (SUCCEEDED (hr))
                             {
@@ -81,16 +80,14 @@ namespace direct2d
                                 {
                                     ComSmartPtr<ID2D1Device> direct2DDevice;
                                     hr = direct2dFactory->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
-                                    TRACE_LOG_D2D_CREATE_RESOURCE("dxgiDevice");
                                     if (SUCCEEDED (hr))
                                     {
                                         hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, deviceContext.resetAndGetPointerAddress());
-                                        TRACE_LOG_D2D_CREATE_RESOURCE("deviceContext");
                                         if (SUCCEEDED (hr))
                                         {
                                             deviceContext->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
-                                            TRACE_LOG_D2D(etw::createDeviceResources);
+                                            TRACE_LOG_D2D_RESOURCE(etw::createDeviceResources);
                                         }
                                     }
                                 }
@@ -207,7 +204,7 @@ namespace direct2d
                         {
                             state = chainAllocated;
 
-                            TRACE_LOG_D2D(etw::createSwapChain);
+                            TRACE_LOG_D2D_RESOURCE(etw::createSwapChain);
                         }
                     }
                 }
@@ -243,11 +240,9 @@ namespace direct2d
                     hr = deviceContext->CreateBitmapFromDxgiSurface (surface, bitmapProperties, buffer.resetAndGetPointerAddress());
                     jassert (SUCCEEDED (hr));
 
-                    TRACE_LOG_D2D_CREATE_RESOURCE("swapchain buffer");
-
                     if (SUCCEEDED (hr))
                     {
-                        TRACE_LOG_D2D(etw::createSwapChainBuffer);
+                        TRACE_LOG_D2D_RESOURCE(etw::createSwapChainBuffer);
 
                         state = bufferAllocated;
                     }

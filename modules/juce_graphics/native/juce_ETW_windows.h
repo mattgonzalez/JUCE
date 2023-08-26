@@ -91,6 +91,13 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
 
 #endif
 
+#define TRACE_LOG_D2D(code) \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   # code, \
+                   TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::direct2dKeyword), \
+                   TraceLoggingInt32 (code, "code"))
+
 #define TRACE_LOG_D2D_RESOURCE(code) \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
                    # code, \

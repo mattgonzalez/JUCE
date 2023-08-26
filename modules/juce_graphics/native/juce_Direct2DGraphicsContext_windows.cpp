@@ -70,6 +70,8 @@
     OK vblank attachment
     OK Always present
 
+    WM_DISPLAYCHANGE / WM_SETTINGCHANGE rebuild resoruces
+
     */
 
 #ifdef __INTELLISENSE__

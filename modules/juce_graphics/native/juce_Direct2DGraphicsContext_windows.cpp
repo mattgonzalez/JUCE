@@ -37,15 +37,11 @@
 
     -minimize calls to SetTransform
     -text analyzer?
-    -ID2D1DrawingStateBlock?
     -recycle state structs
     -don't paint occluded windows
-    -Multithreaded device context
+    -Multithreaded device context?
     -reusable geometry for exclude clip rectangle
     verify that the child window is not created if JUCE_DIRECT2D_CHILD_WINDOW is off
-
-    tried to move painting to a thread
-    WM_PAINT and deferred repaints
 
     handle device context creation error / paint errors
         restart render thread on error?

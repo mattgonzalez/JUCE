@@ -1511,6 +1511,8 @@ private:
 
     void handleAsyncUpdate() override
     {
+        TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS;
+
         for (auto& listener : listeners)
             listener.get().onVBlank();
     }

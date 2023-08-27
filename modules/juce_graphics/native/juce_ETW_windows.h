@@ -13,7 +13,8 @@ namespace juce
             threadPaintKeyword = 16,
             messageKeyword = 32,
             direct2dKeyword = 64,
-            softwareRendererKeyword = 128
+            softwareRendererKeyword = 128,
+            resourcesKeyword
         };
 
         enum
@@ -26,6 +27,7 @@ namespace juce
             presentDoNotSequenceEnd,
             swapChainThreadEvent,
             waitForVBlankDone,
+            callVBlankListeners,
             resize,
             swapChainMessage,
             parentWindowMessage,
@@ -33,7 +35,44 @@ namespace juce
             direct2dStartFrame,
             childWindowSetSize,
             createResource,
-            presentIdleFrame
+            presentIdleFrame,
+
+            createLowLevelGraphicsContext,
+            createDeviceResources,
+            createSwapChain,
+            createSwapChainBuffer,
+            createPeer,
+            createChildWindow,
+
+            setOrigin, 
+            addTransform,
+            clipToRectangle,
+            clipToRectangleList,
+            excludeClipRectangle,
+            clipToPath,
+            clipToImageAlpha,
+            saveState,
+            restoreState,
+            beginTransparencyLayer,
+            endTransparencyLayer,
+            setFill,
+            setOpacity,
+            setInterpolationQuality,
+            fillRect,
+            fillRectList,
+            drawRect,
+            fillPath,
+            drawPath,
+            drawImage,
+            drawLine,
+            setFont,
+            drawGlyph,
+            drawGlyphRun,
+            drawTextLayout,
+            drawRoundedRectangle,
+            fillRoundedRectangle,
+            drawEllipse,
+            fillEllipse
         };
     }
 }
@@ -56,6 +95,20 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
                    # code, \
                    TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::direct2dKeyword), \
+                   TraceLoggingInt32 (code, "code"))
+
+#define TRACE_LOG_D2D_RESOURCE(code) \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   # code, \
+                   TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                   TraceLoggingKeyword (etw::resourcesKeyword | etw::direct2dKeyword), \
+                   TraceLoggingInt32 (code, "code"))
+
+#define TRACE_LOG_D2D_PAINT_CALL(code) \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE, \
+                   # code, \
+                   TraceLoggingLevel (TRACE_LEVEL_VERBOSE), \
                    TraceLoggingKeyword (etw::paintKeyword | etw::direct2dKeyword), \
                    TraceLoggingInt32 (code, "code"))
 
@@ -143,6 +196,13 @@ TRACELOGGING_DECLARE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
                        TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
                        TraceLoggingKeyword (etw::softwareRendererKeyword), \
                         TraceLoggingInt32(etw::waitForVBlankDone, "code"))
+
+#define TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS                         \
+    TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,       \
+                       "VBlankThread call listeners",           \
+                       TraceLoggingLevel (TRACE_LEVEL_INFORMATION), \
+                       TraceLoggingKeyword (etw::softwareRendererKeyword), \
+                        TraceLoggingInt32(etw::callVBlankListeners, "code"))
 
 #define TRACE_LOG_D2D_RESIZE(message)                                                \
     TraceLoggingWriteWrapper (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,                          \

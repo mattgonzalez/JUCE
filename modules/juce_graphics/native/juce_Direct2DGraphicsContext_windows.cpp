@@ -66,6 +66,8 @@
     OK vblank attachment
     OK Always present
 
+    WM_DISPLAYCHANGE / WM_SETTINGCHANGE rebuild resoruces
+
     */
 
 #ifdef __INTELLISENSE__
@@ -85,7 +87,7 @@
 #endif
 
 #ifndef JUCE_DIRECT2D_CHILD_WINDOW
-#define JUCE_DIRECT2D_CHILD_WINDOW 1
+#define JUCE_DIRECT2D_CHILD_WINDOW 0
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
@@ -464,7 +466,7 @@ private:
         auto swapChainHwnd = parentHwnd;
 #endif
 
-        if (childHwnd == nullptr)
+        if (swapChainHwnd == nullptr)
         {
             return E_FAIL;
         }
@@ -571,9 +573,6 @@ public:
 #endif
     {
 #if JUCE_DIRECT2D_CHILD_WINDOW
-//         jassert (GetParent (childHwnd_) == parentHwnd);
-//         jassert(childHwnd == nullptr);
-
         childHwnd = childHwnd_;
         handleWindowCreatedCommon();
 #endif
@@ -616,11 +615,6 @@ public:
             return;
         }
 
-        if (childHwnd == nullptr)
-        {
-            return;
-        }
-
         prepare();
 
         //
@@ -656,9 +650,7 @@ public:
         //
         // Child window still has the original window size
         //
-#if JUCE_DIRECT2D_CHILD_WINDOW
         resize(windowSize);
-#endif
     }
 
     void addDeferredRepaint(Rectangle<int> deferredRepaint)
@@ -697,10 +689,6 @@ public:
         bool ready = deviceResources.canPaint();
         ready &= swap.canPaint();
         ready &= compositionTree.canPaint();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        //if (child)
-        //ready &= childWindow != nullptr;
-#endif
         ready &= deferredRepaints.getNumRectangles() > 0;
         ready &= swapChainReady;
         if (!ready)
@@ -888,7 +876,9 @@ public:
 
     SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND parentHwnd = nullptr;
+#if JUCE_DIRECT2D_CHILD_WINDOW
     HWND childHwnd = nullptr;
+#endif
     ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
     bool opaque = true;
@@ -1027,11 +1017,13 @@ void Direct2DLowLevelGraphicsContext::endFrame()
 
 void Direct2DLowLevelGraphicsContext::setOrigin (Point<int> o)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::setOrigin);
     currentState->currentTransform.setOrigin (o);
 }
 
 void Direct2DLowLevelGraphicsContext::addTransform (const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::addTransform);
     currentState->currentTransform.addTransform (transform);
 }
 
@@ -1042,6 +1034,7 @@ float Direct2DLowLevelGraphicsContext::getPhysicalPixelScaleFactor()
 
 bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::clipToRectangle);
     //
     // Transform the rectangle and update the current clip region
     //
@@ -1059,6 +1052,8 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 
 bool Direct2DLowLevelGraphicsContext::clipToRectangleList (const RectangleList<int>& clipRegion)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::clipToRectangleList);
+
     //
     // Just one rectangle?
     //
@@ -1088,6 +1083,8 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangleList (const RectangleList<i
 
 void Direct2DLowLevelGraphicsContext::excludeClipRectangle (const Rectangle<int>& r)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::excludeClipRectangle);
+
     //
     // To exclude the rectangle r, build a rectangle list with r as the first rectangle and a very large rectangle as the second.
     //
@@ -1111,6 +1108,8 @@ void Direct2DLowLevelGraphicsContext::excludeClipRectangle (const Rectangle<int>
 
 void Direct2DLowLevelGraphicsContext::clipToPath (const Path& path, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::clipToPath);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->pushGeometryClipLayer(direct2d::pathToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
@@ -1122,6 +1121,8 @@ void Direct2DLowLevelGraphicsContext::clipToPath (const Path& path, const Affine
 
 void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::clipToImageAlpha);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         auto const maskImage = sourceImage.convertedToFormat(Image::SingleChannel);
@@ -1176,17 +1177,23 @@ bool Direct2DLowLevelGraphicsContext::isClipEmpty() const
 
 void Direct2DLowLevelGraphicsContext::saveState()
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::saveState);
+
     currentState = pimpl->pushSavedState();
 }
 
 void Direct2DLowLevelGraphicsContext::restoreState()
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::restoreState);
+
     currentState = pimpl->popSavedState();
     jassert(currentState);
 }
 
 void Direct2DLowLevelGraphicsContext::beginTransparencyLayer (float opacity)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::beginTransparencyLayer);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->pushTransparencyLayer(opacity, deviceContext);
@@ -1195,6 +1202,7 @@ void Direct2DLowLevelGraphicsContext::beginTransparencyLayer (float opacity)
 
 void Direct2DLowLevelGraphicsContext::endTransparencyLayer()
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::endTransparencyLayer);
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->popTopLayer(deviceContext);
@@ -1203,6 +1211,7 @@ void Direct2DLowLevelGraphicsContext::endTransparencyLayer()
 
 void Direct2DLowLevelGraphicsContext::setFill (const FillType& fillType)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::setFill);
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->fillType = fillType;
@@ -1212,6 +1221,8 @@ void Direct2DLowLevelGraphicsContext::setFill (const FillType& fillType)
 
 void Direct2DLowLevelGraphicsContext::setOpacity (float newOpacity)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::setOpacity);
+
     currentState->setOpacity(newOpacity);
     if (auto deviceContext = pimpl->getDeviceContext())
     {
@@ -1221,6 +1232,8 @@ void Direct2DLowLevelGraphicsContext::setOpacity (float newOpacity)
 
 void Direct2DLowLevelGraphicsContext::setInterpolationQuality (Graphics::ResamplingQuality quality)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::setInterpolationQuality);
+
     switch (quality)
     {
         case Graphics::ResamplingQuality::lowResamplingQuality:
@@ -1244,6 +1257,8 @@ void Direct2DLowLevelGraphicsContext::fillRect (const Rectangle<int>& r, bool /*
 
 void Direct2DLowLevelGraphicsContext::fillRect (const Rectangle<float>& r)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::fillRect);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1264,6 +1279,8 @@ void Direct2DLowLevelGraphicsContext::fillRectList (const RectangleList<float>& 
 
 bool Direct2DLowLevelGraphicsContext::drawRect (const Rectangle<float>& r, float lineThickness)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawRect);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1280,6 +1297,8 @@ bool Direct2DLowLevelGraphicsContext::drawRect (const Rectangle<float>& r, float
 
 void Direct2DLowLevelGraphicsContext::fillPath (const Path& p, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::fillPath);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1297,6 +1316,8 @@ void Direct2DLowLevelGraphicsContext::fillPath (const Path& p, const AffineTrans
 
 bool Direct2DLowLevelGraphicsContext::drawPath (const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawPath);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1380,6 +1401,8 @@ bool Direct2DLowLevelGraphicsContext::drawPath (const Path& p, const PathStrokeT
 
 void Direct2DLowLevelGraphicsContext::drawImage (const Image& image, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawImage);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransformWith (transform)));
@@ -1414,6 +1437,8 @@ void Direct2DLowLevelGraphicsContext::drawLine (const Line<float>& line)
 
 bool Direct2DLowLevelGraphicsContext::drawLine(const Line<float>& line, float lineThickness)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawLine);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1433,6 +1458,8 @@ bool Direct2DLowLevelGraphicsContext::drawLine(const Line<float>& line, float li
 
 void Direct2DLowLevelGraphicsContext::setFont (const Font& newFont)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::setFont);
+
     currentState->setFont (newFont);
 }
 
@@ -1443,6 +1470,8 @@ const Font& Direct2DLowLevelGraphicsContext::getFont()
 
 void Direct2DLowLevelGraphicsContext::drawGlyph (int glyphNumber, const AffineTransform& transform)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawGlyph);
+
     pimpl->glyphRun.glyphIndices[0] = (uint16)glyphNumber;
     pimpl->glyphRun.glyphOffsets[0] = {};
 
@@ -1451,6 +1480,8 @@ void Direct2DLowLevelGraphicsContext::drawGlyph (int glyphNumber, const AffineTr
 
 bool Direct2DLowLevelGraphicsContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawTextLayout);
+
     if (currentState->fillType.isInvisible())
     {
         return true;
@@ -1494,6 +1525,8 @@ double Direct2DLowLevelGraphicsContext::getScaleFactor() const
 
 bool Direct2DLowLevelGraphicsContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawRoundedRectangle);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1515,6 +1548,8 @@ bool Direct2DLowLevelGraphicsContext::drawRoundedRectangle (Rectangle<float> are
 
 bool Direct2DLowLevelGraphicsContext::fillRoundedRectangle (Rectangle<float> area, float cornerSize)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::fillRoundedRectangle);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1536,6 +1571,8 @@ bool Direct2DLowLevelGraphicsContext::fillRoundedRectangle (Rectangle<float> are
 
 bool Direct2DLowLevelGraphicsContext::drawEllipse (Rectangle<float> area, float lineThickness)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawEllipse);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1558,6 +1595,8 @@ bool Direct2DLowLevelGraphicsContext::drawEllipse (Rectangle<float> area, float 
 
 bool Direct2DLowLevelGraphicsContext::fillEllipse (Rectangle<float> area)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::fillEllipse);
+
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
@@ -1580,6 +1619,8 @@ bool Direct2DLowLevelGraphicsContext::fillEllipse (Rectangle<float> area)
 
 void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs, int startIndex, int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea)
 {
+    TRACE_LOG_D2D_PAINT_CALL(etw::drawGlyphRun);
+
     if (numGlyphs > 0 && (startIndex + numGlyphs) <= glyphs.size())
     {
         if (currentState->fillType.isInvisible())

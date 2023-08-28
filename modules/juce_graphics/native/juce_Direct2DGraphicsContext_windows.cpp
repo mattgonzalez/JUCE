@@ -890,7 +890,6 @@ public:
 #if JUCE_DIRECT2D_CHILD_WINDOW
     HWND childHwnd = nullptr;
 #endif
-    ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
     direct2d::DirectWriteGlyphRun glyphRun;
     bool opaque = true;
     bool parentWindowIsTemporary = false;
@@ -1394,13 +1393,14 @@ bool Direct2DLowLevelGraphicsContext::drawPath (const Path& p, const PathStrokeT
                 D2D1_STROKE_STYLE_PROPERTIES strokeStyleProperties {
                     capStyle, capStyle, capStyle, lineJoin, 1.0f, D2D1_DASH_STYLE_SOLID, 0.0f
                 };
+                ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
                 factory->CreateStrokeStyle (strokeStyleProperties, // TODO reuse the stroke style
                                                     nullptr,
                                                     0,
-                                                    pimpl->strokeStyle.resetAndGetPointerAddress());
+                                                    strokeStyle.resetAndGetPointerAddress());
 
                 updateDeviceContextTransform();
-                deviceContext->DrawGeometry (geometry, currentState->currentBrush, strokeType.getStrokeThickness(), pimpl->strokeStyle);
+                deviceContext->DrawGeometry (geometry, currentState->currentBrush, strokeType.getStrokeThickness(), strokeStyle);
             }
         }
     }

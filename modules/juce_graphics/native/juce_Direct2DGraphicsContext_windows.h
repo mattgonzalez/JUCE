@@ -88,7 +88,7 @@ namespace direct2d
 
         using Ptr = ReferenceCountedObjectPtr<PaintStats>;
 
-        StatisticsAccumulator<double> const& getAccumulator (int index) const
+        StatisticsAccumulator<double>& getAccumulator (int index)
         {
             return accumulators[index];
         }
@@ -240,6 +240,8 @@ private:
     std::unique_ptr<Pimpl> pimpl;
 
     void drawGlyphCommon(int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
+    void updateDeviceContextTransform();
+    void updateDeviceContextTransform(AffineTransform chainedTransform);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsContext)
 };

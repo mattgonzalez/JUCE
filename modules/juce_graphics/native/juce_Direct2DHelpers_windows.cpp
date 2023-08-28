@@ -404,6 +404,38 @@ namespace direct2d
         HANDLE handle = nullptr;
     };
 
+    struct DeviceContextTransformer
+    {
+        void reset(ID2D1DeviceContext* const deviceContext_)
+        {
+            deviceContext = deviceContext_;
+            if (deviceContext_)
+            {
+                deviceContext_->SetTransform(D2D1::IdentityMatrix());
+            }
+            transform = {};
+        }
+
+        void set(AffineTransform newTransform)
+        {
+            if (approximatelyEqual(transform.mat00, newTransform.mat00) &&
+                approximatelyEqual(transform.mat01, newTransform.mat01) &&
+                approximatelyEqual(transform.mat02, newTransform.mat02) &&
+                approximatelyEqual(transform.mat10, newTransform.mat10) &&
+                approximatelyEqual(transform.mat11, newTransform.mat11) &&
+                approximatelyEqual(transform.mat12, newTransform.mat12))
+            {
+                return;
+            }
+
+            deviceContext->SetTransform (transformToMatrix(newTransform));
+            transform = newTransform;
+        }
+
+        ComSmartPtr<ID2D1DeviceContext> deviceContext;
+        AffineTransform transform;
+    };
+
 } // namespace direct2d
 
 #if JUCE_ETW_TRACELOGGING

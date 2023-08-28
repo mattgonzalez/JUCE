@@ -153,15 +153,20 @@ public:
     //
     // Constructor for first stack entry
     //
-    ClientSavedState (Rectangle<int> swapChainBufferBounds_, ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_)
-        :   clipRegion (swapChainBufferBounds_),
-           colourBrush(colourBrush_)
+    ClientSavedState (Rectangle<int> swapChainBufferBounds_, ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_, direct2d::DeviceContextTransformer& deviceContextTransformer_)
+        : deviceContextTransformer(deviceContextTransformer_),
+        clipRegion (swapChainBufferBounds_),
+        colourBrush(colourBrush_)
     {
         currentBrush = colourBrush;
     }
 
+    //
+    // Constructor for subsequent entries
+    //
     ClientSavedState (ClientSavedState const* const previousState_) :
         currentTransform(previousState_->currentTransform),
+        deviceContextTransformer(previousState_->deviceContextTransformer),
         clipRegion(previousState_->clipRegion),
         font(previousState_->font),
         currentBrush(previousState_->currentBrush),
@@ -182,55 +187,50 @@ public:
         clearFill();
     }
 
-    void pushLayer (const D2D1_LAYER_PARAMETERS& layerParameters, ID2D1DeviceContext* const deviceContext)
+    void pushLayer (const D2D1_LAYER_PARAMETERS& layerParameters)
     {
-        jassert (deviceContext);
-
         //
         // Clipping and transparency are all handled by pushing Direct2D layers. The SavedState creates an internal stack
         // of Layer objects to keep track of how many layers need to be popped.
         //
         // Pass nullptr for the PushLayer layer parameter to allow Direct2D to manage the layers (Windows 8 or later)
         //
-        deviceContext->SetTransform (D2D1::IdentityMatrix());
-        deviceContext->PushLayer (layerParameters, nullptr);
+        deviceContextTransformer.set({});
+        deviceContextTransformer.deviceContext->PushLayer (layerParameters, nullptr);
 
         pushedLayers.push (PushedLayer {});
     }
 
-    void pushGeometryClipLayer (ComSmartPtr<ID2D1Geometry> geometry, ID2D1DeviceContext* const deviceContext)
+    void pushGeometryClipLayer (ComSmartPtr<ID2D1Geometry> geometry)
     {
         if (geometry != nullptr)
         {
-            pushLayer (D2D1::LayerParameters (D2D1::InfiniteRect(), geometry), deviceContext);
+            pushLayer (D2D1::LayerParameters (D2D1::InfiniteRect(), geometry));
         }
     }
 
-    void pushAxisAlignedClipLayer (Rectangle<int> r, ID2D1DeviceContext* const deviceContext)
+    void pushAxisAlignedClipLayer (Rectangle<int> r)
     {
-        jassert (deviceContext);
-
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentTransform.getTransform()));
-        deviceContext->PushAxisAlignedClip (direct2d::rectangleToRectF (r), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+        deviceContextTransformer.set(currentTransform.getTransform());
+        deviceContextTransformer.deviceContext->PushAxisAlignedClip (direct2d::rectangleToRectF (r), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
         pushedLayers.push (PushedAxisAlignedClipLayer {});
 
         //DBG ("PushAxisAligned " << (int)pushedLayers.size());
     }
 
-    void pushTransparencyLayer (float opacity, ID2D1DeviceContext* const deviceContext)
+    void pushTransparencyLayer (float opacity)
     {
         pushLayer (D2D1::LayerParameters (D2D1::InfiniteRect(),
             nullptr,
             D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
             D2D1::IdentityMatrix(),
-            opacity),
-            deviceContext);
+            opacity));
     }
 
-    void popLayers (ID2D1DeviceContext* deviceContext)
+    void popLayers ()
     {
-        LayerPopper layerPopper { deviceContext };
+        LayerPopper layerPopper { deviceContextTransformer.deviceContext };
 
         while (pushedLayers.size() > 0)
         {
@@ -242,9 +242,9 @@ public:
         }
     }
 
-    void popTopLayer (ID2D1DeviceContext* deviceContext)
+    void popTopLayer ()
     {
-        LayerPopper layerPopper { deviceContext };
+        LayerPopper layerPopper{ deviceContextTransformer.deviceContext };
 
         if (pushedLayers.size() > 0)
         {
@@ -296,7 +296,7 @@ public:
         currentBrush = nullptr;
     }
 
-    void updateCurrentBrush (ID2D1DeviceContext* const deviceContext)
+    void updateCurrentBrush ()
     {
         if (fillType.isColour())
         {
@@ -318,11 +318,11 @@ public:
             bp.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
 
             ComSmartPtr<ID2D1Bitmap> tiledImageBitmap;
-            auto hr = deviceContext->CreateBitmap (size, bd.data, bd.lineStride, bp, tiledImageBitmap.resetAndGetPointerAddress());
+            auto hr = deviceContextTransformer.deviceContext->CreateBitmap (size, bd.data, bd.lineStride, bp, tiledImageBitmap.resetAndGetPointerAddress());
             jassert (SUCCEEDED (hr));
             if (SUCCEEDED (hr))
             {
-                hr = deviceContext->CreateBitmapBrush (tiledImageBitmap, bmProps, brushProps, bitmapBrush.resetAndGetPointerAddress());
+                hr = deviceContextTransformer.deviceContext->CreateBitmapBrush (tiledImageBitmap, bmProps, brushProps, bitmapBrush.resetAndGetPointerAddress());
                 jassert (SUCCEEDED (hr));
                 if (SUCCEEDED (hr))
                 {
@@ -343,7 +343,7 @@ public:
                 stops[i].position = (FLOAT) fillType.gradient->getColourPosition (i);
             }
 
-            deviceContext->CreateGradientStopCollection (stops.getData(), numColors, gradientStops.resetAndGetPointerAddress());
+            deviceContextTransformer.deviceContext->CreateGradientStopCollection (stops.getData(), numColors, gradientStops.resetAndGetPointerAddress());
 
             if (fillType.gradient->isRadial)
             {
@@ -352,7 +352,7 @@ public:
                 const auto r = p1.getDistanceFrom (p2);
                 const auto props = D2D1::RadialGradientBrushProperties ({ p1.x, p1.y }, {}, r, r);
 
-                deviceContext->CreateRadialGradientBrush (props, brushProps, gradientStops, radialGradient.resetAndGetPointerAddress());
+                deviceContextTransformer.deviceContext->CreateRadialGradientBrush (props, brushProps, gradientStops, radialGradient.resetAndGetPointerAddress());
                 currentBrush = radialGradient;
             }
             else
@@ -361,7 +361,7 @@ public:
                 const auto p2 = fillType.gradient->point2;
                 const auto props = D2D1::LinearGradientBrushProperties ({ p1.x, p1.y }, { p2.x, p2.y });
 
-                deviceContext->CreateLinearGradientBrush (props, brushProps, gradientStops, linearGradient.resetAndGetPointerAddress());
+                deviceContextTransformer.deviceContext->CreateLinearGradientBrush (props, brushProps, gradientStops, linearGradient.resetAndGetPointerAddress());
 
                 currentBrush = linearGradient;
             }
@@ -380,6 +380,7 @@ public:
     }
 
     RenderingHelpers::TranslationOrTransform currentTransform;
+    direct2d::DeviceContextTransformer& deviceContextTransformer;
     Rectangle<int> clipRegion;
 
     Font font;
@@ -729,6 +730,11 @@ public:
         TRACE_LOG_D2D_PAINT_START(frameNumber);
 
         //
+        // Init device context transform
+        //
+        deviceContextTransformer.reset(deviceResources.deviceContext);
+
+        //
         // Init the saved state stack
         //
         auto firstSavedState = pushFirstSavedState(paintBounds);
@@ -748,6 +754,11 @@ public:
         // Fully pop the state stack
         //
         popAllSavedStates();
+
+        //
+        // Clear device context transformee
+        //
+        deviceContextTransformer.reset(nullptr);
 
         //
         // Finish drawing
@@ -839,7 +850,7 @@ public:
     {
         jassert(savedClientStates.size() == 0);
 
-        savedClientStates.push(std::make_unique<ClientSavedState>(initialClipRegion, deviceResources.colourBrush));
+        savedClientStates.push(std::make_unique<ClientSavedState>(initialClipRegion, deviceResources.colourBrush, deviceContextTransformer));
 
         return getCurrentSavedState();
     }
@@ -855,7 +866,7 @@ public:
 
     ClientSavedState* popSavedState()
     {
-        savedClientStates.top()->popLayers (deviceResources.deviceContext);
+        savedClientStates.top()->popLayers ();
         savedClientStates.pop();
 
         return getCurrentSavedState();
@@ -885,6 +896,7 @@ public:
     bool parentWindowIsTemporary = false;
     float windowAlpha = 1.0f;
     D2D1_COLOR_F backgroundColor{};
+    direct2d::DeviceContextTransformer deviceContextTransformer;
 
 #if JUCE_DIRECT2D_METRICS
     int64 paintStartTicks = 0;
@@ -970,15 +982,14 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
             //
             if (paintAreas.getNumRectangles() == 1)
             {
-                currentState->pushAxisAlignedClipLayer(paintAreas.getRectangle(0), deviceContext);
+                currentState->pushAxisAlignedClipLayer(paintAreas.getRectangle(0));
             }
             else
             {
                 currentState->pushGeometryClipLayer(direct2d::rectListToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
                     paintAreas,
                     AffineTransform{},
-                    D2D1_FILL_MODE_WINDING),
-                    deviceContext);
+                    D2D1_FILL_MODE_WINDING));
             }
 
             //
@@ -997,7 +1008,7 @@ bool Direct2DLowLevelGraphicsContext::startFrame()
 
             setFont(currentState->font);
 
-            currentState->updateCurrentBrush(deviceContext);
+            currentState->updateCurrentBrush();
 
         }
 
@@ -1044,7 +1055,7 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushAxisAlignedClipLayer (r, deviceContext);
+        currentState->pushAxisAlignedClipLayer (r);
     }
 
     return ! isClipEmpty();
@@ -1074,8 +1085,7 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangleList (const RectangleList<i
         currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
             clipRegion,
             currentState->currentTransform.getTransform(),
-            D2D1_FILL_MODE_WINDING),
-            deviceContext);
+            D2D1_FILL_MODE_WINDING));
     }
 
     return ! isClipEmpty();
@@ -1101,8 +1111,7 @@ void Direct2DLowLevelGraphicsContext::excludeClipRectangle (const Rectangle<int>
         currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
             rectangles,
             currentState->currentTransform.getTransform(),
-            D2D1_FILL_MODE_ALTERNATE),
-            deviceContext);
+            D2D1_FILL_MODE_ALTERNATE));
     }
 }
 
@@ -1114,8 +1123,7 @@ void Direct2DLowLevelGraphicsContext::clipToPath (const Path& path, const Affine
     {
         currentState->pushGeometryClipLayer(direct2d::pathToPathGeometry(pimpl->sharedFactories->getDirect2DFactory(),
             path,
-            currentState->currentTransform.getTransformWith (transform)),
-            deviceContext);
+            currentState->currentTransform.getTransformWith (transform)));
     }
 }
 
@@ -1154,7 +1162,7 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
                 layerParams.maskTransform = matrix;
                 layerParams.opacityBrush = brush;
 
-                currentState->pushLayer (layerParams, deviceContext);
+                currentState->pushLayer (layerParams);
             }
         }
     }
@@ -1196,7 +1204,7 @@ void Direct2DLowLevelGraphicsContext::beginTransparencyLayer (float opacity)
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushTransparencyLayer(opacity, deviceContext);
+        currentState->pushTransparencyLayer(opacity);
     }
 }
 
@@ -1205,7 +1213,7 @@ void Direct2DLowLevelGraphicsContext::endTransparencyLayer()
     TRACE_LOG_D2D_PAINT_CALL(etw::endTransparencyLayer);
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->popTopLayer(deviceContext);
+        currentState->popTopLayer();
     }
 }
 
@@ -1215,7 +1223,7 @@ void Direct2DLowLevelGraphicsContext::setFill (const FillType& fillType)
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         currentState->fillType = fillType;
-        currentState->updateCurrentBrush(deviceContext);
+        currentState->updateCurrentBrush();
     }
 }
 
@@ -1226,7 +1234,7 @@ void Direct2DLowLevelGraphicsContext::setOpacity (float newOpacity)
     currentState->setOpacity(newOpacity);
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->updateCurrentBrush(deviceContext);
+        currentState->updateCurrentBrush();
     }
 }
 
@@ -1266,7 +1274,7 @@ void Direct2DLowLevelGraphicsContext::fillRect (const Rectangle<float>& r)
             return;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
         deviceContext->FillRectangle (direct2d::rectangleToRectF (r), currentState->currentBrush);
     }
 }
@@ -1288,7 +1296,7 @@ bool Direct2DLowLevelGraphicsContext::drawRect (const Rectangle<float>& r, float
             return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
         deviceContext->DrawRectangle (direct2d::rectangleToRectF (r), currentState->currentBrush, lineThickness);
     }
 
@@ -1308,7 +1316,7 @@ void Direct2DLowLevelGraphicsContext::fillPath (const Path& p, const AffineTrans
 
         if (auto geometry = direct2d::pathToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(), p, transform))
         {
-            deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+            updateDeviceContextTransform();
             deviceContext->FillGeometry (geometry, currentState->currentBrush);
         }
     }
@@ -1391,7 +1399,7 @@ bool Direct2DLowLevelGraphicsContext::drawPath (const Path& p, const PathStrokeT
                                                     0,
                                                     pimpl->strokeStyle.resetAndGetPointerAddress());
 
-                deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+                updateDeviceContextTransform();
                 deviceContext->DrawGeometry (geometry, currentState->currentBrush, strokeType.getStrokeThickness(), pimpl->strokeStyle);
             }
         }
@@ -1405,7 +1413,7 @@ void Direct2DLowLevelGraphicsContext::drawImage (const Image& image, const Affin
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransformWith (transform)));
+        updateDeviceContextTransform(transform);
 
         auto argbImage = image.convertedToFormat(Image::ARGB);
         Image::BitmapData bitmapData { argbImage, Image::BitmapData::readOnly };
@@ -1446,7 +1454,7 @@ bool Direct2DLowLevelGraphicsContext::drawLine(const Line<float>& line, float li
             return true;
         }
 
-        deviceContext->SetTransform(direct2d::transformToMatrix(currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform ();
         deviceContext->DrawLine(D2D1::Point2F(line.getStartX(), line.getStartY()),
             D2D1::Point2F(line.getEndX(), line.getEndY()),
             currentState->currentBrush,
@@ -1493,7 +1501,7 @@ bool Direct2DLowLevelGraphicsContext::drawTextLayout (const AttributedString& te
 
     if (deviceContext && directWriteFactory && fontCollection)
     {
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
 
         auto translatedArea = area;
         auto textLayout = DirectWriteTypeLayout::createDirectWriteTextLayout(text,
@@ -1534,7 +1542,7 @@ bool Direct2DLowLevelGraphicsContext::drawRoundedRectangle (Rectangle<float> are
             return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
         D2D1_ROUNDED_RECT roundedRect {
             direct2d::rectangleToRectF (area),
             cornerSize,
@@ -1557,7 +1565,7 @@ bool Direct2DLowLevelGraphicsContext::fillRoundedRectangle (Rectangle<float> are
             return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
         D2D1_ROUNDED_RECT roundedRect {
             direct2d::rectangleToRectF (area),
             cornerSize,
@@ -1580,7 +1588,7 @@ bool Direct2DLowLevelGraphicsContext::drawEllipse (Rectangle<float> area, float 
             return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
 
         auto centre = area.getCentre();
         D2D1_ELLIPSE ellipse {
@@ -1604,7 +1612,7 @@ bool Direct2DLowLevelGraphicsContext::fillEllipse (Rectangle<float> area)
             return true;
         }
 
-        deviceContext->SetTransform (direct2d::transformToMatrix (currentState->currentTransform.getTransform()));
+        updateDeviceContextTransform();
 
         auto centre = area.getCentre();
         D2D1_ELLIPSE ellipse {
@@ -1679,8 +1687,8 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon(int numGlyphs, const Affin
     // Draw the glyph run
     //
     auto scaledTransform = AffineTransform::scale (dwriteFontFace.fontHorizontalScale, 1.0f).followedBy (transform);
-    auto deviceContextTransform = scaledTransform.followedBy (currentState->currentTransform.getTransform());
-    deviceContext->SetTransform (direct2d::transformToMatrix (deviceContextTransform));
+    auto glyphRunTransform = scaledTransform.followedBy (currentState->currentTransform.getTransform());
+    pimpl->deviceContextTransformer.set(glyphRunTransform);
 
     DWRITE_GLYPH_RUN directWriteGlyphRun;
     directWriteGlyphRun.fontFace = dwriteFontFace.fontFace;
@@ -1706,6 +1714,16 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon(int numGlyphs, const Affin
     {
         fillRect(underlineArea);
     }
+}
+
+void Direct2DLowLevelGraphicsContext::updateDeviceContextTransform()
+{
+    pimpl->deviceContextTransformer.set(currentState->currentTransform.getTransform());
+}
+
+void Direct2DLowLevelGraphicsContext::updateDeviceContextTransform(AffineTransform chainedTransform)
+{
+    pimpl->deviceContextTransformer.set(currentState->currentTransform.getTransformWith(chainedTransform));
 }
 
 } // namespace juce

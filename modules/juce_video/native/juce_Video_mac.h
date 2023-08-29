@@ -592,7 +592,7 @@ private:
                     if (useNativeControls)
                         return std::make_unique<WrappedPlayerView>();
 
-                return std::make_unique<WrappedPlayerLayer> ();
+                return std::make_unique<WrappedPlayerLayer>();
             }();
         }
 
@@ -650,7 +650,7 @@ private:
         class WrappedPlayerLayer : public WrappedPlayer
         {
         public:
-            WrappedPlayerLayer ()                       { [view.get() setLayer: playerLayer.get()]; }
+            WrappedPlayerLayer()                        { [view.get() setLayer: playerLayer.get()]; }
             NSView* getView() const override            { return view.get(); }
             AVPlayer* getPlayer() const override        { return [playerLayer.get() player]; }
             void setPlayer (AVPlayer* player) override  { [playerLayer.get() setPlayer: player]; }
@@ -797,7 +797,7 @@ private:
 
     static double toSeconds (const CMTime& t) noexcept
     {
-        return t.timescale != 0 ? (t.value / (double) t.timescale) : 0.0;
+        return t.timescale != 0 ? ((double) t.value / (double) t.timescale) : 0.0;
     }
 
     void playerPreparationFinished (const URL& url, Result r)

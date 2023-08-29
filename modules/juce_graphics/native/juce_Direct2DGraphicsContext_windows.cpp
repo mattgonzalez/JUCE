@@ -87,7 +87,7 @@
 #endif
 
 #ifndef JUCE_DIRECT2D_CHILD_WINDOW
-#define JUCE_DIRECT2D_CHILD_WINDOW 0
+#define JUCE_DIRECT2D_CHILD_WINDOW 1
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
@@ -462,7 +462,7 @@ private:
     {
         auto parentWindowSize = getParentClientRect();
 #if JUCE_DIRECT2D_CHILD_WINDOW
-        auto swapChainHwnd = childHwnd ? childHwnd : parentHwnd;
+        auto swapChainHwnd = childHwnd;
 #else
         auto swapChainHwnd = parentHwnd;
 #endif

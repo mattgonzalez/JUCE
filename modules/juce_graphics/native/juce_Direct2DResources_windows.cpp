@@ -46,7 +46,7 @@ namespace direct2d
 
             if (direct2dFactory != nullptr)
             {
-                if (deviceContext == nullptr)
+                if (deviceContext.context == nullptr)
                 {
                     // This flag adds support for surfaces with a different color channel ordering
                     // than the API default. It is required for compatibility with Direct2D.
@@ -82,10 +82,10 @@ namespace direct2d
                                     hr = direct2dFactory->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
                                     if (SUCCEEDED (hr))
                                     {
-                                        hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, deviceContext.resetAndGetPointerAddress());
+                                        hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, deviceContext.context.resetAndGetPointerAddress());
                                         if (SUCCEEDED (hr))
                                         {
-                                            deviceContext->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+                                            deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
                                             TRACE_LOG_D2D_RESOURCE(etw::createDeviceResources);
                                         }
@@ -97,14 +97,14 @@ namespace direct2d
                     jassert (SUCCEEDED (hr));
                 }
 
-                if (deviceContext)
+                if (deviceContext.context)
                 {
                     float dpi = (float)(USER_DEFAULT_SCREEN_DPI * dpiScalingFactor);
-                    deviceContext->SetDpi(dpi, dpi);
+                    deviceContext.context->SetDpi(dpi, dpi);
 
                     if (colourBrush == nullptr)
                     {
-                        hr = deviceContext->CreateSolidColorBrush(D2D1::ColorF::ColorF(0.0f, 0.0f, 0.0f, 1.0f), colourBrush.resetAndGetPointerAddress());
+                        hr = deviceContext.context->CreateSolidColorBrush(D2D1::ColorF::ColorF(0.0f, 0.0f, 0.0f, 1.0f), colourBrush.resetAndGetPointerAddress());
                         jassertquiet(SUCCEEDED(hr));
                     }
                 }
@@ -116,7 +116,7 @@ namespace direct2d
         void release()
         {
             colourBrush = nullptr;
-            deviceContext = nullptr;
+            deviceContext.release();
             dxgiFactory = nullptr;
             dxgiDevice = nullptr;
             direct3DDevice = nullptr;
@@ -124,13 +124,13 @@ namespace direct2d
 
         bool canPaint()
         {
-            return deviceContext != nullptr && colourBrush != nullptr;
+            return deviceContext.context != nullptr && colourBrush != nullptr;
         }
 
         ComSmartPtr<ID3D11Device> direct3DDevice;
         ComSmartPtr<IDXGIFactory2> dxgiFactory;
         ComSmartPtr<IDXGIDevice> dxgiDevice;
-        ComSmartPtr<ID2D1DeviceContext> deviceContext;
+        DeviceContext deviceContext;
         ComSmartPtr<ID2D1SolidColorBrush> colourBrush;
     };
 

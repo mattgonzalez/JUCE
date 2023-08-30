@@ -404,19 +404,15 @@ namespace direct2d
         HANDLE handle = nullptr;
     };
 
-    struct DeviceContextTransformer
+    struct DeviceContext
     {
-        void reset(ID2D1DeviceContext* const deviceContext_)
+        void resetTransform()
         {
-            deviceContext = deviceContext_;
-            if (deviceContext_)
-            {
-                deviceContext_->SetTransform(D2D1::IdentityMatrix());
-            }
+            context->SetTransform(D2D1::IdentityMatrix());
             transform = {};
         }
 
-        void set(AffineTransform newTransform)
+        void setTransform(AffineTransform newTransform)
         {
             if (approximatelyEqual(transform.mat00, newTransform.mat00) &&
                 approximatelyEqual(transform.mat01, newTransform.mat01) &&
@@ -428,11 +424,16 @@ namespace direct2d
                 return;
             }
 
-            deviceContext->SetTransform (transformToMatrix(newTransform));
+            context->SetTransform (transformToMatrix(newTransform));
             transform = newTransform;
         }
 
-        ComSmartPtr<ID2D1DeviceContext> deviceContext;
+        void release()
+        {
+            context = nullptr;
+        }
+
+        ComSmartPtr<ID2D1DeviceContext> context;
         AffineTransform transform;
     };
 

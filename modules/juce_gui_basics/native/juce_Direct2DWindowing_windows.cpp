@@ -25,17 +25,17 @@
 
 #ifdef __INTELLISENSE__
 
-#define JUCE_CORE_INCLUDE_COM_SMART_PTR 1
-#define JUCE_WINDOWS 1
+    #define JUCE_CORE_INCLUDE_COM_SMART_PTR 1
+    #define JUCE_WINDOWS                    1
 
-#include <windows.h>
-#include <d2d1_2.h>
-#include <d3d11_1.h>
-#include <dcomp.h>
-#include <dwrite.h>
-#include <juce_core/juce_core.h>
-#include <juce_graphics/juce_graphics.h>
-#include "juce_Windowing_windows.cpp"
+    #include <windows.h>
+    #include <d2d1_2.h>
+    #include <d3d11_1.h>
+    #include <dcomp.h>
+    #include <dwrite.h>
+    #include <juce_core/juce_core.h>
+    #include <juce_graphics/juce_graphics.h>
+    #include "juce_Windowing_windows.cpp"
 
 #endif
 
@@ -44,10 +44,9 @@
 class Direct2DComponentPeer : public HWNDComponentPeer
 {
 private:
-
-#if JUCE_DIRECT2D_METRICS
+    #if JUCE_DIRECT2D_METRICS
     int64 lastPaintStartTicks = 0;
-#endif
+    #endif
 
 public:
     enum
@@ -56,12 +55,8 @@ public:
     };
 
     //==============================================================================
-    Direct2DComponentPeer(Component& comp, int windowStyleFlags, HWND parent, bool nonRepainting, int renderingEngine) :
-        HWNDComponentPeer(comp,
-            windowStyleFlags,
-            parent,
-            nonRepainting,
-            renderingEngine)
+    Direct2DComponentPeer (Component& comp, int windowStyleFlags, HWND parent, bool nonRepainting, int renderingEngine)
+        : HWNDComponentPeer (comp, windowStyleFlags, parent, nonRepainting, renderingEngine)
     {
     }
 
@@ -76,7 +71,7 @@ public:
         direct2DContext = nullptr;
     }
 
-    DWORD adjustWindowStyleFlags(DWORD exStyleFlags) override
+    DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
@@ -101,13 +96,13 @@ public:
         {
             if (direct2DContext)
             {
-                direct2DContext->setWindowAlpha(newAlpha);
+                direct2DContext->setWindowAlpha (newAlpha);
             }
             component.repaint();
             return;
         }
 
-        HWNDComponentPeer::setAlpha(newAlpha);
+        HWNDComponentPeer::setAlpha (newAlpha);
     }
 
     void repaint (const Rectangle<int>& area) override
@@ -118,7 +113,7 @@ public:
             return;
         }
 
-        HWNDComponentPeer::repaint(area);
+        HWNDComponentPeer::repaint (area);
     }
 
     void dispatchDeferredRepaints()
@@ -143,9 +138,9 @@ public:
     }
 
 private:
-#if JUCE_ETW_TRACELOGGING
+    #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
-#endif
+    #endif
     std::unique_ptr<Direct2DLowLevelGraphicsContext> direct2DContext;
 
     void handlePaintMessage() override
@@ -156,20 +151,20 @@ private:
             return;
         }
 
-#if JUCE_DIRECT2D_METRICS
+    #if JUCE_DIRECT2D_METRICS
         auto paintStartTicks = Time::getHighResolutionTicks();
-#endif
+    #endif
 
         HWNDComponentPeer::handlePaintMessage();
 
-#if JUCE_DIRECT2D_METRICS
+    #if JUCE_DIRECT2D_METRICS
         if (lastPaintStartTicks > 0)
         {
-            paintStats->addValueTicks(direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
-            paintStats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+            paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+            paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
         }
         lastPaintStartTicks = paintStartTicks;
-#endif
+    #endif
     }
 
     void onVBlank() override
@@ -184,9 +179,9 @@ private:
 
     void handleDirect2DPaint()
     {
-#if JUCE_DIRECT2D_METRICS
+    #if JUCE_DIRECT2D_METRICS
         auto paintStartTicks = Time::getHighResolutionTicks();
-#endif
+    #endif
 
         jassert (direct2DContext);
 
@@ -198,14 +193,15 @@ private:
             handlePaint (*direct2DContext);
             direct2DContext->endFrame();
 
-#if JUCE_DIRECT2D_METRICS
+    #if JUCE_DIRECT2D_METRICS
             if (lastPaintStartTicks > 0)
             {
-                paintStats->addValueTicks(direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
-                paintStats->addValueTicks(direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+                paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration,
+                                           Time::getHighResolutionTicks() - paintStartTicks);
+                paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
             }
             lastPaintStartTicks = paintStartTicks;
-#endif
+    #endif
             return;
         }
     }
@@ -230,20 +226,22 @@ private:
     {
         auto engines = HWNDComponentPeer::getAvailableRenderingEngines();
 
-        if (SystemStats::getOperatingSystemType() >= SystemStats::Windows8_1)
-            engines.add ("Direct2D");
+        if (SystemStats::getOperatingSystemType() >= SystemStats::Windows8_1) engines.add ("Direct2D");
 
         return engines;
     }
 
     void updateDirect2DContext()
     {
-        if (currentRenderingEngine == direct2DRenderingEngine && !direct2DContext)
+        if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
         {
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext>(hwnd, scaleFactor, component.isOpaque(), styleFlags & StyleFlags::windowIsTemporary);
-#if JUCE_DIRECT2D_METRICS
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext> (hwnd,
+                                                                                 scaleFactor,
+                                                                                 component.isOpaque(),
+                                                                                 styleFlags & StyleFlags::windowIsTemporary);
+    #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
-#endif
+    #endif
             direct2DContext->setScaleFactor (getPlatformScaleFactor());
         }
     }
@@ -262,30 +260,33 @@ private:
             component.getProperties().set ("Direct2D", currentRenderingEngine == direct2DRenderingEngine);
 
             Component::SafePointer<Component> safeComponent = &getComponent();
-            bool active = GetActiveWindow() == hwnd;
-            MessageManager::callAsync([safeComponent, active]() {
-                if (safeComponent)
+            bool                              active        = GetActiveWindow() == hwnd;
+            MessageManager::callAsync (
+                [safeComponent, active]()
                 {
-                    if (auto peer = safeComponent->getPeer())
+                    if (safeComponent)
                     {
-                        auto componentStyleFlags = peer->getStyleFlags();
-                        safeComponent->removeFromDesktop();
-                        safeComponent->addToDesktop(componentStyleFlags);
-                        if (active)
+                        if (auto peer = safeComponent->getPeer())
                         {
-                            if (auto newPeer = safeComponent->getPeer())
+                            auto componentStyleFlags = peer->getStyleFlags();
+                            safeComponent->removeFromDesktop();
+                            safeComponent->addToDesktop (componentStyleFlags);
+                            if (active)
                             {
-                                SetActiveWindow((HWND)newPeer->getNativeHandle());
+                                if (auto newPeer = safeComponent->getPeer())
+                                {
+                                    SetActiveWindow ((HWND) newPeer->getNativeHandle());
+                                }
                             }
                         }
                     }
-                } });
+                });
         }
     }
 
     LRESULT handleSizeConstraining (RECT& r, const WPARAM wParam) override
     {
-        auto result = HWNDComponentPeer::handleSizeConstraining(r, wParam);
+        auto result = HWNDComponentPeer::handleSizeConstraining (r, wParam);
 
         handleDirect2DResize();
 
@@ -295,11 +296,11 @@ private:
     //==============================================================================
     LRESULT handleDPIChanging (int newDPI, RECT newRect) override
     {
-        auto result = HWNDComponentPeer::handleDPIChanging(newDPI, newRect);
+        auto result = HWNDComponentPeer::handleDPIChanging (newDPI, newRect);
 
         if (direct2DContext)
         {
-            direct2DContext->setScaleFactor(scaleFactor);
+            direct2DContext->setScaleFactor (scaleFactor);
         }
 
         return result;
@@ -309,7 +310,7 @@ private:
     {
         //Logger::outputDebugString ("peerWindowProc d2d " + String::toHexString ((int) message));
 
-        TRACE_LOG_PARENT_WINDOW_MESSAGE(message);
+        TRACE_LOG_PARENT_WINDOW_MESSAGE (message);
 
         switch (message)
         {
@@ -372,8 +373,7 @@ private:
                         break;
                     }
 
-                    case SC_MINIMIZE:
-                        break;
+                    case SC_MINIMIZE: break;
                 }
 
                 break;
@@ -396,14 +396,13 @@ private:
                 //
                 if (direct2DContext && wParam)
                 {
-                    direct2DContext->handleChildShowWindow ((void*)lParam);
+                    direct2DContext->handleChildShowWindow ((void*) lParam);
                     handleDirect2DPaint();
                 }
                 break;
             }
 
-            default:
-                break;
+            default: break;
         }
 
         return HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
@@ -414,10 +413,10 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dFlag = getProperties().getWithDefault("Direct2D", true);
-    int renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
+    auto d2dFlag         = getProperties().getWithDefault ("Direct2D", true);
+    int  renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
 
-    auto peer = new Direct2DComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, renderingEngine };
+    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderingEngine };
     peer->initialise();
     return peer;
 }

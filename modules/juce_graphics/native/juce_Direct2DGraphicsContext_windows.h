@@ -35,95 +35,87 @@ typedef HWND__* HWND;
 
 namespace direct2d
 {
-    struct PaintStats : public ReferenceCountedObject
+struct PaintStats : public ReferenceCountedObject
+{
+    enum
     {
-        enum
-        {
-            messageThreadPaintDuration,
-            frameInterval,
-            presentDuration,
-            present1Duration,
-            swapChainEventInterval,
-            swapChainMessageTransitTime,
-            swapChainMessageInterval,
-            vblankToBeginDraw,
+        messageThreadPaintDuration,
+        frameInterval,
+        presentDuration,
+        present1Duration,
+        swapChainEventInterval,
+        swapChainMessageTransitTime,
+        swapChainMessageInterval,
+        vblankToBeginDraw,
 
-            numStats
-        };
-
-        StringArray const accumulatorNames {
-            "messageThreadPaintDuration",
-            "frameInterval",
-            "presentDuration",
-            "present1Duration",
-            "swapChainEventInterval",
-            "swapChainMessageTransitTime",
-            "swapChainMessageInterval",
-            "VBlank to BeginDraw"
-        };
-
-        int64 const creationTime = Time::getMillisecondCounter();
-        double const millisecondsPerTick = 1000.0 / (double) Time::getHighResolutionTicksPerSecond();
-        int paintCount = 0;
-        int presentCount = 0;
-        int present1Count = 0;
-        int64 lastPaintStartTicks = 0;
-        uint64 lockAcquireMaxTicks = 0;
-
-        ~PaintStats()
-        {
-        }
-
-        void reset()
-        {
-            for (auto& accumulator : accumulators)
-            {
-                accumulator.reset();
-            }
-            lastPaintStartTicks = 0;
-            paintCount = 0;
-            present1Count = 0;
-            lockAcquireMaxTicks = 0;
-        }
-
-        using Ptr = ReferenceCountedObjectPtr<PaintStats>;
-
-        StatisticsAccumulator<double>& getAccumulator (int index)
-        {
-            return accumulators[index];
-        }
-
-        void addValueTicks (int index, int64 ticks)
-        {
-            addValueMsec (index, Time::highResolutionTicksToSeconds (ticks) * 1000.0);
-        }
-
-        void addValueMsec (int index, double value)
-        {
-            accumulators[index].addValue (value);
-        }
-
-    private:
-        StatisticsAccumulator<double> accumulators[numStats];
+        numStats
     };
 
-    struct ScopedElapsedTime
+    StringArray const accumulatorNames { "messageThreadPaintDuration", "frameInterval",          "presentDuration",
+                                         "present1Duration",           "swapChainEventInterval", "swapChainMessageTransitTime",
+                                         "swapChainMessageInterval",   "VBlank to BeginDraw" };
+
+    int64 const  creationTime        = Time::getMillisecondCounter();
+    double const millisecondsPerTick = 1000.0 / (double) Time::getHighResolutionTicksPerSecond();
+    int          paintCount          = 0;
+    int          presentCount        = 0;
+    int          present1Count       = 0;
+    int64        lastPaintStartTicks = 0;
+    uint64       lockAcquireMaxTicks = 0;
+
+    ~PaintStats() {}
+
+    void reset()
     {
-        ScopedElapsedTime (PaintStats::Ptr stats_, int accumulatorIndex_) : stats (stats_),
-                                                                            accumulatorIndex (accumulatorIndex_)
+        for (auto& accumulator : accumulators)
         {
+            accumulator.reset();
         }
+        lastPaintStartTicks = 0;
+        paintCount          = 0;
+        present1Count       = 0;
+        lockAcquireMaxTicks = 0;
+    }
 
-        ~ScopedElapsedTime()
-        {
-            auto finishTicks = Time::getHighResolutionTicks();
-            stats->addValueTicks (accumulatorIndex, finishTicks - startTicks);
-        }
+    using Ptr = ReferenceCountedObjectPtr<PaintStats>;
 
-        int64 startTicks = Time::getHighResolutionTicks();
-        PaintStats::Ptr stats;
-        int accumulatorIndex;
-    };
+    StatisticsAccumulator<double>& getAccumulator (int index)
+    {
+        return accumulators[index];
+    }
+
+    void addValueTicks (int index, int64 ticks)
+    {
+        addValueMsec (index, Time::highResolutionTicksToSeconds (ticks) * 1000.0);
+    }
+
+    void addValueMsec (int index, double value)
+    {
+        accumulators[index].addValue (value);
+    }
+
+private:
+    StatisticsAccumulator<double> accumulators[numStats];
+};
+
+struct ScopedElapsedTime
+{
+    ScopedElapsedTime (PaintStats::Ptr stats_, int accumulatorIndex_)
+        : stats (stats_),
+          accumulatorIndex (accumulatorIndex_)
+    {
+    }
+
+    ~ScopedElapsedTime()
+    {
+        auto finishTicks = Time::getHighResolutionTicks();
+        stats->addValueTicks (accumulatorIndex, finishTicks - startTicks);
+    }
+
+    int64           startTicks = Time::getHighResolutionTicks();
+    PaintStats::Ptr stats;
+    int             accumulatorIndex;
+};
 } // namespace direct2d
 
 #endif
@@ -141,27 +133,30 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext(HWND, double dpiScalingFactor, bool opaque, bool temporaryWindow);
+    Direct2DLowLevelGraphicsContext (HWND, double dpiScalingFactor, bool opaque, bool temporaryWindow);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleParentShowWindow();
-    void handleChildShowWindow(void* childWindowHandle);
-    void setWindowAlpha(float alpha);
+    void handleChildShowWindow (void* childWindowHandle);
+    void setWindowAlpha (float alpha);
 
     //==============================================================================
-    bool isVectorDevice() const override { return false; }
+    bool isVectorDevice() const override
+    {
+        return false;
+    }
 
-    void setOrigin (Point<int>) override;
-    void addTransform (const AffineTransform&) override;
-    float getPhysicalPixelScaleFactor() override;
-    bool clipToRectangle (const Rectangle<int>&) override;
-    bool clipToRectangleList (const RectangleList<int>&) override;
-    void excludeClipRectangle (const Rectangle<int>&) override;
-    void clipToPath (const Path&, const AffineTransform&) override;
-    void clipToImageAlpha (const Image&, const AffineTransform&) override;
-    bool clipRegionIntersects (const Rectangle<int>&) override;
+    void           setOrigin (Point<int>) override;
+    void           addTransform (const AffineTransform&) override;
+    float          getPhysicalPixelScaleFactor() override;
+    bool           clipToRectangle (const Rectangle<int>&) override;
+    bool           clipToRectangleList (const RectangleList<int>&) override;
+    void           excludeClipRectangle (const Rectangle<int>&) override;
+    void           clipToPath (const Path&, const AffineTransform&) override;
+    void           clipToImageAlpha (const Image&, const AffineTransform&) override;
+    bool           clipRegionIntersects (const Rectangle<int>&) override;
     Rectangle<int> getClipBounds() const override;
-    bool isClipEmpty() const override;
+    bool           isClipEmpty() const override;
 
     //==============================================================================
     void saveState() override;
@@ -184,17 +179,20 @@ public:
     void drawImage (const Image& sourceImage, const AffineTransform&) override;
 
     //==============================================================================
-    void drawLine (const Line<float>&) override;
-    bool drawLine (const Line<float>&, float) override;
-    void setFont (const Font&) override;
+    void        drawLine (const Line<float>&) override;
+    bool        drawLine (const Line<float>&, float) override;
+    void        setFont (const Font&) override;
     const Font& getFont() override;
-    void drawGlyph (int glyphNumber, const AffineTransform&) override;
-    bool supportsGlyphRun() override { return true; }
+    void        drawGlyph (int glyphNumber, const AffineTransform&) override;
+    bool        supportsGlyphRun() override
+    {
+        return true;
+    }
     void drawGlyphRun (Array<PositionedGlyph> const& glyphs,
-        int startIndex,
-        int numGlyphs,
-        const AffineTransform& transform,
-                       Rectangle<float> underlineArea) override;
+                       int                           startIndex,
+                       int                           numGlyphs,
+                       const AffineTransform&        transform,
+                       Rectangle<float>              underlineArea) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
     void startResizing();
@@ -208,7 +206,7 @@ public:
     bool startFrame();
     void endFrame();
 
-    void setScaleFactor (double scale_);
+    void   setScaleFactor (double scale_);
     double getScaleFactor() const;
 
     bool drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness) override;
@@ -239,9 +237,9 @@ private:
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;
 
-    void drawGlyphCommon(int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
+    void drawGlyphCommon (int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
     void updateDeviceContextTransform();
-    void updateDeviceContextTransform(AffineTransform chainedTransform);
+    void updateDeviceContextTransform (AffineTransform chainedTransform);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsContext)
 };

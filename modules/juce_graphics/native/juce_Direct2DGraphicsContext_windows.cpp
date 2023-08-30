@@ -1123,6 +1123,9 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
+        //
+        // Convert sourceImage to single-channel alpha-only maskImage
+        //
         auto const        maskImage = sourceImage.convertedToFormat (Image::SingleChannel);
         Image::BitmapData bitmapData { maskImage, Image::BitmapData::readOnly };
 
@@ -1130,6 +1133,9 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
         bitmapProperties.pixelFormat.format    = DXGI_FORMAT_A8_UNORM;
         bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
 
+        //
+        // Convert maskImage to a Direct2D bitmap
+        //
         ComSmartPtr<ID2D1Bitmap> bitmap;
         auto hr = deviceContext->CreateBitmap (D2D1_SIZE_U { (UINT32) maskImage.getWidth(), (UINT32) maskImage.getHeight() },
                                                bitmapData.data,
@@ -1138,17 +1144,29 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
                                                bitmap.resetAndGetPointerAddress());
         if (SUCCEEDED (hr))
         {
+            //
+            // Make a transformed bitmap brush using the bitmap
+            // 
+            // As usual, apply the current transform first *then* the transform parameter
+            // 
             ComSmartPtr<ID2D1BitmapBrush> brush;
-            auto                  matrix     = direct2d::transformToMatrix (currentState->currentTransform.getTransformWith (transform));
-            D2D1_BRUSH_PROPERTIES brushProps = { 1.0f, matrix };
+            auto                          brushTransform = currentState->currentTransform.getTransformWith (transform);
+            auto                          matrix         = direct2d::transformToMatrix (brushTransform);
+            D2D1_BRUSH_PROPERTIES         brushProps     = { 1.0f, matrix };
 
             auto bitmapBrushProps = D2D1::BitmapBrushProperties (D2D1_EXTEND_MODE_CLAMP, D2D1_EXTEND_MODE_CLAMP);
             hr = deviceContext->CreateBitmapBrush (bitmap, bitmapBrushProps, brushProps, brush.resetAndGetPointerAddress());
             if (SUCCEEDED (hr))
             {
+                //
+                // Push the clipping layer onto the layer stack
+                // 
+                // Don't maskTransform in the LayerParameters struct; that only applies to geometry clipping
+                // Do set the contentBounds member, transformed appropriately
+                //
                 auto layerParams          = D2D1::LayerParameters();
-                layerParams.contentBounds = direct2d::rectangleToRectF (maskImage.getBounds().toFloat().transformedBy (transform));
-                layerParams.maskTransform = matrix;
+                auto transformedBounds    = maskImage.getBounds().toFloat().transformedBy (brushTransform);
+                layerParams.contentBounds = direct2d::rectangleToRectF(transformedBounds);
                 layerParams.opacityBrush  = brush;
 
                 currentState->pushLayer (layerParams);

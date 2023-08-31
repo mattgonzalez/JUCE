@@ -41,10 +41,8 @@
     -don't paint occluded windows
     -Multithreaded device context?
     -reusable geometry for exclude clip rectangle
-    verify that the child window is not created if JUCE_DIRECT2D_CHILD_WINDOW is off
 
     handle device context creation error / paint errors
-        restart render thread on error?
         watchdog timer?
 
     EndDraw D2DERR_RECREATE_TARGET
@@ -99,7 +97,7 @@ namespace juce
 {
 //==============================================================================
 
-struct Direct2DLowLevelGraphicsContext::ClientSavedState
+struct Direct2DLowLevelGraphicsContext::SavedState
 {
 private:
     //
@@ -153,7 +151,7 @@ public:
     //
     // Constructor for first stack entry
     //
-    ClientSavedState (Rectangle<int>                     swapChainBufferBounds_,
+    SavedState (Rectangle<int>                     swapChainBufferBounds_,
                       ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_,
                       direct2d::DeviceContext&           deviceContext_)
         : deviceContext (deviceContext_),
@@ -166,7 +164,7 @@ public:
     //
     // Constructor for subsequent entries
     //
-    ClientSavedState (ClientSavedState const* const previousState_)
+    SavedState (SavedState const* const previousState_)
         : currentTransform (previousState_->currentTransform),
           deviceContext (previousState_->deviceContext),
           clipRegion (previousState_->clipRegion),
@@ -182,7 +180,7 @@ public:
     {
     }
 
-    ~ClientSavedState()
+    ~SavedState()
     {
         jassert (pushedLayers.size() == 0);
         clearFont();
@@ -401,7 +399,7 @@ public:
     //
     struct ScopedBrushTransformInverter
     {
-        ScopedBrushTransformInverter (ClientSavedState const* const state_, AffineTransform const& transformToInvert_)
+        ScopedBrushTransformInverter (SavedState const* const state_, AffineTransform const& transformToInvert_)
             : state (state_)
         {
             //
@@ -422,11 +420,11 @@ public:
             }
         }
 
-        ClientSavedState const* const state;
+        SavedState const* const state;
         bool                          resetTransform = false;
     };
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ClientSavedState)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SavedState)
 };
 
 //==============================================================================
@@ -446,7 +444,7 @@ private:
     direct2d::UpdateRegion    updateRegion;
     bool                      swapChainReady = false;
 
-    std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::ClientSavedState>> savedClientStates;
+    std::stack<std::unique_ptr<Direct2DLowLevelGraphicsContext::SavedState>> savedClientStates;
 
     int                frameNumber = 0;
     RectangleList<int> deferredRepaints;
@@ -667,7 +665,7 @@ public:
         windowAlpha     = alpha;
     }
 
-    ClientSavedState* startFrame (RectangleList<int>& paintAreas)
+    SavedState* startFrame (RectangleList<int>& paintAreas)
     {
         prepare();
 
@@ -752,29 +750,46 @@ public:
 
         //
         // Finish drawing
+        // 
+        // SetTarget(nullptr) so the device context doesn't hold a reference to the swap chain buffer
         //
         auto hr = deviceResources.deviceContext.context->EndDraw();
-        jassert (SUCCEEDED (hr));
         deviceResources.deviceContext.context->SetTarget (nullptr);
+
+        jassert (SUCCEEDED (hr));
 
         TRACE_LOG_D2D_PAINT_END (frameNumber);
 
-        //
-        // Present the frame
-        //
+        if (SUCCEEDED (hr))
         {
+            //
+            // Present the frame
+            //
+            // Compare deferredRepaints to the swap chain buffer area. If the rectangles in deferredRepaints are contained 
+            // by the swap chain buffer area, then mark those rectangles as dirty. DXGI will only keep the dirty rectangles from the
+            // current buffer and copy the clean area from the previous buffer.
+            // 
+            // The buffer needs to be completely filled before using dirty rectangles. The dirty rectangles need to be contained
+            // within the swap chian buffer.
+            //
 #if JUCE_DIRECT2D_METRICS
             direct2d::ScopedElapsedTime set { owner.stats, direct2d::PaintStats::present1Duration };
 #endif
 
             TRACE_LOG_D2D_PRESENT1_START (frameNumber);
 
+            //
+            // Allocate enough memory for the array of dirty rectangles
+            //
             if (dirtyRectanglesCapacity < deferredRepaints.getNumRectangles())
             {
                 dirtyRectangles.realloc (deferredRepaints.getNumRectangles());
                 dirtyRectanglesCapacity = deferredRepaints.getNumRectangles();
             }
 
+            //
+            // Fill the array of dirty rectangles, intersecting deferredRepaints with the swap chain buffer
+            //
             DXGI_PRESENT_PARAMETERS presentParameters {};
             if (swap.state == direct2d::SwapChain::bufferFilled)
             {
@@ -782,12 +797,31 @@ public:
                 auto const swapChainSize  = swap.getSize();
                 for (auto const& area : deferredRepaints)
                 {
-                    auto intersection = area.getIntersection (swapChainSize);
-                    if (intersection.isEmpty() || area.contains (swapChainSize))
+                    //
+                    // If this deferred area contains the entire swap chain, then 
+                    // no need for dirty rectangles
+                    //
+                    if (area.contains(swapChainSize))
                     {
+                        presentParameters.DirtyRectsCount = 0;
+                        break;
+                    }
+
+                    //
+                    // Intersect this deferred repaint area with the swap chain buffer
+                    //
+                    auto intersection = area.getIntersection (swapChainSize);
+                    if (intersection.isEmpty())
+                    {
+                        //
+                        // Can't clip to an empty rectangle
+                        //
                         continue;
                     }
 
+                    //
+                    // Add this deferred repaint area to the dirty rectangle array (scaled for DPI)
+                    //
                     *dirtyRectangle = direct2d::rectangleToRECT (intersection * dpiScalingFactor);
 
                     dirtyRectangle++;
@@ -796,20 +830,27 @@ public:
                 presentParameters.pDirtyRects = dirtyRectangles.getData();
             }
 
+            //
+            // Present the freshly painted buffer
+            //
             hr = swap.chain->Present1 (swap.presentSyncInterval, swap.presentFlags, &presentParameters);
             jassert (SUCCEEDED (hr));
 
+            TRACE_LOG_D2D_PRESENT1_END (frameNumber);
+
+            //
+            // If the dirty rectangle count was zero, then the buffer is now completely filled and 
+            // ready for dirty rectangles
+            //
             if (presentParameters.DirtyRectsCount == 0)
             {
                 swap.state = direct2d::SwapChain::bufferFilled;
             }
+        }
 
-            if (FAILED (hr))
-            {
-                teardown();
-            }
-
-            TRACE_LOG_D2D_PRESENT1_END (frameNumber);
+        if (FAILED (hr))
+        {
+            teardown();
         }
 
         deferredRepaints.clear();
@@ -830,31 +871,31 @@ public:
         return dpiScalingFactor;
     }
 
-    ClientSavedState* getCurrentSavedState() const
+    SavedState* getCurrentSavedState() const
     {
         return savedClientStates.size() > 0 ? savedClientStates.top().get() : nullptr;
     }
 
-    ClientSavedState* pushFirstSavedState (Rectangle<int> initialClipRegion)
+    SavedState* pushFirstSavedState (Rectangle<int> initialClipRegion)
     {
         jassert (savedClientStates.size() == 0);
 
         savedClientStates.push (
-            std::make_unique<ClientSavedState> (initialClipRegion, deviceResources.colourBrush, deviceResources.deviceContext));
+            std::make_unique<SavedState> (initialClipRegion, deviceResources.colourBrush, deviceResources.deviceContext));
 
         return getCurrentSavedState();
     }
 
-    ClientSavedState* pushSavedState()
+    SavedState* pushSavedState()
     {
         jassert (savedClientStates.size() > 0);
 
-        savedClientStates.push (std::make_unique<ClientSavedState> (savedClientStates.top().get()));
+        savedClientStates.push (std::make_unique<SavedState> (savedClientStates.top().get()));
 
         return getCurrentSavedState();
     }
 
-    ClientSavedState* popSavedState()
+    SavedState* popSavedState()
     {
         savedClientStates.top()->popLayers();
         savedClientStates.pop();
@@ -1146,9 +1187,9 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
         {
             //
             // Make a transformed bitmap brush using the bitmap
-            // 
+            //
             // As usual, apply the current transform first *then* the transform parameter
-            // 
+            //
             ComSmartPtr<ID2D1BitmapBrush> brush;
             auto                          brushTransform = currentState->currentTransform.getTransformWith (transform);
             auto                          matrix         = direct2d::transformToMatrix (brushTransform);
@@ -1160,13 +1201,13 @@ void Direct2DLowLevelGraphicsContext::clipToImageAlpha (const Image& sourceImage
             {
                 //
                 // Push the clipping layer onto the layer stack
-                // 
+                //
                 // Don't maskTransform in the LayerParameters struct; that only applies to geometry clipping
                 // Do set the contentBounds member, transformed appropriately
                 //
                 auto layerParams          = D2D1::LayerParameters();
                 auto transformedBounds    = maskImage.getBounds().toFloat().transformedBy (brushTransform);
-                layerParams.contentBounds = direct2d::rectangleToRectF(transformedBounds);
+                layerParams.contentBounds = direct2d::rectangleToRectF (transformedBounds);
                 layerParams.opacityBrush  = brush;
 
                 currentState->pushLayer (layerParams);
@@ -1682,7 +1723,7 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon (int numGlyphs, const Affi
     //
     // The gradient brushes are position-dependent, so need to undo the device context transform
     //
-    ClientSavedState::ScopedBrushTransformInverter brushTransformInverter { currentState, scaledTransform };
+    SavedState::ScopedBrushTransformInverter brushTransformInverter { currentState, scaledTransform };
 
     deviceContext->DrawGlyphRun ({}, &directWriteGlyphRun, currentState->currentBrush);
 

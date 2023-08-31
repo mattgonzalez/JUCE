@@ -231,8 +231,8 @@ public:
 
     //==============================================================================
 private:
-    struct ClientSavedState;
-    ClientSavedState* currentState = nullptr;
+    struct SavedState;
+    SavedState* currentState = nullptr;
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;

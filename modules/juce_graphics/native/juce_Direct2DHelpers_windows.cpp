@@ -45,6 +45,15 @@ namespace juce
 
 namespace direct2d
 {
+
+//==============================================================================
+//
+// Utility routines to convert between Win32 and JUCE types
+// 
+// Some of these are duplicated in juce_Windowing_windows.cpp; could do
+// some D.R.Y.
+//
+
 template <typename Type>
 D2D1_RECT_F rectangleToRectF (const Rectangle<Type>& r)
 {
@@ -68,6 +77,9 @@ static D2D1_COLOR_F colourToD2D (Colour c)
     return { c.getFloatRed(), c.getFloatGreen(), c.getFloatBlue(), c.getFloatAlpha() };
 }
 
+//
+// Convert a JUCE Path to a D2D Geometry
+//
 static void pathToGeometrySink (const Path& path, ID2D1GeometrySink* sink, const AffineTransform& transform)
 {
     //
@@ -169,6 +181,8 @@ static void
 //
 // ScopedGeometryWithSink creates an ID2D1PathGeometry object with an open sink.
 // D.R.Y. for rectToPathGeometry, rectListToPathGeometry, and pathToPathGeometry
+// 
+// Ensures that sink->Close is called
 //
 struct ScopedGeometryWithSink
 {
@@ -249,6 +263,17 @@ ComSmartPtr<ID2D1Geometry>
     return nullptr;
 }
 
+//-------------------------------------------------------------------------------------------------
+// 
+// UpdateRegion extracts the invalid region for a window
+// 
+// UpdateRegion is used to service WM_PAINT to add the invalid region of a window to
+// deferredRepaints. UpdateRegion marks the region as valid, and the region should be painted on the
+// next vblank.
+// 
+// This is similar to the invalid region update in HWNDComponentPeer::handlePaintMessage()
+//
+//
 class UpdateRegion
 {
 public:

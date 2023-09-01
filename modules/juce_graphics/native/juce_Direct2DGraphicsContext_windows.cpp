@@ -24,16 +24,14 @@
 */
 
 /*
+
+    Change rectToPathGeometry ID2D1RectangleGeometry 
     
     don't mix DXGI factory types
 
     get rid of CS_OWNDC?
 
     -child window clipping?
-
-    -JUCE_DIRECT2D_METRICS fix build / conditional frame stats, frame history
-
-    -optimize save/restore state
 
     -minimize calls to SetTransform
     -text analyzer?
@@ -45,8 +43,7 @@
     handle device context creation error / paint errors
         watchdog timer?
 
-    EndDraw D2DERR_RECREATE_TARGET
-
+    OK EndDraw D2DERR_RECREATE_TARGET
     OK JUCE 7.0.6 merge
     OK when to start threads in general
     OK use std::stack for layers
@@ -64,7 +61,7 @@
     OK vblank attachment
     OK Always present
 
-    WM_DISPLAYCHANGE / WM_SETTINGCHANGE rebuild resoruces
+    WM_DISPLAYCHANGE / WM_SETTINGCHANGE rebuild resources
 
     */
 
@@ -85,7 +82,7 @@
 #endif
 
 #ifndef JUCE_DIRECT2D_CHILD_WINDOW
-    #define JUCE_DIRECT2D_CHILD_WINDOW 1
+    #define JUCE_DIRECT2D_CHILD_WINDOW 0
 #endif
 
 #include "juce_Direct2DHelpers_windows.cpp"
@@ -770,7 +767,7 @@ public:
             // current buffer and copy the clean area from the previous buffer.
             // 
             // The buffer needs to be completely filled before using dirty rectangles. The dirty rectangles need to be contained
-            // within the swap chian buffer.
+            // within the swap chain buffer.
             //
 #if JUCE_DIRECT2D_METRICS
             direct2d::ScopedElapsedTime set { owner.stats, direct2d::PaintStats::present1Duration };

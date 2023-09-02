@@ -547,12 +547,11 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_, bool temporaryWindow_)
+    Pimpl (Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
           dpiScalingFactor (dpiScalingFactor_),
           parentHwnd (hwnd_),
-          opaque (opaque_),
-          parentWindowIsTemporary (temporaryWindow_)
+          opaque (opaque_)
     {
         setWindowAlpha (1.0f);
     }
@@ -948,7 +947,6 @@ public:
 #endif
     direct2d::DirectWriteGlyphRun glyphRun;
     bool                          opaque                  = true;
-    bool                          parentWindowIsTemporary = false;
     float                         windowAlpha             = 1.0f;
     D2D1_COLOR_F                  backgroundColor {};
 
@@ -959,9 +957,9 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, double dpiScalingFactor_, bool opaque, bool temporaryWindow)
+Direct2DLowLevelGraphicsContext::Direct2DLowLevelGraphicsContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque, temporaryWindow })
+      pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque })
 {
 }
 

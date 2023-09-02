@@ -25,7 +25,7 @@ namespace direct2d
 
 //==============================================================================
 //
-// Device context
+// Device context and transform
 //
 
 struct DeviceContext
@@ -36,14 +36,16 @@ struct DeviceContext
         transform = {};
     }
 
+    //
+    // The profiler shows that calling deviceContxt->SetTransform is
+    // surprisingly expensive. This class only calls SetTransform
+    // if the transform is changing
+    //
     void setTransform (AffineTransform newTransform)
     {
-        if (approximatelyEqual (transform.mat00, newTransform.mat00) &&
-            approximatelyEqual (transform.mat01, newTransform.mat01) &&
-            approximatelyEqual (transform.mat02, newTransform.mat02) &&
-            approximatelyEqual (transform.mat10, newTransform.mat10) &&
-            approximatelyEqual (transform.mat11, newTransform.mat11) &&
-            approximatelyEqual (transform.mat12, newTransform.mat12))
+        if (approximatelyEqual (transform.mat00, newTransform.mat00) && approximatelyEqual (transform.mat01, newTransform.mat01) &&
+            approximatelyEqual (transform.mat02, newTransform.mat02) && approximatelyEqual (transform.mat10, newTransform.mat10) &&
+            approximatelyEqual (transform.mat11, newTransform.mat11) && approximatelyEqual (transform.mat12, newTransform.mat12))
         {
             return;
         }
@@ -76,6 +78,16 @@ public:
         release();
     }
 
+    //
+    // This code...lacks elegance, shall we say.
+    //
+    // A better solution would be to integrate this with the VBlankDispatcher;
+    // VBlankDispatcher already has a list of DXGI adapters
+    //
+    // Also - creating all these resources takes quite a while. The worst offender seems to be 
+    // creating the Direct3D device. Ideally this class could cache the Direct3D device; they 
+    // can be associated with the DXGI adapter using the adapter's unique ID.
+    //
     HRESULT create (ID2D1Factory1* const direct2dFactory, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
@@ -111,24 +123,19 @@ public:
 
                         if (SUCCEEDED (hr))
                         {
-                            hr = dxgiAdapter->GetParent (
-                                __uuidof (dxgiFactory),
-                                reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
+                            hr = dxgiAdapter->GetParent (__uuidof (dxgiFactory),
+                                                         reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
                             if (SUCCEEDED (hr))
                             {
                                 ComSmartPtr<ID2D1Device> direct2DDevice;
-                                hr = direct2dFactory->CreateDevice (
-                                    dxgiDevice,
-                                    direct2DDevice.resetAndGetPointerAddress());
+                                hr = direct2dFactory->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
                                 if (SUCCEEDED (hr))
                                 {
-                                    hr = direct2DDevice->CreateDeviceContext (
-                                        D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-                                        deviceContext.context.resetAndGetPointerAddress());
+                                    hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
+                                                                              deviceContext.context.resetAndGetPointerAddress());
                                     if (SUCCEEDED (hr))
                                     {
-                                        deviceContext.context->SetTextAntialiasMode (
-                                            D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+                                        deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
                                         TRACE_LOG_D2D_RESOURCE (etw::createDeviceResources);
                                     }
@@ -147,9 +154,8 @@ public:
 
                 if (colourBrush == nullptr)
                 {
-                    hr = deviceContext.context->CreateSolidColorBrush (
-                        D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
-                        colourBrush.resetAndGetPointerAddress());
+                    hr = deviceContext.context->CreateSolidColorBrush (D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
+                                                                       colourBrush.resetAndGetPointerAddress());
                     jassertquiet (SUCCEEDED (hr));
                 }
             }
@@ -194,10 +200,7 @@ public:
         release();
     }
 
-    HRESULT create (HWND                 hwnd,
-                    Rectangle<int>       size,
-                    ID3D11Device* const  direct3DDevice,
-                    IDXGIFactory2* const dxgiFactory)
+    HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
     {
         if (dxgiFactory && direct3DDevice && ! chain && hwnd)
         {
@@ -208,6 +211,8 @@ public:
 
             //
             // Make the waitable swap chain
+            //
+            // Create the swap chain with premultiplied alpha support for transparent windows
             //
             DXGI_SWAP_CHAIN_DESC1 swapChainDescription = {};
             swapChainDescription.Format                = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -238,8 +243,7 @@ public:
                 chain.QueryInterface<IDXGISwapChain2> (chain2);
                 if (chain2)
                 {
-                    swapChainEvent =
-                        std::make_unique<direct2d::ScopedEvent> (chain2->GetFrameLatencyWaitableObject());
+                    swapChainEvent = std::make_unique<direct2d::ScopedEvent> (chain2->GetFrameLatencyWaitableObject());
                     if (swapChainEvent->getHandle() == INVALID_HANDLE_VALUE)
                     {
                         swapChainEvent = nullptr;
@@ -276,19 +280,15 @@ public:
         if (deviceContext && chain && ! buffer)
         {
             ComSmartPtr<IDXGISurface> surface;
-            auto                      hr = chain->GetBuffer (0,
-                                        __uuidof (surface),
-                                        reinterpret_cast<void**> (surface.resetAndGetPointerAddress()));
+            auto hr = chain->GetBuffer (0, __uuidof (surface), reinterpret_cast<void**> (surface.resetAndGetPointerAddress()));
             if (SUCCEEDED (hr))
             {
                 D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-                bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-                bitmapProperties.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-                bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+                bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+                bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
+                bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
 
-                hr = deviceContext->CreateBitmapFromDxgiSurface (surface,
-                                                                 bitmapProperties,
-                                                                 buffer.resetAndGetPointerAddress());
+                hr = deviceContext->CreateBitmapFromDxgiSurface (surface, bitmapProperties, buffer.resetAndGetPointerAddress());
                 jassert (SUCCEEDED (hr));
 
                 if (SUCCEEDED (hr))
@@ -328,11 +328,9 @@ public:
         if (chain)
         {
             auto scaledSize = newSize * dpiScalingFactor;
-            scaledSize      = scaledSize
-                             .getUnion ({ Direct2DLowLevelGraphicsContext::minWindowSize,
-                                          Direct2DLowLevelGraphicsContext::minWindowSize })
-                             .getIntersection ({ Direct2DLowLevelGraphicsContext::maxWindowSize,
-                                                 Direct2DLowLevelGraphicsContext::maxWindowSize });
+            scaledSize =
+                scaledSize.getUnion ({ Direct2DLowLevelGraphicsContext::minWindowSize, Direct2DLowLevelGraphicsContext::minWindowSize })
+                    .getIntersection ({ Direct2DLowLevelGraphicsContext::maxWindowSize, Direct2DLowLevelGraphicsContext::maxWindowSize });
 
             buffer = nullptr;
             state  = chainAllocated;
@@ -340,11 +338,7 @@ public:
             auto dpi = 96.0f * dpiScalingFactor;
             deviceContext->SetDpi (dpi, dpi);
 
-            auto hr = chain->ResizeBuffers (0,
-                                            scaledSize.getWidth(),
-                                            scaledSize.getHeight(),
-                                            DXGI_FORMAT_B8G8R8A8_UNORM,
-                                            swapChainFlags);
+            auto hr = chain->ResizeBuffers (0, scaledSize.getWidth(), scaledSize.getHeight(), DXGI_FORMAT_B8G8R8A8_UNORM, swapChainFlags);
             if (SUCCEEDED (hr))
             {
                 hr = createBuffer (deviceContext);
@@ -372,13 +366,13 @@ public:
         return {};
     }
 
-    DXGI_SWAP_EFFECT const       swapEffect          = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    UINT const                   bufferCount         = 2;
-    uint32 const                 swapChainFlags      = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-    uint32 const                 presentSyncInterval = 1;
-    uint32 const                 presentFlags        = 0;
-    ComSmartPtr<IDXGISwapChain1> chain;
-    ComSmartPtr<ID2D1Bitmap1>    buffer;
+    DXGI_SWAP_EFFECT const                     swapEffect          = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    UINT const                                 bufferCount         = 2;
+    uint32 const                               swapChainFlags      = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    uint32 const                               presentSyncInterval = 1;
+    uint32 const                               presentFlags        = 0;
+    ComSmartPtr<IDXGISwapChain1>               chain;
+    ComSmartPtr<ID2D1Bitmap1>                  buffer;
     std::unique_ptr<direct2d::ScopedEvent>     swapChainEvent;
     int                                        dispatcherBitNumber = -1;
     SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;
@@ -395,6 +389,12 @@ public:
 //
 // DirectComposition
 //
+// Using DirectComposition enables transparent windows and smoother window
+// resizing
+//
+// This class builds a simple DirectComposition tree that ultimately contains
+// the swap chain
+//
 
 class CompositionTree
 {
@@ -405,15 +405,12 @@ public:
 
         if (dxgiDevice && ! compositionDevice)
         {
-            hr = DCompositionCreateDevice (
-                dxgiDevice,
-                __uuidof (IDCompositionDevice),
-                reinterpret_cast<void**> (compositionDevice.resetAndGetPointerAddress()));
+            hr = DCompositionCreateDevice (dxgiDevice,
+                                           __uuidof (IDCompositionDevice),
+                                           reinterpret_cast<void**> (compositionDevice.resetAndGetPointerAddress()));
             if (SUCCEEDED (hr))
             {
-                hr = compositionDevice->CreateTargetForHwnd (hwnd,
-                                                             FALSE,
-                                                             compositionTarget.resetAndGetPointerAddress());
+                hr = compositionDevice->CreateTargetForHwnd (hwnd, FALSE, compositionTarget.resetAndGetPointerAddress());
                 if (SUCCEEDED (hr))
                 {
                     hr = compositionDevice->CreateVisual (compositionVisual.resetAndGetPointerAddress());

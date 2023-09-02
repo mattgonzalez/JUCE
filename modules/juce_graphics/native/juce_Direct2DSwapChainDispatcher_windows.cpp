@@ -27,6 +27,19 @@ namespace direct2d
 //
 // SwapChainDispatcher
 //
+// Every D2D window has a waitable swap chain. The waitable swap chain provides
+// an event that signals when the swap chain is ready.
+// 
+// This thread waits for the events from all the swap chains and sets an atomic
+// flag bit when the swap chain event fires.
+// 
+// Direct2DComponentPeer will attempt to paint on the next onVBlank if the
+// atomic flag bit is set for that specific swap chain.
+// 
+// Note that WaitForMultipleObjects can wait for a maximum of 64 objects. 
+// The thread needs one dedicated event for shutdown notification, so that
+// leaves a maximum of 63 swap chains that can be serviced.
+//
 
 class SwapChainDispatcher : protected Thread
 {
@@ -102,6 +115,11 @@ public:
 
     bool isSwapChainReady (int bitNumber)
     {
+        //
+        // See if the ready bit is set for a specific swap chain. 
+        // 
+        // Checking the bit also clears it
+        //
         int64 mask       = 1LL << bitNumber;
         auto  readyFlags = atomicReadyFlags.fetch_and (~mask);
         return (readyFlags & mask) != 0;
@@ -112,8 +130,8 @@ public:
         while (! threadShouldExit())
         {
             //
-            // Copy event handles to local array
-            //
+            // Lock the array of event handles and copy event handles to local array
+            // 
             HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent.getHandle() };
             DWORD  numWaitableObjects                    = 1;
             {
@@ -136,6 +154,10 @@ public:
             //
             if (WAIT_OBJECT_0 < waitResult && waitResult < WAIT_OBJECT_0 + numWaitableObjects)
             {
+                //
+                // Atomically set the bit number for this swap chain to indicate that this particular swap
+                // chain is ready to paint again.
+                //
                 int bitNumber = waitResult - WAIT_OBJECT_0;
                 TRACE_LOG_SWAP_CHAIN_EVENT (bitNumber);
                 atomicReadyFlags.fetch_or (1LL << bitNumber);

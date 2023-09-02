@@ -25,8 +25,6 @@
 
 /*
 
-    Change rectToPathGeometry ID2D1RectangleGeometry 
-    
     don't mix DXGI factory types
 
     get rid of CS_OWNDC?
@@ -93,14 +91,42 @@
 namespace juce
 {
 //==============================================================================
+//
+// Saved state struct to handle saveState() and restoreState()
+//
 
 struct Direct2DLowLevelGraphicsContext::SavedState
 {
 private:
+
+    //==============================================================================
+    // 
+    // PushedLayer represents a Direct2D clipping or transparency layer
+    // 
+    // D2D layers have to be pushed into the device context. Every push has to be
+    // matched with a pop. 
+    // 
+    // D2D has special layers called "axis aligned clip layers" which clip to an
+    // axis-aligned rectangle. Pushing an axis-aligned clip layer must be matched
+    // with a call to deviceContext->PopAxisAlignedClip() in the reverse order
+    // in which the layers were pushed.
     //
-    // Layer struct to keep track of pushed Direct2D layers.
-    //
-    // Most layers need to be popped by calling PopLayer, unless it's an axis aligned clip layer
+    // So if the pushed layer stack is built like this:
+    // 
+    // PushLayer()
+    // PushLayer()
+    // PushAxisAlignedClip()
+    // PushLayer()
+    // 
+    // the layer stack must be popped like this:
+    // 
+    // PopLayer()
+    // PopAxisAlignedClip()
+    // PopLayer()
+    // PopLayer()
+    // 
+    // PushedLayer, PushedAxisAlignedClipLayer, and LayerPopper all exist just to unwind the 
+    // layer stack accordingly.
     //
     struct PushedLayer
     {

@@ -180,7 +180,6 @@ public:
     ~SavedState()
     {
         jassert (pushedLayers.size() == 0);
-        clearFont();
         clearFill();
     }
 
@@ -251,8 +250,6 @@ public:
     {
         font = newFont;
     }
-
-    void clearFont() {}
 
     direct2d::DirectWriteFontFace getFontFace()
     {

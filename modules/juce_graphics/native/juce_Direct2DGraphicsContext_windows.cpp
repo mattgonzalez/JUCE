@@ -908,7 +908,7 @@ public:
         }
     }
 
-    inline ID2D1DeviceContext* const getDeviceContext() const noexcept
+    inline ID2D1DeviceContext1* const getDeviceContext() const noexcept
     {
         return deviceResources.deviceContext.context;
     }

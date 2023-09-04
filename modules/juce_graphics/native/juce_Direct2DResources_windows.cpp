@@ -57,7 +57,7 @@ struct DeviceContext
         context = nullptr;
     }
 
-    ComSmartPtr<ID2D1DeviceContext> context;
+    ComSmartPtr<ID2D1DeviceContext1> context;
     AffineTransform                 transform;
 };
 
@@ -76,7 +76,7 @@ public:
         release();
     }
 
-    HRESULT create (ID2D1Factory1* const direct2dFactory, double dpiScalingFactor)
+    HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
 
@@ -116,7 +116,7 @@ public:
                                 reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
                             if (SUCCEEDED (hr))
                             {
-                                ComSmartPtr<ID2D1Device> direct2DDevice;
+                                ComSmartPtr<ID2D1Device1> direct2DDevice;
                                 hr = direct2dFactory->CreateDevice (
                                     dxgiDevice,
                                     direct2DDevice.resetAndGetPointerAddress());

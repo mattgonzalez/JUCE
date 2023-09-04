@@ -222,13 +222,13 @@ public:
         return directWriteRenderTarget;
     }
 
-    ID2D1Factory1* const getDirect2DFactory() const
+    ID2D1Factory2* const getDirect2DFactory() const
     {
         return d2dSharedFactory;
     }
 
 private:
-    ComSmartPtr<ID2D1Factory1> d2dSharedFactory;
+    ComSmartPtr<ID2D1Factory2> d2dSharedFactory;
     ComSmartPtr<IDWriteFactory> directWriteFactory;
     ComSmartPtr<IDWriteFontCollection> systemFonts;
 #if JUCE_DIRECT2D

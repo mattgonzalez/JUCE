@@ -4699,8 +4699,10 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND);
 JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND)
 {
-    return new HWNDComponentPeer (component, ComponentPeer::windowIgnoresMouseClicks,
+    auto peer = std::make_unique<HWNDComponentPeer> (component, ComponentPeer::windowIgnoresMouseClicks,
                                   (HWND) parentHWND, true);
+    peer->initialise();
+    return peer.release();
 }
 
 JUCE_IMPLEMENT_SINGLETON (HWNDComponentPeer::WindowClassHolder)

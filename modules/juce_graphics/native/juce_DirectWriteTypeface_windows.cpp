@@ -199,13 +199,13 @@ public:
 
     IDWriteFactory* const getDirectWriteFactory() const
     {
-        jassert(MessageManager::getInstance()->isThisTheMessageThread());
+        jassert(MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
         return directWriteFactory;
     }
 
     IDWriteFontCollection* const getSystemFonts() const
     {
-        jassert(MessageManager::getInstance()->isThisTheMessageThread());
+        jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
         return systemFonts;
     }
 

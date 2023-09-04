@@ -88,7 +88,7 @@ public:
     // creating the Direct3D device. Ideally this class could cache the Direct3D device; they 
     // can be associated with the DXGI adapter using the adapter's unique ID.
     //
-    HRESULT create (ID2D1Factory1* const direct2dFactory, double dpiScalingFactor)
+    HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
 

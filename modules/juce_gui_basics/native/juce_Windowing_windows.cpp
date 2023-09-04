@@ -4696,13 +4696,29 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 }
 #endif
 
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND);
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND)
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const * const parentComponent);
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const* const parentComponent)
 {
-    auto peer = std::make_unique<HWNDComponentPeer> (component, ComponentPeer::windowIgnoresMouseClicks,
-                                  (HWND) parentHWND, true);
-    peer->initialise();
-    return peer.release();
+    if (auto parentPeer = parentComponent->getPeer())
+    {
+        //
+        // Explicitly set the top-level window to software renderer mode in case
+        // this is switching from Direct2D to OpenGL
+        // 
+        // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to 
+        // embeddedWindowPeer->initialise() after creating the peer
+        // 
+        parentPeer->setCurrentRenderingEngine(HWNDComponentPeer::softwareRenderingEngine);
+        auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
+                                                                       ComponentPeer::windowIgnoresMouseClicks,
+                                                                       (HWND) parentPeer->getNativeHandle(),
+                                                                       true, /* nonRepainting*/
+                                                                       HWNDComponentPeer::softwareRenderingEngine);
+        embeddedWindowPeer->initialise();
+        return embeddedWindowPeer.release();
+    }
+
+    return nullptr;
 }
 
 JUCE_IMPLEMENT_SINGLETON (HWNDComponentPeer::WindowClassHolder)

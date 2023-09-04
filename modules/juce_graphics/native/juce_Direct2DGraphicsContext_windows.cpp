@@ -303,10 +303,16 @@ public:
         currentBrush   = nullptr;
     }
 
+    //
+    // Translate a JUCE FillType to a Direct2D brush
+    //
     void updateCurrentBrush()
     {
         if (fillType.isColour())
         {
+            //
+            // Reuse the same colour brush
+            //
             currentBrush = (ID2D1Brush*) colourBrush;
         }
         else if (fillType.isTiledImage())

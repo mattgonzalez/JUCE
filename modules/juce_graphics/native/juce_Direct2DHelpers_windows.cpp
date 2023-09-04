@@ -49,7 +49,7 @@ namespace direct2d
 //==============================================================================
 //
 // Utility routines to convert between Win32 and JUCE types
-// 
+//
 // Some of these are duplicated in juce_Windowing_windows.cpp; could do
 // some D.R.Y.
 //
@@ -77,6 +77,7 @@ static D2D1_COLOR_F colourToD2D (Colour c)
     return { c.getFloatRed(), c.getFloatGreen(), c.getFloatBlue(), c.getFloatAlpha() };
 }
 
+//==============================================================================
 //
 // Convert a JUCE Path to a D2D Geometry
 //
@@ -158,8 +159,7 @@ static void pathToGeometrySink (const Path& path, ID2D1GeometrySink* sink, const
 
 static D2D1::Matrix3x2F transformToMatrix (const AffineTransform& transform)
 {
-    return { transform.mat00, transform.mat10, transform.mat01,
-             transform.mat11, transform.mat02, transform.mat12 };
+    return { transform.mat00, transform.mat10, transform.mat01, transform.mat11, transform.mat02, transform.mat12 };
 }
 
 static D2D1_POINT_2F pointTransformed (int x, int y, const AffineTransform& transform)
@@ -168,8 +168,7 @@ static D2D1_POINT_2F pointTransformed (int x, int y, const AffineTransform& tran
     return { (FLOAT) x, (FLOAT) y };
 }
 
-static void
-    rectToGeometrySink (const Rectangle<int>& rect, ID2D1GeometrySink* sink, const AffineTransform& transform)
+static void rectToGeometrySink (const Rectangle<int>& rect, ID2D1GeometrySink* sink, const AffineTransform& transform)
 {
     sink->BeginFigure (pointTransformed (rect.getX(), rect.getY(), transform), D2D1_FIGURE_BEGIN_FILLED);
     sink->AddLine (pointTransformed (rect.getRight(), rect.getY(), transform));
@@ -180,8 +179,8 @@ static void
 
 //
 // ScopedGeometryWithSink creates an ID2D1PathGeometry object with an open sink.
-// D.R.Y. for rectToPathGeometry, rectListToPathGeometry, and pathToPathGeometry
-// 
+// D.R.Y. for rectListToPathGeometry, and pathToPathGeometry
+//
 // Ensures that sink->Close is called
 //
 struct ScopedGeometryWithSink
@@ -212,22 +211,6 @@ struct ScopedGeometryWithSink
     ComSmartPtr<ID2D1GeometrySink> sink;
 };
 
-ComSmartPtr<ID2D1Geometry> rectToPathGeometry (ID2D1Factory*          factory,
-                                               const Rectangle<int>&  rect,
-                                               const AffineTransform& transform,
-                                               D2D1_FILL_MODE         fillMode)
-{
-    ScopedGeometryWithSink objects { factory, fillMode };
-
-    if (objects.sink != nullptr)
-    {
-        direct2d::rectToGeometrySink (rect, objects.sink, transform);
-        return { (ID2D1Geometry*) objects.geometry };
-    }
-
-    return nullptr;
-}
-
 ComSmartPtr<ID2D1Geometry> rectListToPathGeometry (ID2D1Factory*             factory,
                                                    const RectangleList<int>& clipRegion,
                                                    const AffineTransform&    transform,
@@ -246,12 +229,9 @@ ComSmartPtr<ID2D1Geometry> rectListToPathGeometry (ID2D1Factory*             fac
     return nullptr;
 }
 
-ComSmartPtr<ID2D1Geometry>
-    pathToPathGeometry (ID2D1Factory* factory, const Path& path, const AffineTransform& transform)
+ComSmartPtr<ID2D1Geometry> pathToPathGeometry (ID2D1Factory* factory, const Path& path, const AffineTransform& transform)
 {
-    ScopedGeometryWithSink objects { factory,
-                                     path.isUsingNonZeroWinding() ? D2D1_FILL_MODE_WINDING
-                                                                  : D2D1_FILL_MODE_ALTERNATE };
+    ScopedGeometryWithSink objects { factory, path.isUsingNonZeroWinding() ? D2D1_FILL_MODE_WINDING : D2D1_FILL_MODE_ALTERNATE };
 
     if (objects.sink != nullptr)
     {
@@ -264,16 +244,16 @@ ComSmartPtr<ID2D1Geometry>
 }
 
 //-------------------------------------------------------------------------------------------------
-// 
+//
 // UpdateRegion extracts the invalid region for a window
-// 
+//
 // UpdateRegion is used to service WM_PAINT to add the invalid region of a window to
 // deferredRepaints. UpdateRegion marks the region as valid, and the region should be painted on the
 // next vblank.
-// 
+//
 // This is similar to the invalid region update in HWNDComponentPeer::handlePaintMessage()
 //
-//
+
 class UpdateRegion
 {
 public:
@@ -292,13 +272,11 @@ public:
             auto regionType = GetUpdateRgn (windowHandle, regionHandle, false);
             if (regionType == SIMPLEREGION || regionType == COMPLEXREGION)
             {
-                auto regionDataBytes =
-                    GetRegionData (regionHandle, (DWORD) block.getSize(), (RGNDATA*) block.getData());
+                auto regionDataBytes = GetRegionData (regionHandle, (DWORD) block.getSize(), (RGNDATA*) block.getData());
                 if (regionDataBytes > block.getSize())
                 {
                     block.ensureSize (regionDataBytes);
-                    regionDataBytes =
-                        GetRegionData (regionHandle, (DWORD) block.getSize(), (RGNDATA*) block.getData());
+                    regionDataBytes = GetRegionData (regionHandle, (DWORD) block.getSize(), (RGNDATA*) block.getData());
                 }
 
                 if (regionDataBytes > 0)
@@ -372,6 +350,12 @@ private:
     uint32      numRect = 0;
 };
 
+
+//-------------------------------------------------------------------------------------------------
+//
+// Wrapper for a DirectWrite font face along with relevant font info
+//
+
 struct DirectWriteFontFace
 {
     ComSmartPtr<IDWriteFontFace> fontFace;
@@ -389,6 +373,11 @@ struct DirectWriteFontFace
         fontFace = nullptr;
     }
 };
+
+//-------------------------------------------------------------------------------------------------
+//
+// Heap storage for a DirectWrite glyph run
+//
 
 class DirectWriteGlyphRun
 {

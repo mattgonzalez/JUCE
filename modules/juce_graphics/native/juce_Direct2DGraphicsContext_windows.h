@@ -133,7 +133,7 @@ struct ETWEventProvider
 class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext (HWND, double dpiScalingFactor, bool opaque, bool temporaryWindow);
+    Direct2DLowLevelGraphicsContext (HWND, double dpiScalingFactor, bool opaque);
     ~Direct2DLowLevelGraphicsContext() override;
 
     void handleParentShowWindow();
@@ -173,26 +173,14 @@ public:
     void fillRect (const Rectangle<int>&, bool replaceExistingContents) override;
     void fillRect (const Rectangle<float>&) override;
     void fillRectList (const RectangleList<float>&) override;
-    bool drawRect (const Rectangle<float>&, float) override;
     void fillPath (const Path&, const AffineTransform&) override;
-    bool drawPath (const Path&, const PathStrokeType& strokeType, const AffineTransform&) override;
     void drawImage (const Image& sourceImage, const AffineTransform&) override;
 
     //==============================================================================
     void        drawLine (const Line<float>&) override;
-    bool        drawLine (const Line<float>&, float) override;
     void        setFont (const Font&) override;
     const Font& getFont() override;
     void        drawGlyph (int glyphNumber, const AffineTransform&) override;
-    bool        supportsGlyphRun() override
-    {
-        return true;
-    }
-    void drawGlyphRun (Array<PositionedGlyph> const& glyphs,
-                       int                           startIndex,
-                       int                           numGlyphs,
-                       const AffineTransform&        transform,
-                       Rectangle<float>              underlineArea) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
     void startResizing();
@@ -209,11 +197,34 @@ public:
     void   setScaleFactor (double scale_);
     double getScaleFactor() const;
 
-    bool drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness) override;
-    bool fillRoundedRectangle (Rectangle<float> area, float cornerSize) override;
+    //==============================================================================
+    //
+    // These methods are not part of the standard LowLevelGraphicsContext; they
+    // were added because Direct2D supports these drawing primitives
+    // 
+    // Standard LLGC only supports drawing one glyph at a time; it's much more
+    // efficient to pass an entire run of glyphs to the device context
+    //
+    bool drawLine (const Line<float>&, float) override;
 
     bool drawEllipse (Rectangle<float> area, float lineThickness) override;
     bool fillEllipse (Rectangle<float> area) override;
+
+    bool drawRect (const Rectangle<float>&, float) override;
+    bool drawPath (const Path&, const PathStrokeType& strokeType, const AffineTransform&) override;
+
+    bool drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness) override;
+    bool fillRoundedRectangle (Rectangle<float> area, float cornerSize) override;
+
+    bool supportsGlyphRun() override
+    {
+        return true;
+    }
+    void drawGlyphRun (Array<PositionedGlyph> const& glyphs,
+                       int                           startIndex,
+                       int                           numGlyphs,
+                       const AffineTransform&        transform,
+                       Rectangle<float>              underlineArea) override;
 
     enum
     {
@@ -222,6 +233,10 @@ public:
         childWindowCreatedMessageID
     };
 
+    //==============================================================================
+    //
+    // Min & max windows sizes; same as Direct3D texture size limits
+    // 
     static int constexpr minWindowSize = 1;
     static int constexpr maxWindowSize = 16384;
 

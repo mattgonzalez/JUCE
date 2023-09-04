@@ -237,8 +237,7 @@ private:
         {
             direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext> (hwnd,
                                                                                  scaleFactor,
-                                                                                 component.isOpaque(),
-                                                                                 styleFlags & StyleFlags::windowIsTemporary);
+                                                                                 component.isOpaque());
     #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
     #endif

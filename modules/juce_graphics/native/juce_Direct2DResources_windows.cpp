@@ -37,7 +37,7 @@ struct DeviceContext
     }
 
     //
-    // The profiler shows that calling deviceContxt->SetTransform is
+    // The profiler shows that calling deviceContext->SetTransform is
     // surprisingly expensive. This class only calls SetTransform
     // if the transform is changing
     //

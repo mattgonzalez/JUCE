@@ -736,7 +736,7 @@ public:
         // If the window alpha is less than 1.0, clip to the union of the
         // deferred repaints so the device context Clear() works correctly
         //
-        if (windowAlpha < 1.0f)
+        if (windowAlpha < 1.0f || !opaque)
         {
             paintAreas = paintBounds;
         }

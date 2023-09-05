@@ -814,7 +814,7 @@ public:
                     // If this deferred area contains the entire swap chain, then 
                     // no need for dirty rectangles
                     //
-                    if (area.contains(swapChainSize))
+                    if (area.contains (swapChainSize))
                     {
                         presentParameters.DirtyRectsCount = 0;
                         break;
@@ -823,7 +823,7 @@ public:
                     //
                     // Intersect this deferred repaint area with the swap chain buffer
                     //
-                    auto intersection = area.getIntersection (swapChainSize);
+                    auto intersection = (area * dpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
                     if (intersection.isEmpty())
                     {
                         //
@@ -835,7 +835,7 @@ public:
                     //
                     // Add this deferred repaint area to the dirty rectangle array (scaled for DPI)
                     //
-                    *dirtyRectangle = direct2d::rectangleToRECT (intersection * dpiScalingFactor);
+                    *dirtyRectangle = direct2d::rectangleToRECT (intersection);
 
                     dirtyRectangle++;
                     presentParameters.DirtyRectsCount++;

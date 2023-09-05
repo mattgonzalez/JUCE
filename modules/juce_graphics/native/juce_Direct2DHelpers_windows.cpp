@@ -459,7 +459,7 @@ TRACELOGGING_DEFINE_PROVIDER (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE,
 ETWEventProvider::ETWEventProvider()
 {
     auto hr = TraceLoggingRegister (JUCE_ETW_TRACELOGGING_PROVIDER_HANDLE);
-    juce::ignoreUnused (hr);
+    ignoreUnused (hr);
     jassert (SUCCEEDED (hr));
 }
 

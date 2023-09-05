@@ -372,6 +372,18 @@ struct DirectWriteFontFace
     {
         fontFace = nullptr;
     }
+
+    static DirectWriteFontFace fromFont(Font const& font)
+    {
+        ReferenceCountedObjectPtr<WindowsDirectWriteTypeface> typeface =
+            dynamic_cast<WindowsDirectWriteTypeface*> (font.getTypefacePtr().get());
+        if (typeface)
+        {
+            return { typeface->getIDWriteFontFace(), font.getHeight(), typeface->getUnitsToHeightScaleFactor(), font.getHorizontalScale() };
+        }
+
+        return {};
+    }
 };
 
 //-------------------------------------------------------------------------------------------------

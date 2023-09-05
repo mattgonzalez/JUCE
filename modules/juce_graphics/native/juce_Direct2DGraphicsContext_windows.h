@@ -252,7 +252,7 @@ private:
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;
 
-    void drawGlyphCommon (int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea);
+    void drawGlyphCommon (int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea);
     void updateDeviceContextTransform();
     void updateDeviceContextTransform (AffineTransform chainedTransform);
 

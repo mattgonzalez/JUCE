@@ -277,18 +277,6 @@ public:
         font = newFont;
     }
 
-    direct2d::DirectWriteFontFace getFontFace()
-    {
-        ReferenceCountedObjectPtr<WindowsDirectWriteTypeface> typeface =
-            dynamic_cast<WindowsDirectWriteTypeface*> (font.getTypefacePtr().get());
-        if (typeface)
-        {
-            return { typeface->getIDWriteFontFace(), font.getHeight(), typeface->getUnitsToHeightScaleFactor(), font.getHorizontalScale() };
-        }
-
-        return {};
-    }
-
     void setOpacity (float newOpacity)
     {
         fillType.setOpacity (newOpacity);
@@ -1539,7 +1527,7 @@ void Direct2DLowLevelGraphicsContext::drawGlyph (int glyphNumber, const AffineTr
     pimpl->glyphRun.glyphIndices[0] = (uint16) glyphNumber;
     pimpl->glyphRun.glyphOffsets[0] = {};
 
-    drawGlyphCommon (1, transform, {});
+    drawGlyphCommon (1, currentState->font, transform, {});
 }
 
 bool Direct2DLowLevelGraphicsContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
@@ -1679,10 +1667,13 @@ void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const
 
         //
         // Fill the array of glyph indices and offsets
+        // 
+        // All the fonts should be the same for the glyph run
         //
         pimpl->glyphRun.ensureStorageAllocated (numGlyphs);
 
-        auto fontHorizontalScale = currentState->font.getHorizontalScale();
+        auto const& font = glyphs[startIndex].getFont();
+        auto fontHorizontalScale = font.getHorizontalScale();
         auto inverseHScale       = fontHorizontalScale > 0.0f ? 1.0f / fontHorizontalScale : 1.0f;
 
         auto indices = pimpl->glyphRun.glyphIndices.getData();
@@ -1700,15 +1691,16 @@ void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const
                     -glyph.getBaselineY()
                 }; // note the essential minus sign before the baselineY value; negative offset goes down, positive goes up (opposite from JUCE)
                 jassert (pimpl->glyphRun.glyphAdvances[numGlyphsToDraw] == 0.0f);
+                jassert(glyph.getFont() == font);
                 ++numGlyphsToDraw;
             }
         }
 
-        drawGlyphCommon (numGlyphsToDraw, transform, underlineArea);
+        drawGlyphCommon (numGlyphsToDraw, font, transform, underlineArea);
     }
 }
 
-void Direct2DLowLevelGraphicsContext::drawGlyphCommon (int numGlyphs, const AffineTransform& transform, Rectangle<float> underlineArea)
+void Direct2DLowLevelGraphicsContext::drawGlyphCommon(int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea)
 {
     auto deviceContext = pimpl->getDeviceContext();
     if (! deviceContext)
@@ -1716,7 +1708,7 @@ void Direct2DLowLevelGraphicsContext::drawGlyphCommon (int numGlyphs, const Affi
         return;
     }
 
-    auto dwriteFontFace = currentState->getFontFace();
+    auto dwriteFontFace = direct2d::DirectWriteFontFace::fromFont(font);
     if (dwriteFontFace.fontFace == nullptr)
     {
         return;

@@ -662,7 +662,25 @@ public:
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint)
     {
-        deferredRepaints.add (deferredRepaint);
+        //
+        // Clipping regions are specified with floating-point values and can be anti-aliased with
+        // sub-pixel boundaries, especially with high DPI.
+        // 
+        // The swap chain dirty rectangles are specified with integer values.
+        // 
+        // To keep the clipping regions and the dirty rectangles lined up, find the lowest
+        // common denominator and expand the clipping region slightly so that both the
+        // clipping region and the dirty rectangle will sit on pixel boundaries.
+        // 
+        auto denominator = std::gcd(roundToInt(128.0 * dpiScalingFactor), 128);
+        auto pixelSnap = 128 / denominator;
+        auto snapMask = ~(pixelSnap - 1);
+
+        auto x = deferredRepaint.getX() & snapMask;
+        auto y = deferredRepaint.getY() & snapMask;
+        auto r = (deferredRepaint.getRight() + pixelSnap - 1) & snapMask;
+        auto b = (deferredRepaint.getBottom() + pixelSnap - 1) & snapMask;
+        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(x, y, r, b));
     }
 
     void addInvalidWindowRegionToDeferredRepaints()

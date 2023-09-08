@@ -447,7 +447,11 @@ struct Direct2DLowLevelGraphicsContext::Pimpl
 {
 private:
     Direct2DLowLevelGraphicsContext& owner;
-    double                           dpiScalingFactor = 1.0;
+    double                           dpiScalingFactor              = 1.0;
+    double                           snappedDpiScalingFactor = 1.0;
+    static constexpr int             dpiScalingIntConversionShift  = 7;
+    static constexpr int             dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
+    int                              repaintAreaPixelSnap = dpiScalingIntConversionFactor;
 
 #if JUCE_DIRECT2D_CHILD_WINDOW
     SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
@@ -488,7 +492,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), dpiScalingFactor); FAILED (hr))
+            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
             {
                 return hr;
             }
@@ -543,11 +547,11 @@ private:
 public:
     Pimpl (Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
-          dpiScalingFactor (dpiScalingFactor_),
           parentHwnd (hwnd_),
           opaque (opaque_)
     {
-        setWindowAlpha (1.0f);
+        setWindowAlpha(1.0f);
+        setScaleFactor(dpiScalingFactor_);
     }
 
     ~Pimpl()
@@ -638,7 +642,7 @@ public:
                 childWindowThread->setSize (childHwnd, windowSize);
             }
 #endif
-            auto hr = swap.resize (size, (float) dpiScalingFactor, deviceContext);
+            auto hr = swap.resize (size, (float) snappedDpiScalingFactor, deviceContext);
             jassert (SUCCEEDED (hr));
             if (FAILED (hr))
             {
@@ -665,22 +669,18 @@ public:
         //
         // Clipping regions are specified with floating-point values and can be anti-aliased with
         // sub-pixel boundaries, especially with high DPI.
-        // 
+        //
         // The swap chain dirty rectangles are specified with integer values.
-        // 
+        //
         // To keep the clipping regions and the dirty rectangles lined up, find the lowest
         // common denominator and expand the clipping region slightly so that both the
         // clipping region and the dirty rectangle will sit on pixel boundaries.
-        // 
-        auto denominator = std::gcd(roundToInt(128.0 * dpiScalingFactor), 128);
-        auto pixelSnap = 128 / denominator;
-        auto snapMask = ~(pixelSnap - 1);
-
-        auto x = deferredRepaint.getX() & snapMask;
-        auto y = deferredRepaint.getY() & snapMask;
-        auto r = (deferredRepaint.getRight() + pixelSnap - 1) & snapMask;
-        auto b = (deferredRepaint.getBottom() + pixelSnap - 1) & snapMask;
-        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(x, y, r, b));
+        //
+        auto snapMask = ~(repaintAreaPixelSnap - 1);
+        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(deferredRepaint.getX() & snapMask,
+                                                  deferredRepaint.getY() & snapMask,
+                                                  (deferredRepaint.getRight() + repaintAreaPixelSnap - 1) & snapMask,
+                                                  (deferredRepaint.getBottom() + repaintAreaPixelSnap - 1) & snapMask));
     }
 
     void addInvalidWindowRegionToDeferredRepaints()
@@ -841,7 +841,7 @@ public:
                     //
                     // Intersect this deferred repaint area with the swap chain buffer
                     //
-                    auto intersection = (area * dpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
+                    auto intersection = (area * snappedDpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
                     if (intersection.isEmpty())
                     {
                         //
@@ -890,11 +890,43 @@ public:
         frameNumber++;
     }
 
-    void setScaleFactor (double scale_)
+    void setScaleFactor(double scale_)
     {
         dpiScalingFactor = scale_;
+        snappedDpiScalingFactor = roundToInt(dpiScalingFactor * dpiScalingIntConversionFactor) / double{ dpiScalingIntConversionFactor };
         deferredRepaints = windowSize;
         resize();
+
+        //
+        // Round DPI scaling factor to nearest 1/128 so the repainted areas
+        // and the dirty rectangles both snap to pixel boundaries
+        // 
+        // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
+        // 
+        // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100. 
+        // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels. 
+        // 
+        // For example: DPI scaling 150%
+        //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
+        //      repaintAreaPixel = 128 / 64 = 2
+        //      deferredRepaints will be expanded to snap to the next multiple of 2
+        // 
+        // DPI scaling of 225%
+        //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
+        //      repaintAreaPixel = 128 / 32 = 4
+        //      deferredRepaints will be expanded to snap to the next multiple of 4
+        //
+        // DPI scaling of 301%
+        //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
+        //      repaintAreaPixel = 128 / 1 = 128
+        //      deferredRepaints will be expanded to snap to the next multiple of 128
+        // 
+        // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
+        // scaling factors will be less efficient and require more painting.
+        // 
+        auto greatestCommonDenominator = std::gcd (roundToInt (double{ dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
+        repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
+
     }
 
     double getScaleFactor() const

@@ -100,32 +100,32 @@ struct Direct2DLowLevelGraphicsContext::SavedState
 private:
 
     //==============================================================================
-    // 
+    //
     // PushedLayer represents a Direct2D clipping or transparency layer
-    // 
+    //
     // D2D layers have to be pushed into the device context. Every push has to be
-    // matched with a pop. 
-    // 
+    // matched with a pop.
+    //
     // D2D has special layers called "axis aligned clip layers" which clip to an
     // axis-aligned rectangle. Pushing an axis-aligned clip layer must be matched
     // with a call to deviceContext->PopAxisAlignedClip() in the reverse order
     // in which the layers were pushed.
     //
     // So if the pushed layer stack is built like this:
-    // 
+    //
     // PushLayer()
     // PushLayer()
     // PushAxisAlignedClip()
     // PushLayer()
-    // 
+    //
     // the layer stack must be popped like this:
-    // 
+    //
     // PopLayer()
     // PopAxisAlignedClip()
     // PopLayer()
     // PopLayer()
-    // 
-    // PushedLayer, PushedAxisAlignedClipLayer, and LayerPopper all exist just to unwind the 
+    //
+    // PushedLayer, PushedAxisAlignedClipLayer, and LayerPopper all exist just to unwind the
     // layer stack accordingly.
     //
     struct PushedLayer
@@ -461,7 +461,11 @@ struct Direct2DLowLevelGraphicsContext::Pimpl
 {
 private:
     Direct2DLowLevelGraphicsContext& owner;
-    double                           dpiScalingFactor = 1.0;
+    double                           dpiScalingFactor              = 1.0;
+    double                           snappedDpiScalingFactor = 1.0;
+    static constexpr int             dpiScalingIntConversionShift  = 7;
+    static constexpr int             dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
+    int                              repaintAreaPixelSnap = dpiScalingIntConversionFactor;
 
 #if JUCE_DIRECT2D_CHILD_WINDOW
     SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
@@ -502,7 +506,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), dpiScalingFactor); FAILED (hr))
+            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
             {
                 return hr;
             }
@@ -557,11 +561,11 @@ private:
 public:
     Pimpl (Direct2DLowLevelGraphicsContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
-          dpiScalingFactor (dpiScalingFactor_),
           parentHwnd (hwnd_),
           opaque (opaque_)
     {
-        setWindowAlpha (1.0f);
+        setWindowAlpha(1.0f);
+        setScaleFactor(dpiScalingFactor_);
 
         D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
         sharedFactories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
@@ -655,7 +659,7 @@ public:
                 childWindowThread->setSize (childHwnd, windowSize);
             }
 #endif
-            auto hr = swap.resize (size, (float) dpiScalingFactor, deviceContext);
+            auto hr = swap.resize (size, (float) snappedDpiScalingFactor, deviceContext);
             jassert (SUCCEEDED (hr));
             if (FAILED (hr))
             {
@@ -682,22 +686,18 @@ public:
         //
         // Clipping regions are specified with floating-point values and can be anti-aliased with
         // sub-pixel boundaries, especially with high DPI.
-        // 
+        //
         // The swap chain dirty rectangles are specified with integer values.
-        // 
+        //
         // To keep the clipping regions and the dirty rectangles lined up, find the lowest
         // common denominator and expand the clipping region slightly so that both the
         // clipping region and the dirty rectangle will sit on pixel boundaries.
-        // 
-        auto denominator = std::gcd(roundToInt(128.0 * dpiScalingFactor), 128);
-        auto pixelSnap = 128 / denominator;
-        auto snapMask = ~(pixelSnap - 1);
-
-        auto x = deferredRepaint.getX() & snapMask;
-        auto y = deferredRepaint.getY() & snapMask;
-        auto r = (deferredRepaint.getRight() + pixelSnap - 1) & snapMask;
-        auto b = (deferredRepaint.getBottom() + pixelSnap - 1) & snapMask;
-        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(x, y, r, b));
+        //
+        auto snapMask = ~(repaintAreaPixelSnap - 1);
+        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(deferredRepaint.getX() & snapMask,
+                                                  deferredRepaint.getY() & snapMask,
+                                                  (deferredRepaint.getRight() + repaintAreaPixelSnap - 1) & snapMask,
+                                                  (deferredRepaint.getBottom() + repaintAreaPixelSnap - 1) & snapMask));
     }
 
     void addInvalidWindowRegionToDeferredRepaints()
@@ -798,7 +798,7 @@ public:
 
         //
         // Finish drawing
-        // 
+        //
         // SetTarget(nullptr) so the device context doesn't hold a reference to the swap chain buffer
         //
         auto hr = deviceResources.deviceContext.context->EndDraw();
@@ -813,10 +813,10 @@ public:
             //
             // Present the frame
             //
-            // Compare deferredRepaints to the swap chain buffer area. If the rectangles in deferredRepaints are contained 
+            // Compare deferredRepaints to the swap chain buffer area. If the rectangles in deferredRepaints are contained
             // by the swap chain buffer area, then mark those rectangles as dirty. DXGI will only keep the dirty rectangles from the
             // current buffer and copy the clean area from the previous buffer.
-            // 
+            //
             // The buffer needs to be completely filled before using dirty rectangles. The dirty rectangles need to be contained
             // within the swap chain buffer.
             //
@@ -846,7 +846,7 @@ public:
                 for (auto const& area : deferredRepaints)
                 {
                     //
-                    // If this deferred area contains the entire swap chain, then 
+                    // If this deferred area contains the entire swap chain, then
                     // no need for dirty rectangles
                     //
                     if (area.contains (swapChainSize))
@@ -858,7 +858,7 @@ public:
                     //
                     // Intersect this deferred repaint area with the swap chain buffer
                     //
-                    auto intersection = (area * dpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
+                    auto intersection = (area * snappedDpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
                     if (intersection.isEmpty())
                     {
                         //
@@ -887,7 +887,7 @@ public:
             TRACE_LOG_D2D_PRESENT1_END (frameNumber);
 
             //
-            // If the dirty rectangle count was zero, then the buffer is now completely filled and 
+            // If the dirty rectangle count was zero, then the buffer is now completely filled and
             // ready for dirty rectangles
             //
             if (presentParameters.DirtyRectsCount == 0)
@@ -907,11 +907,43 @@ public:
         frameNumber++;
     }
 
-    void setScaleFactor (double scale_)
+    void setScaleFactor(double scale_)
     {
         dpiScalingFactor = scale_;
+        snappedDpiScalingFactor = roundToInt(dpiScalingFactor * dpiScalingIntConversionFactor) / double{ dpiScalingIntConversionFactor };
         deferredRepaints = windowSize;
         resize();
+
+        //
+        // Round DPI scaling factor to nearest 1/128 so the repainted areas
+        // and the dirty rectangles both snap to pixel boundaries
+        //
+        // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
+        //
+        // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100.
+        // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels.
+        //
+        // For example: DPI scaling 150%
+        //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
+        //      repaintAreaPixel = 128 / 64 = 2
+        //      deferredRepaints will be expanded to snap to the next multiple of 2
+        //
+        // DPI scaling of 225%
+        //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
+        //      repaintAreaPixel = 128 / 32 = 4
+        //      deferredRepaints will be expanded to snap to the next multiple of 4
+        //
+        // DPI scaling of 301%
+        //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
+        //      repaintAreaPixel = 128 / 1 = 128
+        //      deferredRepaints will be expanded to snap to the next multiple of 128
+        //
+        // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
+        // scaling factors will be less efficient and require more painting.
+        //
+        auto greatestCommonDenominator = std::gcd (roundToInt (double{ dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
+        repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
+
     }
 
     double getScaleFactor() const
@@ -1138,7 +1170,7 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
         if (currentState->currentTransform.isAxisAligned())
         {
             //
-            // The current world transform is axis-aligned; push an axis aligned clip layer for better 
+            // The current world transform is axis-aligned; push an axis aligned clip layer for better
             // performance
             //
             currentState->pushAxisAlignedClipLayer (r);
@@ -1147,7 +1179,7 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
         {
             //
             // The current world transform is more complex; push a transformed geometry clip layer
-            // 
+            //
             // Instead of allocating a Geometry and then discarding it, use the ID2D1RectangleGeometry already
             // created by the pimpl. rectangleGeometryUnitSize is a 1x1 rectangle at the origin,
             // so pass a transform that scales, translates, and then applies the world transform.
@@ -1726,7 +1758,7 @@ void Direct2DLowLevelGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const
 
         //
         // Fill the array of glyph indices and offsets
-        // 
+        //
         // All the fonts should be the same for the glyph run
         //
         pimpl->glyphRun.ensureStorageAllocated (numGlyphs);

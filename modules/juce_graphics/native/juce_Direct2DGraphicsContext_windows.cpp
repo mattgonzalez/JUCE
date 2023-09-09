@@ -231,6 +231,14 @@ public:
         }
     }
 
+    void pushTransformedRectangleGeometryClipLayer (ComSmartPtr<ID2D1RectangleGeometry> geometry, AffineTransform const& transform)
+    {
+        jassert(geometry != nullptr);
+        auto layerParameters = D2D1::LayerParameters(D2D1::InfiniteRect(), geometry);
+        layerParameters.maskTransform = direct2d::transformToMatrix(transform);
+        pushLayer (layerParameters);
+    }
+
     void pushAxisAlignedClipLayer (Rectangle<int> r)
     {
         deviceContext.setTransform (currentTransform.getTransform());
@@ -389,7 +397,13 @@ public:
         }
     }
 
-    RenderingHelpers::TranslationOrTransform currentTransform;
+    struct TranslationOrTransform : public RenderingHelpers::TranslationOrTransform
+    {
+        bool isAxisAligned() const noexcept
+        {
+            return isOnlyTranslated || (complexTransform.mat01 == 0.0f && complexTransform.mat11 == 0.0f);
+        }
+    } currentTransform;
     direct2d::DeviceContext&                 deviceContext;
     Rectangle<int>                           clipRegion;
 
@@ -548,6 +562,9 @@ public:
           opaque (opaque_)
     {
         setWindowAlpha (1.0f);
+
+        D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
+        sharedFactories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
     }
 
     ~Pimpl()
@@ -954,6 +971,7 @@ public:
 
     SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND                                     parentHwnd = nullptr;
+    ComSmartPtr<ID2D1RectangleGeometry>      rectangleGeometryUnitSize;
 #if JUCE_DIRECT2D_CHILD_WINDOW
     HWND childHwnd = nullptr;
 #endif
@@ -1107,16 +1125,39 @@ float Direct2DLowLevelGraphicsContext::getPhysicalPixelScaleFactor()
 bool Direct2DLowLevelGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToRectangle);
+
     //
     // Transform the rectangle and update the current clip region
     //
     auto currentTransform = currentState->currentTransform.getTransform();
     auto transformedR     = r.transformedBy (currentTransform);
-    transformedR.intersectRectangle (currentState->clipRegion);
+    currentState->clipRegion = currentState->clipRegion.getIntersection (transformedR);
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushAxisAlignedClipLayer (r);
+        if (currentState->currentTransform.isAxisAligned())
+        {
+            //
+            // The current world transform is axis-aligned; push an axis aligned clip layer for better 
+            // performance
+            //
+            currentState->pushAxisAlignedClipLayer (r);
+        }
+        else
+        {
+            //
+            // The current world transform is more complex; push a transformed geometry clip layer
+            // 
+            // Instead of allocating a Geometry and then discarding it, use the ID2D1RectangleGeometry already
+            // created by the pimpl. rectangleGeometryUnitSize is a 1x1 rectangle at the origin,
+            // so pass a transform that scales, translates, and then applies the world transform.
+            //
+            auto transform = AffineTransform::scale(static_cast<float>(r.getWidth()), static_cast<float>(r.getHeight()))
+                .translated(r.toFloat().getTopLeft())
+                .followedBy(currentState->currentTransform.getTransform());
+
+            currentState->pushTransformedRectangleGeometryClipLayer (pimpl->rectangleGeometryUnitSize, transform);
+        }
     }
 
     return ! isClipEmpty();
@@ -1139,7 +1180,7 @@ bool Direct2DLowLevelGraphicsContext::clipToRectangleList (const RectangleList<i
     //
     auto const currentTransform = currentState->currentTransform.getTransform();
     auto       transformedR     = clipRegion.getBounds().transformedBy (currentTransform);
-    transformedR.intersectRectangle (currentState->clipRegion);
+    currentState->clipRegion    = currentState->clipRegion.getIntersection (transformedR);
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {

@@ -166,7 +166,8 @@
  #include "native/juce_Fonts_windows.cpp"
  #include "native/juce_IconHelpers_windows.cpp"
  #if JUCE_DIRECT2D
-  #include "native/juce_Direct2DGraphicsContext_windows.cpp"
+  #include "native/juce_Direct2DGraphicsContextHwnd_windows.cpp"
+  #include "native/juce_Direct2DGraphicsContextImage_windows.cpp"
  #endif
 
 #elif JUCE_LINUX || JUCE_BSD

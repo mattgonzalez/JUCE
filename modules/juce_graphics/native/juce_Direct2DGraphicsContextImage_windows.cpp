@@ -23,46 +23,6 @@
   ==============================================================================
 */
 
-/*
-
-    don't mix DXGI factory types
-
-    get rid of CS_OWNDC?
-
-    -child window clipping?
-
-    -minimize calls to SetTransform
-    -text analyzer?
-    -recycle state structs
-    -don't paint occluded windows
-    -Multithreaded device context?
-    -reusable geometry for exclude clip rectangle
-
-    handle device context creation error / paint errors
-        watchdog timer?
-
-    OK EndDraw D2DERR_RECREATE_TARGET
-    OK JUCE 7.0.6 merge
-    OK when to start threads in general
-    OK use std::stack for layers
-    OK Check use of InvalidateRect & ValidateRect
-    OK drawGlyphUnderline
-    OK DPI scaling
-    OK start/stop thread when window is visible
-    OK logo highlights in juce animation demo
-    OK check resize when auto-arranging windows
-    OK single-channel bitmap for clip to image alpha
-    OK transparency layer in software mode?
-    OK check for empty dirty rectangles
-    OK vblank in software mode
-    OK fix ScopedBrushTransformInverter
-    OK vblank attachment
-    OK Always present
-
-    WM_DISPLAYCHANGE / WM_SETTINGCHANGE rebuild resources
-
-    */
-
 #ifdef __INTELLISENSE__
 
     #define JUCE_CORE_INCLUDE_COM_SMART_PTR 1
@@ -79,23 +39,15 @@
 
 #endif
 
-#ifndef JUCE_DIRECT2D_CHILD_WINDOW
-    #define JUCE_DIRECT2D_CHILD_WINDOW 0
-#endif
-
-#include "juce_Direct2DHelpers_windows.cpp"
-#include "juce_Direct2DSwapChainDispatcher_windows.cpp"
-#include "juce_Direct2DResources_windows.cpp"
-#include "juce_Direct2DChildWindow_windows.cpp"
-
 namespace juce
 {
+
 //==============================================================================
 //
 // Saved state struct to handle saveState() and restoreState()
 //
 
-struct Direct2DLowLevelGraphicsHwndContext::SavedState
+struct Direct2DLowLevelGraphicsImageContext::SavedState
 {
 private:
 
@@ -174,11 +126,11 @@ public:
     //
     // Constructor for first stack entry
     //
-    SavedState (Rectangle<int>                     swapChainBufferBounds_,
+    SavedState (Rectangle<int>                     frameSize_,
                       ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_,
                       direct2d::DeviceContext&           deviceContext_)
         : deviceContext (deviceContext_),
-          clipRegion (swapChainBufferBounds_),
+          clipRegion (frameSize_),
           colourBrush (colourBrush_)
     {
         currentBrush = colourBrush;
@@ -457,118 +409,66 @@ public:
 
 //==============================================================================
 
-struct Direct2DLowLevelGraphicsHwndContext::Pimpl
+struct Direct2DLowLevelGraphicsImageContext::Pimpl
 {
 private:
-    Direct2DLowLevelGraphicsHwndContext& owner;
-    double                           dpiScalingFactor              = 1.0;
-    double                           snappedDpiScalingFactor = 1.0;
-    static constexpr int             dpiScalingIntConversionShift  = 7;
-    static constexpr int             dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
-    int                              repaintAreaPixelSnap = dpiScalingIntConversionFactor;
+    Direct2DLowLevelGraphicsImageContext& owner;
 
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
-#endif
     direct2d::DeviceResources deviceResources;
-    direct2d::SwapChain       swap;
-    direct2d::CompositionTree compositionTree;
-    direct2d::UpdateRegion    updateRegion;
-    bool                      swapChainReady = false;
 
-    std::stack<std::unique_ptr<Direct2DLowLevelGraphicsHwndContext::SavedState>> savedClientStates;
+    std::stack<std::unique_ptr<Direct2DLowLevelGraphicsImageContext::SavedState>> savedClientStates;
 
     int                frameNumber = 0;
-    RectangleList<int> deferredRepaints;
-    Rectangle<int>     windowSize;
-    Rectangle<int>     previousWindowSize;
-    int                dirtyRectanglesCapacity = 0;
-    HeapBlock<RECT>    dirtyRectangles;
+    Image const& image;
+    Point<int> const origin;
+    RectangleList<int> const& initialClip;
 
     HRESULT prepare()
     {
-        auto parentWindowSize = getParentClientRect();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        auto swapChainHwnd = childHwnd;
-#else
-        auto swapChainHwnd = parentHwnd;
-#endif
-
-        if (swapChainHwnd == nullptr)
-        {
-            return E_FAIL;
-        }
-
-        if (! swapChainHwnd || parentWindowSize.isEmpty())
-        {
-            return E_FAIL;
-        }
+        auto frameSize = image.getBounds();
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
+            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), 1.0); FAILED (hr))
             {
                 return hr;
             }
         }
 
-        if (! swap.canPaint())
-        {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childHwnd)
-            {
-                childWindowThread->setSize (childHwnd, parentWindowSize);
-            }
-#endif
+        Image::BitmapData bitmapData{ image, Image::BitmapData::readWrite };
+        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+        bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+        bitmapProperties.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        auto hr = deviceResources.deviceContext.context->CreateBitmap (D2D1_SIZE_U { (UINT32) image.getWidth(), (UINT32) image.getHeight() },
+                                                     nullptr,
+                                                     bitmapData.lineStride,
+                                                     bitmapProperties,
+                                                     target.resetAndGetPointerAddress());
 
-            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory);
-                FAILED (hr))
-            {
-                return hr;
-            }
+        jassert(SUCCEEDED(hr));
 
-            if (auto hr = swap.createBuffer (deviceResources.deviceContext.context); FAILED (hr))
-            {
-                return hr;
-            }
-        }
-
-        if (! compositionTree.canPaint())
-        {
-            if (auto hr = compositionTree.create (deviceResources.dxgiDevice, swapChainHwnd, swap.chain); FAILED (hr))
-            {
-                return hr;
-            }
-        }
-
-        return S_OK;
+        return hr;
     }
 
     void teardown()
     {
-        compositionTree.release();
-        swap.release();
         deviceResources.release();
-    }
-
-    void checkSwapChainReady()
-    {
-        swapChainReady |= swap.swapChainDispatcher->isSwapChainReady (swap.dispatcherBitNumber);
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DLowLevelGraphicsHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
+    Pimpl (Direct2DLowLevelGraphicsImageContext& owner_, Image const& image_, Point<int> origin_, const RectangleList<int>& initialClip_)
         : owner (owner_),
-          parentHwnd (hwnd_),
-          opaque (opaque_)
+          image(image_),
+        origin(origin_),
+        initialClip(initialClip_)
     {
-        setWindowAlpha(1.0f);
-        setScaleFactor(dpiScalingFactor_);
-
         D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
         sharedFactories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
+
+        prepare();
     }
 
     ~Pimpl()
@@ -576,141 +476,6 @@ public:
         popAllSavedStates();
 
         teardown();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        if (childHwnd)
-        {
-            childWindowThread->removeChildWindow (childHwnd);
-            childHwnd = nullptr;
-        }
-#endif
-    }
-
-    void handleParentShowWindow()
-    {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        childWindowThread->createChildForParentWindow (parentHwnd);
-#else
-        handleWindowCreatedCommon();
-#endif
-    }
-
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    void handleChildShowWindow (HWND childHwnd_)
-#else
-    void handleChildShowWindow (HWND)
-#endif
-    {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        childHwnd = childHwnd_;
-        handleWindowCreatedCommon();
-#endif
-    }
-
-    void handleWindowCreatedCommon()
-    {
-        prepare();
-
-        windowSize         = getParentClientRect();
-        previousWindowSize = windowSize;
-        deferredRepaints   = windowSize;
-    }
-
-    Rectangle<int> getParentClientRect() const
-    {
-        RECT clientRect;
-        GetClientRect (parentHwnd, &clientRect);
-
-        return Rectangle<int>::leftTopRightBottom (clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
-    }
-
-    void startResizing()
-    {
-        previousWindowSize = windowSize;
-    }
-
-    void finishResizing()
-    {
-        if (previousWindowSize != windowSize)
-        {
-            resize (windowSize);
-        }
-    }
-
-    void resize (Rectangle<int> size)
-    {
-        if (windowSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1)
-        {
-            return;
-        }
-
-        prepare();
-
-        //
-        // Require the entire window to be repainted
-        //
-        windowSize       = size;
-        deferredRepaints = size;
-
-        if (auto deviceContext = deviceResources.deviceContext.context)
-        {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childHwnd)
-            {
-                childWindowThread->setSize (childHwnd, windowSize);
-            }
-#endif
-            auto hr = swap.resize (size, (float) snappedDpiScalingFactor, deviceContext);
-            jassert (SUCCEEDED (hr));
-            if (FAILED (hr))
-            {
-                teardown();
-            }
-        }
-    }
-
-    void resize()
-    {
-        resize (getParentClientRect());
-    }
-
-    void restoreWindow()
-    {
-        //
-        // Child window still has the original window size
-        //
-        resize (windowSize);
-    }
-
-    void addDeferredRepaint (Rectangle<int> deferredRepaint)
-    {
-        //
-        // Clipping regions are specified with floating-point values and can be anti-aliased with
-        // sub-pixel boundaries, especially with high DPI.
-        //
-        // The swap chain dirty rectangles are specified with integer values.
-        //
-        // To keep the clipping regions and the dirty rectangles lined up, find the lowest
-        // common denominator and expand the clipping region slightly so that both the
-        // clipping region and the dirty rectangle will sit on pixel boundaries.
-        //
-        auto snapMask = ~(repaintAreaPixelSnap - 1);
-        deferredRepaints.add (Rectangle<int>::leftTopRightBottom(deferredRepaint.getX() & snapMask,
-                                                  deferredRepaint.getY() & snapMask,
-                                                  (deferredRepaint.getRight() + repaintAreaPixelSnap - 1) & snapMask,
-                                                  (deferredRepaint.getBottom() + repaintAreaPixelSnap - 1) & snapMask));
-    }
-
-    void addInvalidWindowRegionToDeferredRepaints()
-    {
-        updateRegion.getRECTAndValidate (parentHwnd);
-        updateRegion.addToRectangleList (deferredRepaints);
-        updateRegion.clear();
-    }
-
-    void setWindowAlpha (float alpha)
-    {
-        backgroundColor = direct2d::colourToD2D (Colours::black.withAlpha (opaque ? windowAlpha : 0.0f));
-        windowAlpha     = alpha;
     }
 
     SavedState* startFrame (RectangleList<int>& paintAreas)
@@ -718,57 +483,19 @@ public:
         prepare();
 
         //
-        // Update swap chain ready flag from dispatcher
-        //
-        checkSwapChainReady();
-
-        //
         // Paint if:
         //      resources are allocated
-        //      deferredRepaints has areas to be painted
-        //      the swap chain is ready
         //
-        bool ready = deviceResources.canPaint();
-        ready &= swap.canPaint();
-        ready &= compositionTree.canPaint();
-        ready &= deferredRepaints.getNumRectangles() > 0;
-        ready &= swapChainReady;
-        if (! ready)
+        if (!deviceResources.canPaint())
         {
             return nullptr;
         }
 
         //
-        // Does the entire buffer need to be filled?
+        // Always paint the whole image for now
         //
-        if (swap.state == direct2d::SwapChain::bufferAllocated)
-        {
-            deferredRepaints = swap.getSize();
-        }
-
-        //
-        // Anything to paint?
-        //
-        auto paintBounds = deferredRepaints.getBounds();
-        if (! windowSize.intersects (paintBounds) || paintBounds.isEmpty())
-        {
-            return nullptr;
-        }
-
-        //
-        // If the window alpha is less than 1.0, clip to the union of the
-        // deferred repaints so the device context Clear() works correctly
-        //
-        if (windowAlpha < 1.0f || !opaque)
-        {
-            paintAreas = paintBounds;
-        }
-        else
-        {
-            paintAreas = deferredRepaints;
-        }
-
-        TRACE_LOG_D2D_PAINT_START (frameNumber);
+        auto paintBounds = image.getBounds();
+        paintAreas = paintBounds;
 
         //
         // Init device context transform
@@ -783,7 +510,7 @@ public:
         //
         // Start drawing
         //
-        deviceResources.deviceContext.context->SetTarget (swap.buffer);
+        deviceResources.deviceContext.context->SetTarget (target);
         deviceResources.deviceContext.context->BeginDraw();
 
         return firstSavedState;
@@ -808,147 +535,17 @@ public:
 
         TRACE_LOG_D2D_PAINT_END (frameNumber);
 
-        if (SUCCEEDED (hr))
-        {
-            //
-            // Present the frame
-            //
-            // Compare deferredRepaints to the swap chain buffer area. If the rectangles in deferredRepaints are contained
-            // by the swap chain buffer area, then mark those rectangles as dirty. DXGI will only keep the dirty rectangles from the
-            // current buffer and copy the clean area from the previous buffer.
-            //
-            // The buffer needs to be completely filled before using dirty rectangles. The dirty rectangles need to be contained
-            // within the swap chain buffer.
-            //
-#if JUCE_DIRECT2D_METRICS
-            direct2d::ScopedElapsedTime set { owner.stats, direct2d::PaintStats::present1Duration };
-#endif
-
-            TRACE_LOG_D2D_PRESENT1_START (frameNumber);
-
-            //
-            // Allocate enough memory for the array of dirty rectangles
-            //
-            if (dirtyRectanglesCapacity < deferredRepaints.getNumRectangles())
-            {
-                dirtyRectangles.realloc (deferredRepaints.getNumRectangles());
-                dirtyRectanglesCapacity = deferredRepaints.getNumRectangles();
-            }
-
-            //
-            // Fill the array of dirty rectangles, intersecting deferredRepaints with the swap chain buffer
-            //
-            DXGI_PRESENT_PARAMETERS presentParameters {};
-            if (swap.state == direct2d::SwapChain::bufferFilled)
-            {
-                RECT*      dirtyRectangle = dirtyRectangles.getData();
-                auto const swapChainSize  = swap.getSize();
-                for (auto const& area : deferredRepaints)
-                {
-                    //
-                    // If this deferred area contains the entire swap chain, then
-                    // no need for dirty rectangles
-                    //
-                    if (area.contains (swapChainSize))
-                    {
-                        presentParameters.DirtyRectsCount = 0;
-                        break;
-                    }
-
-                    //
-                    // Intersect this deferred repaint area with the swap chain buffer
-                    //
-                    auto intersection = (area * snappedDpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
-                    if (intersection.isEmpty())
-                    {
-                        //
-                        // Can't clip to an empty rectangle
-                        //
-                        continue;
-                    }
-
-                    //
-                    // Add this deferred repaint area to the dirty rectangle array (scaled for DPI)
-                    //
-                    *dirtyRectangle = direct2d::rectangleToRECT (intersection);
-
-                    dirtyRectangle++;
-                    presentParameters.DirtyRectsCount++;
-                }
-                presentParameters.pDirtyRects = dirtyRectangles.getData();
-            }
-
-            //
-            // Present the freshly painted buffer
-            //
-            hr = swap.chain->Present1 (swap.presentSyncInterval, swap.presentFlags, &presentParameters);
-            jassert (SUCCEEDED (hr));
-
-            TRACE_LOG_D2D_PRESENT1_END (frameNumber);
-
-            //
-            // If the dirty rectangle count was zero, then the buffer is now completely filled and
-            // ready for dirty rectangles
-            //
-            if (presentParameters.DirtyRectsCount == 0)
-            {
-                swap.state = direct2d::SwapChain::bufferFilled;
-            }
-        }
-
         if (FAILED (hr))
         {
             teardown();
         }
 
-        deferredRepaints.clear();
-        swapChainReady = false;
-
         frameNumber++;
-    }
-
-    void setScaleFactor(double scale_)
-    {
-        dpiScalingFactor = scale_;
-        snappedDpiScalingFactor = roundToInt(dpiScalingFactor * dpiScalingIntConversionFactor) / double{ dpiScalingIntConversionFactor };
-        deferredRepaints = windowSize;
-        resize();
-
-        //
-        // Round DPI scaling factor to nearest 1/128 so the repainted areas
-        // and the dirty rectangles both snap to pixel boundaries
-        //
-        // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
-        //
-        // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100.
-        // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels.
-        //
-        // For example: DPI scaling 150%
-        //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
-        //      repaintAreaPixel = 128 / 64 = 2
-        //      deferredRepaints will be expanded to snap to the next multiple of 2
-        //
-        // DPI scaling of 225%
-        //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
-        //      repaintAreaPixel = 128 / 32 = 4
-        //      deferredRepaints will be expanded to snap to the next multiple of 4
-        //
-        // DPI scaling of 301%
-        //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
-        //      repaintAreaPixel = 128 / 1 = 128
-        //      deferredRepaints will be expanded to snap to the next multiple of 128
-        //
-        // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
-        // scaling factors will be less efficient and require more painting.
-        //
-        auto greatestCommonDenominator = std::gcd (roundToInt (double{ dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
-        repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
-
     }
 
     double getScaleFactor() const
     {
-        return dpiScalingFactor;
+        return 1.0;
     }
 
     SavedState* getCurrentSavedState() const
@@ -1002,14 +599,9 @@ public:
     }
 
     SharedResourcePointer<Direct2DFactories> sharedFactories;
-    HWND                                     parentHwnd = nullptr;
+    ComSmartPtr<ID2D1Bitmap1> target;
     ComSmartPtr<ID2D1RectangleGeometry>      rectangleGeometryUnitSize;
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    HWND childHwnd = nullptr;
-#endif
     direct2d::DirectWriteGlyphRun glyphRun;
-    bool                          opaque                  = true;
-    float                         windowAlpha             = 1.0f;
     D2D1_COLOR_F                  backgroundColor {};
 
 #if JUCE_DIRECT2D_METRICS
@@ -1019,65 +611,24 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsHwndContext::Direct2DLowLevelGraphicsHwndContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
+Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext(const Image& imageToRenderOnto)
+    : Direct2DLowLevelGraphicsImageContext(imageToRenderOnto, Point<int>{}, imageToRenderOnto.getBounds())
+{
+}
+
+Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext(const Image& imageToRenderOnto, Point<int> origin, const RectangleList<int>& initialClip)
     : currentState (nullptr),
-      pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque })
+    pimpl(new Pimpl{ *this, imageToRenderOnto, origin, initialClip })
 {
+    startFrame();
 }
 
-Direct2DLowLevelGraphicsHwndContext::~Direct2DLowLevelGraphicsHwndContext() {}
-
-void Direct2DLowLevelGraphicsHwndContext::handleParentShowWindow()
+Direct2DLowLevelGraphicsImageContext::~Direct2DLowLevelGraphicsImageContext() 
 {
-    pimpl->handleParentShowWindow();
+    endFrame();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::handleChildShowWindow (void* childWindowHandle)
-{
-    pimpl->handleChildShowWindow ((HWND) childWindowHandle);
-}
-
-void Direct2DLowLevelGraphicsHwndContext::setWindowAlpha (float alpha)
-{
-    pimpl->setWindowAlpha (alpha);
-}
-
-void Direct2DLowLevelGraphicsHwndContext::startResizing()
-{
-    pimpl->startResizing();
-}
-
-void Direct2DLowLevelGraphicsHwndContext::resize()
-{
-    pimpl->resize();
-}
-
-void Direct2DLowLevelGraphicsHwndContext::resize (int width, int height)
-{
-    pimpl->resize ({ width, height });
-}
-
-void Direct2DLowLevelGraphicsHwndContext::finishResizing()
-{
-    pimpl->finishResizing();
-}
-
-void Direct2DLowLevelGraphicsHwndContext::restoreWindow()
-{
-    pimpl->restoreWindow();
-}
-
-void Direct2DLowLevelGraphicsHwndContext::addDeferredRepaint (Rectangle<int> deferredRepaint)
-{
-    pimpl->addDeferredRepaint (deferredRepaint);
-}
-
-void Direct2DLowLevelGraphicsHwndContext::addInvalidWindowRegionToDeferredRepaints()
-{
-    pimpl->addInvalidWindowRegionToDeferredRepaints();
-}
-
-bool Direct2DLowLevelGraphicsHwndContext::startFrame()
+bool Direct2DLowLevelGraphicsImageContext::startFrame()
 {
     TRACE_LOG_D2D_START_FRAME;
 
@@ -1104,19 +655,7 @@ bool Direct2DLowLevelGraphicsHwndContext::startFrame()
                                                                                        D2D1_FILL_MODE_WINDING));
             }
 
-            //
-            // Clear the buffer *after* setting the clip region
-            //
-            // For opaque windows, clear the background to black with the window alpha
-            // For non-opaque windows, clear the background to transparent black
-            //
-            // In either case, add a transparency layer if the window alpha is less than 1.0
-            //
             deviceContext->Clear (pimpl->backgroundColor);
-            if (pimpl->windowAlpha < 1.0f)
-            {
-                beginTransparencyLayer (pimpl->windowAlpha);
-            }
 
             setFont (currentState->font);
 
@@ -1129,7 +668,7 @@ bool Direct2DLowLevelGraphicsHwndContext::startFrame()
     return false;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::endFrame()
+void Direct2DLowLevelGraphicsImageContext::endFrame()
 {
     pimpl->popAllSavedStates();
     currentState = nullptr;
@@ -1137,24 +676,24 @@ void Direct2DLowLevelGraphicsHwndContext::endFrame()
     pimpl->finishFrame();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setOrigin (Point<int> o)
+void Direct2DLowLevelGraphicsImageContext::setOrigin (Point<int> o)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setOrigin);
     currentState->currentTransform.setOrigin (o);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::addTransform (const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::addTransform (const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::addTransform);
     currentState->currentTransform.addTransform (transform);
 }
 
-float Direct2DLowLevelGraphicsHwndContext::getPhysicalPixelScaleFactor()
+float Direct2DLowLevelGraphicsImageContext::getPhysicalPixelScaleFactor()
 {
     return currentState->currentTransform.getPhysicalPixelScaleFactor();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipToRectangle (const Rectangle<int>& r)
+bool Direct2DLowLevelGraphicsImageContext::clipToRectangle (const Rectangle<int>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToRectangle);
 
@@ -1195,7 +734,7 @@ bool Direct2DLowLevelGraphicsHwndContext::clipToRectangle (const Rectangle<int>&
     return ! isClipEmpty();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipToRectangleList (const RectangleList<int>& clipRegion)
+bool Direct2DLowLevelGraphicsImageContext::clipToRectangleList (const RectangleList<int>& clipRegion)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToRectangleList);
 
@@ -1225,7 +764,7 @@ bool Direct2DLowLevelGraphicsHwndContext::clipToRectangleList (const RectangleLi
     return ! isClipEmpty();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<int>& r)
+void Direct2DLowLevelGraphicsImageContext::excludeClipRectangle (const Rectangle<int>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::excludeClipRectangle);
 
@@ -1238,7 +777,7 @@ void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<
     // Have to use addWithoutMerging to build the rectangle list to keep the rectangles separate.
     //
     RectangleList<int> rectangles { r };
-    rectangles.addWithoutMerging ({ -maxWindowSize, -maxWindowSize, maxWindowSize * 2, maxWindowSize * 2 });
+    rectangles.addWithoutMerging ({ -maxFrameSize, -maxFrameSize, maxFrameSize * 2, maxFrameSize * 2 });
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
@@ -1249,7 +788,7 @@ void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::clipToPath (const Path& path, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToPath);
 
@@ -1261,7 +800,7 @@ void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const Af
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToImageAlpha);
 
@@ -1319,29 +858,29 @@ void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceI
     }
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipRegionIntersects (const Rectangle<int>& r)
+bool Direct2DLowLevelGraphicsImageContext::clipRegionIntersects (const Rectangle<int>& r)
 {
     return getClipBounds().intersects (r);
 }
 
-Rectangle<int> Direct2DLowLevelGraphicsHwndContext::getClipBounds() const
+Rectangle<int> Direct2DLowLevelGraphicsImageContext::getClipBounds() const
 {
     return currentState->currentTransform.deviceSpaceToUserSpace (currentState->clipRegion);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::isClipEmpty() const
+bool Direct2DLowLevelGraphicsImageContext::isClipEmpty() const
 {
     return getClipBounds().isEmpty();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::saveState()
+void Direct2DLowLevelGraphicsImageContext::saveState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::saveState);
 
     currentState = pimpl->pushSavedState();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::restoreState()
+void Direct2DLowLevelGraphicsImageContext::restoreState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::restoreState);
 
@@ -1349,7 +888,7 @@ void Direct2DLowLevelGraphicsHwndContext::restoreState()
     jassert (currentState);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::beginTransparencyLayer (float opacity)
+void Direct2DLowLevelGraphicsImageContext::beginTransparencyLayer (float opacity)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::beginTransparencyLayer);
 
@@ -1359,7 +898,7 @@ void Direct2DLowLevelGraphicsHwndContext::beginTransparencyLayer (float opacity)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::endTransparencyLayer()
+void Direct2DLowLevelGraphicsImageContext::endTransparencyLayer()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::endTransparencyLayer);
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -1368,7 +907,7 @@ void Direct2DLowLevelGraphicsHwndContext::endTransparencyLayer()
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setFill (const FillType& fillType)
+void Direct2DLowLevelGraphicsImageContext::setFill (const FillType& fillType)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setFill);
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -1378,7 +917,7 @@ void Direct2DLowLevelGraphicsHwndContext::setFill (const FillType& fillType)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setOpacity (float newOpacity)
+void Direct2DLowLevelGraphicsImageContext::setOpacity (float newOpacity)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setOpacity);
 
@@ -1389,7 +928,7 @@ void Direct2DLowLevelGraphicsHwndContext::setOpacity (float newOpacity)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setInterpolationQuality (Graphics::ResamplingQuality quality)
+void Direct2DLowLevelGraphicsImageContext::setInterpolationQuality (Graphics::ResamplingQuality quality)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setInterpolationQuality);
 
@@ -1407,12 +946,12 @@ void Direct2DLowLevelGraphicsHwndContext::setInterpolationQuality (Graphics::Res
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<int>& r, bool /*replaceExistingContents*/)
+void Direct2DLowLevelGraphicsImageContext::fillRect (const Rectangle<int>& r, bool /*replaceExistingContents*/)
 {
     fillRect (r.toFloat());
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<float>& r)
+void Direct2DLowLevelGraphicsImageContext::fillRect (const Rectangle<float>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRect);
 
@@ -1428,12 +967,12 @@ void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<float>& r)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRectList (const RectangleList<float>& list)
+void Direct2DLowLevelGraphicsImageContext::fillRectList (const RectangleList<float>& list)
 {
     for (auto& r : list) fillRect (r);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawRect (const Rectangle<float>& r, float lineThickness)
+bool Direct2DLowLevelGraphicsImageContext::drawRect (const Rectangle<float>& r, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRect);
 
@@ -1451,7 +990,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawRect (const Rectangle<float>& r, f
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillPath (const Path& p, const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::fillPath (const Path& p, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillPath);
 
@@ -1470,7 +1009,7 @@ void Direct2DLowLevelGraphicsHwndContext::fillPath (const Path& p, const AffineT
     }
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
+bool Direct2DLowLevelGraphicsImageContext::drawPath (const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawPath);
 
@@ -1547,7 +1086,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStr
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::drawImage (const Image& image, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawImage);
 
@@ -1573,12 +1112,12 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line)
+void Direct2DLowLevelGraphicsImageContext::drawLine (const Line<float>& line)
 {
     drawLine (line, 1.0f);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line, float lineThickness)
+bool Direct2DLowLevelGraphicsImageContext::drawLine (const Line<float>& line, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawLine);
 
@@ -1599,19 +1138,19 @@ bool Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line, flo
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setFont (const Font& newFont)
+void Direct2DLowLevelGraphicsImageContext::setFont (const Font& newFont)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setFont);
 
     currentState->setFont (newFont);
 }
 
-const Font& Direct2DLowLevelGraphicsHwndContext::getFont()
+const Font& Direct2DLowLevelGraphicsImageContext::getFont()
 {
     return currentState->font;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyph (int glyphNumber, const AffineTransform& transform)
+void Direct2DLowLevelGraphicsImageContext::drawGlyph (int glyphNumber, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawGlyph);
 
@@ -1621,7 +1160,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyph (int glyphNumber, const Affi
     drawGlyphCommon (1, currentState->font, transform, {});
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
+bool Direct2DLowLevelGraphicsImageContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawTextLayout);
 
@@ -1653,17 +1192,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawTextLayout (const AttributedString
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setScaleFactor (double scale_)
-{
-    pimpl->setScaleFactor (scale_);
-}
-
-double Direct2DLowLevelGraphicsHwndContext::getScaleFactor() const
-{
-    return pimpl->getScaleFactor();
-}
-
-bool Direct2DLowLevelGraphicsHwndContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
+bool Direct2DLowLevelGraphicsImageContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRoundedRectangle);
 
@@ -1682,7 +1211,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawRoundedRectangle (Rectangle<float>
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::fillRoundedRectangle (Rectangle<float> area, float cornerSize)
+bool Direct2DLowLevelGraphicsImageContext::fillRoundedRectangle (Rectangle<float> area, float cornerSize)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRoundedRectangle);
 
@@ -1701,7 +1230,7 @@ bool Direct2DLowLevelGraphicsHwndContext::fillRoundedRectangle (Rectangle<float>
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawEllipse (Rectangle<float> area, float lineThickness)
+bool Direct2DLowLevelGraphicsImageContext::drawEllipse (Rectangle<float> area, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawEllipse);
 
@@ -1721,7 +1250,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawEllipse (Rectangle<float> area, fl
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::fillEllipse (Rectangle<float> area)
+bool Direct2DLowLevelGraphicsImageContext::fillEllipse (Rectangle<float> area)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillEllipse);
 
@@ -1741,7 +1270,7 @@ bool Direct2DLowLevelGraphicsHwndContext::fillEllipse (Rectangle<float> area)
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs,
+void Direct2DLowLevelGraphicsImageContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs,
                                                     int                           startIndex,
                                                     int                           numGlyphs,
                                                     const AffineTransform&        transform,
@@ -1791,7 +1320,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyphRun (Array<PositionedGlyph> c
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyphCommon(int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea)
+void Direct2DLowLevelGraphicsImageContext::drawGlyphCommon(int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea)
 {
     auto deviceContext = pimpl->getDeviceContext();
     if (! deviceContext)
@@ -1843,14 +1372,93 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyphCommon(int numGlyphs, Font co
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::updateDeviceContextTransform()
+void Direct2DLowLevelGraphicsImageContext::updateDeviceContextTransform()
 {
     pimpl->setDeviceContextTransform (currentState->currentTransform.getTransform());
 }
 
-void Direct2DLowLevelGraphicsHwndContext::updateDeviceContextTransform (AffineTransform chainedTransform)
+void Direct2DLowLevelGraphicsImageContext::updateDeviceContextTransform (AffineTransform chainedTransform)
 {
     pimpl->setDeviceContextTransform (currentState->currentTransform.getTransformWith (chainedTransform));
+}
+
+
+//==============================================================================
+//
+// Direct2D native image type
+//
+
+class Direct2DImageType : public ImageType
+{
+public:
+    Direct2DImageType() = default;
+    ~Direct2DImageType() override = default;
+
+    ImagePixelData::Ptr create(Image::PixelFormat, int width, int height, bool shouldClearImage) const override;
+    int getTypeID() const override 
+    {
+        return 0xd2d;
+    }
+};
+
+class Direct2DPixelData : public ImagePixelData
+{
+public:
+    Direct2DPixelData(Image::PixelFormat formatToUse, int w, int h, bool clearImage)
+        : ImagePixelData (formatToUse, w, h),
+          pixelStride (formatToUse == Image::RGB ? 3 : ((formatToUse == Image::ARGB) ? 4 : 1)),
+          lineStride ((pixelStride * jmax (1, w) + 3) & ~3)
+    {
+        imageData.allocate ((size_t) lineStride * (size_t) jmax (1, h), clearImage);
+    }
+
+    std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
+    {
+        sendDataChangeMessage();
+        return std::make_unique<Direct2DLowLevelGraphicsImageContext>(Image(*this), Point<int>{}, RectangleList<int>{ { width, height } });
+    }
+
+    void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
+    {
+        const auto offset  = (size_t) x * (size_t) pixelStride + (size_t) y * (size_t) lineStride;
+        bitmap.data        = imageData + offset;
+        bitmap.size        = (size_t) (height * lineStride) - offset;
+        bitmap.pixelFormat = pixelFormat;
+        bitmap.lineStride  = lineStride;
+        bitmap.pixelStride = pixelStride;
+
+        if (mode != Image::BitmapData::readOnly) sendDataChangeMessage();
+    }
+
+    ImagePixelData::Ptr clone() override
+    {
+        jassertfalse;
+        return nullptr;
+//         auto s = new SoftwarePixelData (pixelFormat, width, height, false);
+//         memcpy (s->imageData, imageData, (size_t) lineStride * (size_t) height);
+//         return *s;
+    }
+
+    std::unique_ptr<ImageType> createType() const override
+    {
+        return std::make_unique<Direct2DImageType>();
+    }
+
+private:
+    HeapBlock<uint8> imageData;
+    const int        pixelStride, lineStride;
+
+    JUCE_LEAK_DETECTOR (Direct2DPixelData)
+};
+
+ImagePixelData::Ptr Direct2DImageType::create (Image::PixelFormat format, int width, int height, bool shouldClearImage) const
+{
+    return new Direct2DPixelData{ format, width, height, shouldClearImage };
+}
+
+ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
+{
+    return new Direct2DPixelData(format, width, height, clearImage);
 }
 
 } // namespace juce

@@ -68,9 +68,9 @@ public:
 
         expectantParentWindows.add (parentHwnd);
         PostThreadMessage ((DWORD) (pointer_sized_int) messageThread.getThreadId(),
-                           Direct2DLowLevelGraphicsContext::createChildWindowMessageID,
-                           0,
-                           (LPARAM) parentHwnd);
+            Direct2DLowLevelGraphicsHwndContext::createChildWindowMessageID,
+            0,
+            (LPARAM) parentHwnd);
     }
 
     void removeChildWindow (HWND childHwnd)
@@ -246,7 +246,7 @@ private:
             if (childHwnd)
             {
                 PostMessage (parentHwnd,
-                             Direct2DLowLevelGraphicsContext::childWindowCreatedMessageID,
+                             Direct2DLowLevelGraphicsHwndContext::childWindowCreatedMessageID,
                              1,
                              (LPARAM) childHwnd);
             }
@@ -304,7 +304,7 @@ private:
                     {
                         case WM_QUIT: return;
 
-                        case Direct2DLowLevelGraphicsContext::createChildWindowMessageID:
+                        case Direct2DLowLevelGraphicsHwndContext::createChildWindowMessageID:
                             createChildWindowForExpectantParent ((HWND) message.lParam);
                             break;
                     }

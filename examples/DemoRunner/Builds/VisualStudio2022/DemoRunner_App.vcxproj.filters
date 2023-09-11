@@ -2713,13 +2713,19 @@
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DChildWindow_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContext_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextHwnd_windows.cpp">
+      <Filter>JUCE Modules\juce_graphics\native</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DHelpers_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DSwapChainThread_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DResources_windows.cpp">
+      <Filter>JUCE Modules\juce_graphics\native</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DSwapChainDispatcher_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_DirectWriteCustomFontCollection_windows.cpp">
@@ -5988,7 +5994,10 @@
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_CoreGraphicsHelpers_mac.h">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContext_windows.h">
+    <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextHwnd_windows.h">
+      <Filter>JUCE Modules\juce_graphics\native</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.h">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_ETW_windows.h">

@@ -141,7 +141,7 @@ private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
     #endif
-    std::unique_ptr<Direct2DLowLevelGraphicsContext> direct2DContext;
+    std::unique_ptr<Direct2DLowLevelGraphicsHwndContext> direct2DContext;
 
     void handlePaintMessage() override
     {
@@ -235,7 +235,7 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
         {
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext> (hwnd,
+            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsHwndContext> (hwnd,
                                                                                  scaleFactor,
                                                                                  component.isOpaque());
     #if JUCE_DIRECT2D_METRICS
@@ -388,7 +388,7 @@ private:
                 break;
             }
 
-            case Direct2DLowLevelGraphicsContext::childWindowCreatedMessageID:
+            case Direct2DLowLevelGraphicsHwndContext::childWindowCreatedMessageID:
             {
                 //
                 // Child window received WM_SHOWWINDOW

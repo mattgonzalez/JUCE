@@ -155,8 +155,8 @@ namespace juce
 #endif
 
 #if JUCE_DIRECT2D && JUCE_WINDOWS
-#include "native/juce_Direct2DGraphicsContextHwnd_windows.h"
-#include "native/juce_Direct2DGraphicsContextImage_windows.h"
-
+ #include "native/juce_Direct2DGraphicsContextHwnd_windows.h"
+ #include "native/juce_Direct2DGraphicsContextImage_windows.h"
+ #include "native/juce_Direct2DImage_windows.h"
 #endif
 

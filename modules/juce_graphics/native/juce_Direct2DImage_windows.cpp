@@ -425,26 +425,31 @@ private:
 
     HRESULT prepare()
     {
+        HRESULT hr = S_OK;
         auto frameSize = image.getBounds();
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), 1.0); FAILED (hr))
+            if (hr = deviceResources.create (sharedFactories->getDirect2DFactory(), 1.0); FAILED (hr))
             {
                 return hr;
             }
         }
 
-        Image::BitmapData bitmapData{ image, Image::BitmapData::readWrite };
-        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-        bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-        bitmapProperties.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        auto hr = deviceResources.deviceContext.context->CreateBitmap (D2D1_SIZE_U { (UINT32) image.getWidth(), (UINT32) image.getHeight() },
-                                                     nullptr,
-                                                     bitmapData.lineStride,
-                                                     bitmapProperties,
-                                                     target.resetAndGetPointerAddress());
+        if (!target)
+        {
+            Image::BitmapData       bitmapData { image, Image::BitmapData::readWrite };
+            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+            bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_TARGET;
+            bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
+            bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
+            hr =
+                deviceResources.deviceContext.context->CreateBitmap (D2D1_SIZE_U { (UINT32) image.getWidth(), (UINT32) image.getHeight() },
+                                                                     nullptr,
+                                                                     bitmapData.lineStride,
+                                                                     bitmapProperties,
+                                                                     target.resetAndGetPointerAddress());
+        }
 
         jassert(SUCCEEDED(hr));
 
@@ -1388,19 +1393,6 @@ void Direct2DLowLevelGraphicsImageContext::updateDeviceContextTransform (AffineT
 // Direct2D native image type
 //
 
-class Direct2DImageType : public ImageType
-{
-public:
-    Direct2DImageType() = default;
-    ~Direct2DImageType() override = default;
-
-    ImagePixelData::Ptr create(Image::PixelFormat, int width, int height, bool shouldClearImage) const override;
-    int getTypeID() const override 
-    {
-        return 0xd2d;
-    }
-};
-
 class Direct2DPixelData : public ImagePixelData
 {
 public:
@@ -1409,7 +1401,6 @@ public:
           pixelStride (formatToUse == Image::RGB ? 3 : ((formatToUse == Image::ARGB) ? 4 : 1)),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3)
     {
-        imageData.allocate ((size_t) lineStride * (size_t) jmax (1, h), clearImage);
     }
 
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
@@ -1421,7 +1412,7 @@ public:
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
         const auto offset  = (size_t) x * (size_t) pixelStride + (size_t) y * (size_t) lineStride;
-        bitmap.data        = imageData + offset;
+        bitmap.data = nullptr;
         bitmap.size        = (size_t) (height * lineStride) - offset;
         bitmap.pixelFormat = pixelFormat;
         bitmap.lineStride  = lineStride;
@@ -1445,7 +1436,6 @@ public:
     }
 
 private:
-    HeapBlock<uint8> imageData;
     const int        pixelStride, lineStride;
 
     JUCE_LEAK_DETECTOR (Direct2DPixelData)
@@ -1454,11 +1444,6 @@ private:
 ImagePixelData::Ptr Direct2DImageType::create (Image::PixelFormat format, int width, int height, bool shouldClearImage) const
 {
     return new Direct2DPixelData{ format, width, height, shouldClearImage };
-}
-
-ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
-{
-    return new Direct2DPixelData(format, width, height, clearImage);
 }
 
 } // namespace juce

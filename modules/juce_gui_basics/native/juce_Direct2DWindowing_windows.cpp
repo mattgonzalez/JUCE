@@ -186,7 +186,18 @@ private:
         jassert (direct2DContext);
 
         //
-        // startFrame returns true if there are any areas to be painted and if the renderer is ready to go
+        // Use the ID2D1DeviceContext to paint a swap chain buffer, then tell the swap chain to present
+        // the next buffer.
+        // 
+        // Direct2DLowLevelGraphicsContext::startFrame checks if if there are any areas to be painted and if the 
+        // renderer is ready to go; if so, startFrame allocates any needed Direct2D resources, 
+        // and calls ID2D1DeviceContext::BeginDraw
+        // 
+        // handlePaint() makes various calls into the Direct2DLowLevelGraphicsContext which in turn calls
+        // the appropriate ID2D1DeviceContext functions to draw rectangles, clip, set the fill color, etc.
+        // 
+        // Direct2DLowLevelGraphicsContext::endFrame calls ID2D1DeviceContext::EndDraw to finish painting 
+        // and then tells the swap chain to present the next swap chain back buffer.
         //
         if (direct2DContext->startFrame())
         {

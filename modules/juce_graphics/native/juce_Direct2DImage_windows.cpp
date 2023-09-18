@@ -495,7 +495,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (hr = deviceResources.create (DirectXFactories::getInstance()->getDirect2DFactory(), 1.0); FAILED (hr))
+            if (hr = deviceResources.create(DirectXFactories::getInstance()->getDefaultAdapter(), 1.0); FAILED (hr))
             {
                 return hr;
             }

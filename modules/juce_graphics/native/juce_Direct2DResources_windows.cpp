@@ -103,6 +103,39 @@ public:
     // direct2DDevice -> deviceContext
     // 
     //
+    HRESULT create(DirectXFactories::GraphicsAdapter::Ptr adapter, double dpiScalingFactor)
+    {
+        HRESULT hr = S_OK;
+
+        if (deviceContext.context == nullptr)
+        {
+            hr = adapter->createDirect2DResources();
+            if (SUCCEEDED(hr))
+            {
+                hr = adapter->direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
+                    deviceContext.context.resetAndGetPointerAddress());
+            }
+
+            if (deviceContext.context)
+            {
+                deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
+                float dpi = (float) (USER_DEFAULT_SCREEN_DPI * dpiScalingFactor);
+                deviceContext.context->SetDpi (dpi, dpi);
+
+                if (colourBrush == nullptr)
+                {
+                    hr = deviceContext.context->CreateSolidColorBrush (D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
+                                                                       colourBrush.resetAndGetPointerAddress());
+                    jassertquiet (SUCCEEDED (hr));
+                }
+            }
+        }
+
+        return hr;
+    }
+#if 0
+
     HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
@@ -180,14 +213,17 @@ public:
 
         return hr;
     }
+#endif
 
     void release()
     {
         colourBrush = nullptr;
         deviceContext.release();
+#if 0
         dxgiFactory    = nullptr;
         dxgiDevice     = nullptr;
         direct3DDevice = nullptr;
+#endif
     }
 
     bool canPaint()
@@ -195,9 +231,11 @@ public:
         return deviceContext.context != nullptr && colourBrush != nullptr;
     }
 
+#if 0
     ComSmartPtr<ID3D11Device>         direct3DDevice;
     ComSmartPtr<IDXGIFactory2>        dxgiFactory;
     ComSmartPtr<IDXGIDevice>          dxgiDevice;
+#endif
     DeviceContext                     deviceContext;
     ComSmartPtr<ID2D1SolidColorBrush> colourBrush;
 };
@@ -217,10 +255,17 @@ public:
         release();
     }
 
-    HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
+    //HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
+    HRESULT create(HWND hwnd, Rectangle<int> size, DirectXFactories::GraphicsAdapter::Ptr adapter)
     {
-        if (dxgiFactory && direct3DDevice && ! chain && hwnd)
+        if (!chain && hwnd)
         {
+            auto dxgiFactory = DirectXFactories::getInstance()->getDXGIFactory();
+            if (dxgiFactory == nullptr || adapter->direct3DDevice == nullptr)
+            {
+                return E_FAIL;
+            }
+
             HRESULT hr = S_OK;
 
             buffer = nullptr;
@@ -243,7 +288,7 @@ public:
 
             swapChainDescription.Scaling   = DXGI_SCALING_STRETCH;
             swapChainDescription.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-            hr                             = dxgiFactory->CreateSwapChainForComposition (direct3DDevice,
+            hr                             = dxgiFactory->CreateSwapChainForComposition (adapter->direct3DDevice,
                                                              &swapChainDescription,
                                                              nullptr,
                                                              chain.resetAndGetPointerAddress());

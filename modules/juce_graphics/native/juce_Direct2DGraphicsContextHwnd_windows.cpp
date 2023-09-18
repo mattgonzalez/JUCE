@@ -465,6 +465,7 @@ private:
 #if JUCE_DIRECT2D_CHILD_WINDOW
     SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
 #endif
+    DirectXFactories::GraphicsAdapter::Ptr adapter;
     direct2d::DeviceResources deviceResources;
     direct2d::SwapChain       swap;
     direct2d::CompositionTree compositionTree;
@@ -501,7 +502,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (DirectXFactories::getInstance()->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
+            if (auto hr = deviceResources.create (adapter, snappedDpiScalingFactor); FAILED (hr))
             {
                 return hr;
             }
@@ -516,7 +517,7 @@ private:
             }
 #endif
 
-            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, deviceResources.direct3DDevice, deviceResources.dxgiFactory);
+            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, adapter);
                 FAILED (hr))
             {
                 return hr;
@@ -530,7 +531,7 @@ private:
 
         if (! compositionTree.canPaint())
         {
-            if (auto hr = compositionTree.create (deviceResources.dxgiDevice, swapChainHwnd, swap.chain); FAILED (hr))
+            if (auto hr = compositionTree.create (adapter->dxgiDevice, swapChainHwnd, swap.chain); FAILED (hr))
             {
                 return hr;
             }
@@ -556,6 +557,7 @@ private:
 public:
     Pimpl (Direct2DLowLevelGraphicsHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
+          adapter(DirectXFactories::getInstance()->getAdapterForHwnd(hwnd_)),
           parentHwnd (hwnd_),
           opaque (opaque_)
     {
@@ -1543,6 +1545,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStr
 
 void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const AffineTransform& transform)
 {
+#if 1
     TRACE_LOG_D2D_PAINT_CALL (etw::drawImage);
 
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -1571,6 +1574,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
             deviceContext->DrawBitmap (bitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
         }
     }
+#endif
 }
 
 void Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line)

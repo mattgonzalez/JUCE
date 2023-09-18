@@ -68,7 +68,7 @@
  #include <commdlg.h>
  #include <commctrl.h>
  #include <sapi.h>
- #include <dxgi.h>
+ #include <dxgi1_2.h>
 
 #if JUCE_ETW_TRACELOGGING
 #include <evntrace.h>

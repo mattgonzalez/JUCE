@@ -23,6 +23,21 @@
   ==============================================================================
 */
 
+#ifdef __INTELLISENSE__
+
+    #define JUCE_CORE_INCLUDE_COM_SMART_PTR 1
+    #define JUCE_WINDOWS                    1
+
+    #include <d2d1_2.h>
+    #include <d3d11_1.h>
+    #include <dcomp.h>
+    #include <dwrite.h>
+    #include <juce_core/juce_core.h>
+    #include <juce_graphics/juce_graphics.h>
+    #include <windows.h>
+
+#endif
+
 namespace juce
 {
 
@@ -70,10 +85,10 @@ namespace
     inline Point<float> convertPoint (D2D1_POINT_2F p) noexcept   { return Point<float> ((float) p.x, (float) p.y); }
 }
 
-class Direct2DFactories
+class DirectXFactories
 {
 public:
-    Direct2DFactories()
+    DirectXFactories()
     {
         JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wlanguage-extension-token")
 
@@ -127,7 +142,7 @@ public:
         JUCE_END_IGNORE_WARNINGS_GCC_LIKE
     }
 
-    ~Direct2DFactories()
+    ~DirectXFactories()
     {
 #if JUCE_DIRECT2D
         if (directWriteFactory != nullptr)
@@ -148,6 +163,8 @@ public:
         directWriteFactory = nullptr;
         systemFonts = nullptr;
         directWriteRenderTarget = nullptr;
+
+        clearSingletonInstance();
     }
 
 #if JUCE_DIRECT2D
@@ -227,6 +244,8 @@ public:
         return d2dSharedFactory;
     }
 
+    JUCE_DECLARE_SINGLETON_SINGLETHREADED (DirectXFactories, false)
+
 private:
     ComSmartPtr<ID2D1Factory2> d2dSharedFactory;
     ComSmartPtr<IDWriteFactory> directWriteFactory;
@@ -237,9 +256,9 @@ private:
     ComSmartPtr<ID2D1DCRenderTarget> directWriteRenderTarget;
 
     DynamicLibrary direct2dDll, directWriteDll;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DFactories)
 };
+
+JUCE_IMPLEMENT_SINGLETON(DirectXFactories);
 
 //==============================================================================
 class WindowsDirectWriteTypeface  : public Typeface
@@ -420,7 +439,7 @@ public:
     float getUnitsToHeightScaleFactor() const noexcept      { return unitsToHeightScaleFactor; }
 
 private:
-    SharedResourcePointer<Direct2DFactories> factories;
+    DirectXFactories* const factories = DirectXFactories::getInstance();
     ComSmartPtr<IDWriteFontFace> dwFontFace;
     float unitsToHeightScaleFactor = 1.0f, heightToPointsFactor = 1.0f, ascent = 0;
     int designUnitsPerEm = 0;

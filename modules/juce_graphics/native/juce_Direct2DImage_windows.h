@@ -26,7 +26,6 @@
 namespace juce
 {
 
-
 class Direct2DImageType : public ImageType
 {
 public:

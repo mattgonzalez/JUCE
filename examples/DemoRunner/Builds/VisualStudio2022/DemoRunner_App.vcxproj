@@ -2063,10 +2063,10 @@
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextHwnd_windows.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DHelpers_windows.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DHelpers_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DImage_windows.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DResources_windows.cpp">
@@ -3609,6 +3609,7 @@
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_CoreGraphicsHelpers_mac.h"/>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextHwnd_windows.h"/>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.h"/>
+    <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DImage_windows.h"/>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_ETW_windows.h"/>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_RenderingHelpers.h"/>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\placement\juce_Justification.h"/>

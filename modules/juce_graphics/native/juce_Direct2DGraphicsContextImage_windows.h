@@ -26,14 +26,16 @@
 namespace juce
 {
 
+class Direct2DPixelData;
+
 class Direct2DLowLevelGraphicsImageContext : public LowLevelGraphicsContext
 {
 public:
     /** Creates a context to render into an image. */
-    Direct2DLowLevelGraphicsImageContext(const Image& imageToRenderOnto);
+    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
 
     /** Creates a context to render into a clipped subsection of an image. */
-    Direct2DLowLevelGraphicsImageContext(const Image& imageToRenderOnto, Point<int> origin, const RectangleList<int>& initialClip);
+    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip);
 
     ~Direct2DLowLevelGraphicsImageContext() override;
 

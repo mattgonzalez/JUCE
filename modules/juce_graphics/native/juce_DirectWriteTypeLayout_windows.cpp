@@ -509,7 +509,7 @@ bool TextLayout::createNativeLayout ([[maybe_unused]] const AttributedString& te
     if (! canAllTypefacesAndFontsBeUsedInLayout (text))
         return false;
 
-    SharedResourcePointer<Direct2DFactories> factories;
+    auto factories = DirectXFactories::getInstance();
     jassert(MessageManager::getInstance()->currentThreadHasLockedMessageManager());
 
     auto d2dFactory = factories->getDirect2DFactory();

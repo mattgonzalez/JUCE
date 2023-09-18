@@ -2716,10 +2716,10 @@
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextHwnd_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DHelpers_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DHelpers_windows.cpp">
+    <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DImage_windows.cpp">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DResources_windows.cpp">
@@ -5998,6 +5998,9 @@
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DGraphicsContextImage_windows.h">
+      <Filter>JUCE Modules\juce_graphics\native</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_Direct2DImage_windows.h">
       <Filter>JUCE Modules\juce_graphics\native</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_graphics\native\juce_ETW_windows.h">

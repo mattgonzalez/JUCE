@@ -83,11 +83,6 @@
     #define JUCE_DIRECT2D_CHILD_WINDOW 0
 #endif
 
-#include "juce_Direct2DHelpers_windows.cpp"
-#include "juce_Direct2DSwapChainDispatcher_windows.cpp"
-#include "juce_Direct2DResources_windows.cpp"
-#include "juce_Direct2DChildWindow_windows.cpp"
-
 namespace juce
 {
 //==============================================================================
@@ -506,7 +501,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (auto hr = deviceResources.create (sharedFactories->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
+            if (auto hr = deviceResources.create (DirectXFactories::getInstance()->getDirect2DFactory(), snappedDpiScalingFactor); FAILED (hr))
             {
                 return hr;
             }
@@ -568,7 +563,7 @@ public:
         setScaleFactor(dpiScalingFactor_);
 
         D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
-        sharedFactories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
+        DirectXFactories::getInstance()->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
     }
 
     ~Pimpl()
@@ -1001,7 +996,6 @@ public:
         deviceResources.deviceContext.setTransform (transform);
     }
 
-    SharedResourcePointer<Direct2DFactories> sharedFactories;
     HWND                                     parentHwnd = nullptr;
     ComSmartPtr<ID2D1RectangleGeometry>      rectangleGeometryUnitSize;
 #if JUCE_DIRECT2D_CHILD_WINDOW
@@ -1098,7 +1092,7 @@ bool Direct2DLowLevelGraphicsHwndContext::startFrame()
             }
             else
             {
-                currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
+                currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
                                                                                        paintAreas,
                                                                                        AffineTransform {},
                                                                                        D2D1_FILL_MODE_WINDING));
@@ -1216,7 +1210,7 @@ bool Direct2DLowLevelGraphicsHwndContext::clipToRectangleList (const RectangleLi
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
                                                                                clipRegion,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_WINDING));
@@ -1242,7 +1236,7 @@ void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
                                                                                rectangles,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_ALTERNATE));
@@ -1255,7 +1249,7 @@ void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const Af
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::pathToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::pathToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
                                                                            path,
                                                                            currentState->currentTransform.getTransformWith (transform)));
     }
@@ -1462,7 +1456,7 @@ void Direct2DLowLevelGraphicsHwndContext::fillPath (const Path& p, const AffineT
             return;
         }
 
-        if (auto geometry = direct2d::pathToPathGeometry (pimpl->sharedFactories->getDirect2DFactory(), p, transform))
+        if (auto geometry = direct2d::pathToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(), p, transform))
         {
             updateDeviceContextTransform();
             deviceContext->FillGeometry (geometry, currentState->currentBrush);
@@ -1481,7 +1475,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStr
             return true;
         }
 
-        if (auto factory = pimpl->sharedFactories->getDirect2DFactory())
+        if (auto factory = DirectXFactories::getInstance()->getDirect2DFactory())
         {
             if (auto geometry = direct2d::pathToPathGeometry (factory, p, transform))
             {
@@ -1554,6 +1548,12 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         updateDeviceContextTransform (transform);
+
+        if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*>(image.getPixelData()))
+        {
+            deviceContext->DrawBitmap(direct2DPixelData->direct2dBitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
+            return;
+        }
 
         auto              argbImage = image.convertedToFormat (Image::ARGB);
         Image::BitmapData bitmapData { argbImage, Image::BitmapData::readOnly };
@@ -1631,8 +1631,9 @@ bool Direct2DLowLevelGraphicsHwndContext::drawTextLayout (const AttributedString
     }
 
     auto deviceContext      = pimpl->getDeviceContext();
-    auto directWriteFactory = pimpl->sharedFactories->getDirectWriteFactory();
-    auto fontCollection     = pimpl->sharedFactories->getSystemFonts();
+    auto factories          = DirectXFactories::getInstance();
+    auto directWriteFactory = factories->getDirectWriteFactory();
+    auto fontCollection     = factories->getSystemFonts();
 
     if (deviceContext && directWriteFactory && fontCollection)
     {

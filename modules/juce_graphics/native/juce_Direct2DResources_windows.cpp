@@ -87,6 +87,21 @@ public:
     // Also - creating all these resources takes quite a while. The worst offender seems to be 
     // creating the Direct3D device. Ideally this class could cache the Direct3D device; they 
     // can be associated with the DXGI adapter using the adapter's unique ID.
+    // 
+    // D3D11CreateDevice -> direct3DDevice
+    // direct3DDevice -> dxgiDevice
+    // dxgiDevice -> dxgiAdapter
+    // dxgiAdapter -> dxgiFactory
+    // dxgiDevice -> direct2DDevice
+    // direct2DDevice -> deviceContext
+    // 
+    // dxgiFactory -> dxgiAdapter
+    // Map window to adapter
+    // dxgiAdapter -> D3D11CreateDevice -> direct3DDevice
+    // direct3DDevice -> dxgiDevice
+    // dxgiDevice -> direct2DDevice
+    // direct2DDevice -> deviceContext
+    // 
     //
     HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
     {
@@ -103,7 +118,7 @@ public:
                 creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-                hr = D3D11CreateDevice (nullptr,
+                hr = D3D11CreateDevice(nullptr,
                                         D3D_DRIVER_TYPE_HARDWARE,
                                         nullptr,
                                         creationFlags,

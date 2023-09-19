@@ -145,7 +145,8 @@ public:
         }
 #endif
 
-        bitmap.size        = 0;
+        bitmap.size        = imageDataSize;
+        bitmap.data        = imageData.getData();
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
         bitmap.lineStride  = lineStride;

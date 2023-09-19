@@ -85,7 +85,7 @@ namespace
     inline Point<float> convertPoint (D2D1_POINT_2F p) noexcept   { return Point<float> ((float) p.x, (float) p.y); }
 }
 
-class DirectXFactories : private DeletedAtShutdown
+class DirectXFactories
 {
 public:
     struct GraphicsOutput
@@ -241,6 +241,11 @@ public:
                 }
             }
         }
+
+//         {
+//             auto hr = wicFactory.CoCreateInstance(CLSID_WICImagingFactory);
+//             jassertquiet(SUCCEEDED(hr));
+//         }
 #endif
 
         JUCE_END_IGNORE_WARNINGS_GCC_LIKE
@@ -248,8 +253,6 @@ public:
 
     ~DirectXFactories()
     {
-        TypefaceCache::getInstance()->clear();
-
 #if JUCE_DIRECT2D
         adapters.clear();
 
@@ -273,8 +276,6 @@ public:
         directWriteFactory = nullptr;
         systemFonts = nullptr;
         directWriteRenderTarget = nullptr;
-
-        clearSingletonInstance();
     }
 
 #if JUCE_DIRECT2D
@@ -348,6 +349,11 @@ public:
         jassert(MessageManager::getInstance()->isThisTheMessageThread());
         return customFontCollectionLoaders;
     }
+
+//     IWICImagingFactory* const getWicImagingFactory() const
+//     {
+//         return wicFactory;
+//     }
 #endif
 
     ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
@@ -388,8 +394,6 @@ public:
         return adapters.getFirst();
     }
 
-    JUCE_DECLARE_SINGLETON_SINGLETHREADED (DirectXFactories, false)
-
 private:
     ComSmartPtr<ID2D1Factory2> d2dSharedFactory;
     ComSmartPtr<IDWriteFactory> directWriteFactory;
@@ -399,15 +403,15 @@ private:
     DynamicLibrary direct2dDll, directWriteDll;
 
 #if JUCE_DIRECT2D
+    DynamicLibrary                                    dxgiDll;
     OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
     ComSmartPtr<IDXGIFactory2>                        dxgiFactory;
-    DynamicLibrary                                    dxgiDll;
+
+    //ComSmartPtr<IWICImagingFactory> wicFactory;
 
     ReferenceCountedArray<GraphicsAdapter> adapters;
 #endif
 };
-
-JUCE_IMPLEMENT_SINGLETON(DirectXFactories);
 
 //==============================================================================
 class WindowsDirectWriteTypeface  : public Typeface
@@ -588,7 +592,8 @@ public:
     float getUnitsToHeightScaleFactor() const noexcept      { return unitsToHeightScaleFactor; }
 
 private:
-    DirectXFactories* const factories = DirectXFactories::getInstance();
+    //DirectXFactories* const factories = DirectXFactories::getInstance();
+    SharedResourcePointer<DirectXFactories> factories;
     ComSmartPtr<IDWriteFontFace> dwFontFace;
     float unitsToHeightScaleFactor = 1.0f, heightToPointsFactor = 1.0f, ascent = 0;
     int designUnitsPerEm = 0;

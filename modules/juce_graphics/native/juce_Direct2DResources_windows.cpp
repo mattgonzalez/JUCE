@@ -79,29 +79,7 @@ public:
     }
 
     //
-    // This code...lacks elegance, shall we say.
-    //
-    // A better solution would be to integrate this with the VBlankDispatcher;
-    // VBlankDispatcher already has a list of DXGI adapters
-    //
-    // Also - creating all these resources takes quite a while. The worst offender seems to be 
-    // creating the Direct3D device. Ideally this class could cache the Direct3D device; they 
-    // can be associated with the DXGI adapter using the adapter's unique ID.
-    // 
-    // D3D11CreateDevice -> direct3DDevice
-    // direct3DDevice -> dxgiDevice
-    // dxgiDevice -> dxgiAdapter
-    // dxgiAdapter -> dxgiFactory
-    // dxgiDevice -> direct2DDevice
-    // direct2DDevice -> deviceContext
-    // 
-    // dxgiFactory -> dxgiAdapter
-    // Map window to adapter
-    // dxgiAdapter -> D3D11CreateDevice -> direct3DDevice
-    // direct3DDevice -> dxgiDevice
-    // dxgiDevice -> direct2DDevice
-    // direct2DDevice -> deviceContext
-    // 
+    // Create a Direct2D device context for a DXGI adapter
     //
     HRESULT create(DirectXFactories::GraphicsAdapter::Ptr adapter, double dpiScalingFactor)
     {
@@ -134,96 +112,11 @@ public:
 
         return hr;
     }
-#if 0
-
-    HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
-    {
-        HRESULT hr = S_OK;
-
-        if (direct2dFactory != nullptr)
-        {
-            if (deviceContext.context == nullptr)
-            {
-                // This flag adds support for surfaces with a different color channel ordering
-                // than the API default. It is required for compatibility with Direct2D.
-                UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-#if JUCE_DEBUG
-                creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-
-                hr = D3D11CreateDevice(nullptr,
-                                        D3D_DRIVER_TYPE_HARDWARE,
-                                        nullptr,
-                                        creationFlags,
-                                        nullptr,
-                                        0,
-                                        D3D11_SDK_VERSION,
-                                        direct3DDevice.resetAndGetPointerAddress(),
-                                        nullptr,
-                                        nullptr);
-                if (SUCCEEDED (hr))
-                {
-                    hr = direct3DDevice->QueryInterface (dxgiDevice.resetAndGetPointerAddress());
-                    if (SUCCEEDED (hr))
-                    {
-                        ComSmartPtr<IDXGIAdapter> dxgiAdapter;
-                        hr = dxgiDevice->GetAdapter (dxgiAdapter.resetAndGetPointerAddress());
-
-                        if (SUCCEEDED (hr))
-                        {
-                            hr = dxgiAdapter->GetParent (__uuidof (dxgiFactory),
-                                                         reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
-                            if (SUCCEEDED (hr))
-                            {
-                                ComSmartPtr<ID2D1Device1> direct2DDevice;
-                                hr = direct2dFactory->CreateDevice (
-                                    dxgiDevice,
-                                    direct2DDevice.resetAndGetPointerAddress());
-                                if (SUCCEEDED (hr))
-                                {
-                                    hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-                                                                              deviceContext.context.resetAndGetPointerAddress());
-                                    if (SUCCEEDED (hr))
-                                    {
-                                        deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-
-                                        TRACE_LOG_D2D_RESOURCE (etw::createDeviceResources);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                jassert (SUCCEEDED (hr));
-            }
-
-            if (deviceContext.context)
-            {
-                float dpi = (float) (USER_DEFAULT_SCREEN_DPI * dpiScalingFactor);
-                deviceContext.context->SetDpi (dpi, dpi);
-
-                if (colourBrush == nullptr)
-                {
-                    hr = deviceContext.context->CreateSolidColorBrush (D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
-                                                                       colourBrush.resetAndGetPointerAddress());
-                    jassertquiet (SUCCEEDED (hr));
-                }
-            }
-        }
-
-        return hr;
-    }
-#endif
 
     void release()
     {
         colourBrush = nullptr;
         deviceContext.release();
-#if 0
-        dxgiFactory    = nullptr;
-        dxgiDevice     = nullptr;
-        direct3DDevice = nullptr;
-#endif
     }
 
     bool canPaint()
@@ -231,11 +124,6 @@ public:
         return deviceContext.context != nullptr && colourBrush != nullptr;
     }
 
-#if 0
-    ComSmartPtr<ID3D11Device>         direct3DDevice;
-    ComSmartPtr<IDXGIFactory2>        dxgiFactory;
-    ComSmartPtr<IDXGIDevice>          dxgiDevice;
-#endif
     DeviceContext                     deviceContext;
     ComSmartPtr<ID2D1SolidColorBrush> colourBrush;
 };
@@ -255,12 +143,13 @@ public:
         release();
     }
 
-    //HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
     HRESULT create(HWND hwnd, Rectangle<int> size, DirectXFactories::GraphicsAdapter::Ptr adapter)
     {
         if (!chain && hwnd)
         {
-            auto dxgiFactory = DirectXFactories::getInstance()->getDXGIFactory();
+            SharedResourcePointer<DirectXFactories> factories;
+            auto dxgiFactory = factories->getDXGIFactory();
+
             if (dxgiFactory == nullptr || adapter->direct3DDevice == nullptr)
             {
                 return E_FAIL;

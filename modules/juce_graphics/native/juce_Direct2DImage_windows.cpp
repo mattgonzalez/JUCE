@@ -50,30 +50,90 @@ namespace juce
 class Direct2DPixelData : public ImagePixelData
 {
 public:
-    Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage)
-        : ImagePixelData (formatToUse, w, h),
-          pixelStride (formatToUse == Image::RGB ? 3 : ((formatToUse == Image::ARGB) ? 4 : 1)),
+    Direct2DPixelData (Image::PixelFormat /*formatToUse*/, int w, int h, bool clearImage)
+        : ImagePixelData (Image::ARGB, w, h),
+          pixelStride (4),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3)
     {
-        imageData.allocate ((size_t) lineStride * (size_t) jmax (1, h), clearImage);
     }
+
+    ~Direct2DPixelData() override {}
 
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
     {
         sendDataChangeMessage();
-        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this,
-                                                                       Point<int> {},
-                                                                       RectangleList<int> { { width, height } });
+        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this, Point<int> {}, RectangleList<int> { { width, height } });
     }
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
-        const auto offset  = (size_t) x * (size_t) pixelStride + (size_t) y * (size_t) lineStride;
-        bitmap.data        = imageData;
-        bitmap.size        = (size_t) (height * lineStride) - offset;
+#if 0
+        bitmap.size = 0;
+        bitmap.data = nullptr;
+
+        if (direct2dBitmap == nullptr)
+        {
+            return;
+        }
+
+        factories->getWicImagingFactory()->CreateBitmap (width,
+                                                         height,
+                                                         GUID_WICPixelFormat128bppPRGBAFloat,
+                                                         WICBitmapCacheOnDemand,
+                                                         wicBitmap.resetAndGetPointerAddress());
+        if (wicBitmap == nullptr)
+        {
+            return;
+        }
+
+        {
+            ComSmartPtr<ID2D1RenderTarget> wicRenderTarget;
+
+            D2D1_RENDER_TARGET_PROPERTIES renderTargetProperties {};
+            renderTargetProperties.type                  = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
+            renderTargetProperties.pixelFormat.format    = DXGI_FORMAT_UNKNOWN;
+            renderTargetProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_UNKNOWN;
+            renderTargetProperties.dpiX                  = USER_DEFAULT_SCREEN_DPI;
+            renderTargetProperties.dpiY                  = USER_DEFAULT_SCREEN_DPI;
+            factories->getDirect2DFactory()->CreateWicBitmapRenderTarget (wicBitmap,
+                                                                          renderTargetProperties,
+                                                                          wicRenderTarget.resetAndGetPointerAddress());
+            if (wicRenderTarget == nullptr)
+            {
+                return;
+            }
+
+            D2D1_RECT_F rect { 0, 0, (float) width, (float) height };
+            wicRenderTarget->SetTarget(
+            wicRenderTarget->DrawBitmap (direct2dBitmap, rect, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, rect);
+            auto hr = wicRenderTarget->EndDraw();
+            jassertquiet (SUCCEEDED (hr));
+        }
+
+        uint32 accessMode = WICBitmapLockRead;
+        if (mode == Image::BitmapData::readWrite)
+        {
+            accessMode |= WICBitmapLockWrite;
+        }
+
+        WICRect rect { x, y, width - x, height - y };
+        auto    hr = wicBitmap->Lock (&rect, accessMode, wicBitmapLock.resetAndGetPointerAddress());
+        jassertquiet (SUCCEEDED (hr));
+
+        uint32 bitmapLockDataSize = 0;
+        hr                        = wicBitmapLock->GetDataPointer (&bitmapLockDataSize, &bitmap.data);
+        jassertquiet (SUCCEEDED (hr));
+
+        uint32 wicLineStride = 0;
+        wicBitmapLock->GetStride (&wicLineStride);
+#endif
+
+        bitmap.size        = 0;
         bitmap.pixelFormat = pixelFormat;
-        bitmap.lineStride  = lineStride;
         bitmap.pixelStride = pixelStride;
+        bitmap.lineStride  = lineStride;
+
+        bitmap.dataReleaser = std::make_unique<Direct2DBitmapReleaser> (*this);
 
         if (mode != Image::BitmapData::readOnly) sendDataChangeMessage();
     }
@@ -92,13 +152,35 @@ public:
         return std::make_unique<NativeImageType>();
     }
 
+    class Direct2DBitmapReleaser : public Image::BitmapData::BitmapDataReleaser
+    {
+    public:
+        Direct2DBitmapReleaser (Direct2DPixelData& pixelData_)
+            : pixelData (pixelData_)
+        {
+        }
+
+        ~Direct2DBitmapReleaser() override
+        {
+        }
+
+    private:
+        Direct2DPixelData& pixelData;
+    };
+
     using Ptr = ReferenceCountedObjectPtr<Direct2DPixelData>;
 
-    const int pixelStride, lineStride;
-    ComSmartPtr<ID2D1Bitmap1> direct2dBitmap;
-
 private:
-    HeapBlock<uint8> imageData;
+    friend class Direct2DLowLevelGraphicsHwndContext;
+    friend struct Direct2DLowLevelGraphicsImageContext::Pimpl;
+
+     const int                   pixelStride, lineStride;
+//     ComSmartPtr<IWICBitmap>     wicBitmap;
+//     ComSmartPtr<IWICBitmapLock> wicBitmapLock;
+    ComSmartPtr<ID2D1Bitmap1>   direct2dBitmap;
+
+    // keep a reference to the DirectXFactories so the bitmap is freed before the DLLs
+    SharedResourcePointer<DirectXFactories> factories;
 
     JUCE_LEAK_DETECTOR (Direct2DPixelData)
 };
@@ -106,7 +188,7 @@ private:
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
     return new Direct2DPixelData { format, width, height, clearImage };
-} 
+}
 
 //==============================================================================
 //
@@ -116,7 +198,6 @@ ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int widt
 struct Direct2DLowLevelGraphicsImageContext::SavedState
 {
 private:
-
     //==============================================================================
     //
     // PushedLayer represents a Direct2D clipping or transparency layer
@@ -192,9 +273,7 @@ public:
     //
     // Constructor for first stack entry
     //
-    SavedState (Rectangle<int>                     frameSize_,
-                      ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_,
-                      direct2d::DeviceContext&           deviceContext_)
+    SavedState (Rectangle<int> frameSize_, ComSmartPtr<ID2D1SolidColorBrush>& colourBrush_, direct2d::DeviceContext& deviceContext_)
         : deviceContext (deviceContext_),
           clipRegion (frameSize_),
           colourBrush (colourBrush_)
@@ -251,9 +330,9 @@ public:
 
     void pushTransformedRectangleGeometryClipLayer (ComSmartPtr<ID2D1RectangleGeometry> geometry, AffineTransform const& transform)
     {
-        jassert(geometry != nullptr);
-        auto layerParameters = D2D1::LayerParameters(D2D1::InfiniteRect(), geometry);
-        layerParameters.maskTransform = direct2d::transformToMatrix(transform);
+        jassert (geometry != nullptr);
+        auto layerParameters          = D2D1::LayerParameters (D2D1::InfiniteRect(), geometry);
+        layerParameters.maskTransform = direct2d::transformToMatrix (transform);
         pushLayer (layerParameters);
     }
 
@@ -422,8 +501,8 @@ public:
             return isOnlyTranslated || (complexTransform.mat01 == 0.0f && complexTransform.mat11 == 0.0f);
         }
     } currentTransform;
-    direct2d::DeviceContext&                 deviceContext;
-    Rectangle<int>                           clipRegion;
+    direct2d::DeviceContext& deviceContext;
+    Rectangle<int>           clipRegion;
 
     Font font;
 
@@ -467,7 +546,7 @@ public:
         }
 
         SavedState const* const state;
-        bool                          resetTransform = false;
+        bool                    resetTransform = false;
     };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SavedState)
@@ -484,9 +563,9 @@ private:
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsImageContext::SavedState>> savedClientStates;
 
-    int                frameNumber = 0;
-    Direct2DPixelData::Ptr direct2DPixelData;
-    Point<int> const origin;
+    int                       frameNumber = 0;
+    Direct2DPixelData::Ptr    direct2DPixelData;
+    Point<int> const          origin;
     RectangleList<int> const& initialClip;
 
     HRESULT prepare()
@@ -495,27 +574,27 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (hr = deviceResources.create(DirectXFactories::getInstance()->getDefaultAdapter(), 1.0); FAILED (hr))
+            if (hr = deviceResources.create (factories->getDefaultAdapter(), 1.0); FAILED (hr))
             {
                 return hr;
             }
         }
 
-        if (!direct2DPixelData->direct2dBitmap)
+        if (! direct2DPixelData->direct2dBitmap)
         {
             D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
             bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_TARGET;
             bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
             bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
-            hr =
-                deviceResources.deviceContext.context->CreateBitmap (D2D1_SIZE_U { (uint32)direct2DPixelData->width, (uint32)direct2DPixelData->height },
-                                                                     nullptr,
-                                                                     direct2DPixelData->lineStride,
-                                                                     bitmapProperties,
-                                                                    direct2DPixelData->direct2dBitmap.resetAndGetPointerAddress());
+            hr                                       = deviceResources.deviceContext.context->CreateBitmap (
+                D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
+                nullptr,
+                direct2DPixelData->lineStride,
+                bitmapProperties,
+                direct2DPixelData->direct2dBitmap.resetAndGetPointerAddress());
         }
 
-        jassert(SUCCEEDED(hr));
+        jassert (SUCCEEDED (hr));
 
         return hr;
     }
@@ -528,14 +607,17 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DLowLevelGraphicsImageContext& owner_, Direct2DPixelData::Ptr direct2DPixelData_, Point<int> origin_, const RectangleList<int>& initialClip_)
+    Pimpl (Direct2DLowLevelGraphicsImageContext& owner_,
+           Direct2DPixelData::Ptr                direct2DPixelData_,
+           Point<int>                            origin_,
+           const RectangleList<int>&             initialClip_)
         : owner (owner_),
-        direct2DPixelData(direct2DPixelData_),
-        origin(origin_),
-        initialClip(initialClip_)
+          direct2DPixelData (direct2DPixelData_),
+          origin (origin_),
+          initialClip (initialClip_)
     {
-        D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
-        DirectXFactories::getInstance()->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
+        D2D1_RECT_F rect { 0.0f, 0.0f, 1.0f, 1.0f };
+        factories->getDirect2DFactory()->CreateRectangleGeometry (rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
 
         prepare();
     }
@@ -544,10 +626,12 @@ public:
     {
         popAllSavedStates();
 
+        direct2DPixelData = nullptr;
+
         teardown();
     }
 
-    SavedState* startFrame(RectangleList<int>& paintAreas)
+    SavedState* startFrame (RectangleList<int>& paintAreas)
     {
         prepare();
 
@@ -555,7 +639,7 @@ public:
         // Paint if:
         //      resources are allocated
         //
-        if (!deviceResources.canPaint())
+        if (! deviceResources.canPaint())
         {
             return nullptr;
         }
@@ -563,7 +647,7 @@ public:
         //
         // Always paint the whole image for now
         //
-        Rectangle<int> paintBounds{ direct2DPixelData->width, direct2DPixelData->height };
+        Rectangle<int> paintBounds { direct2DPixelData->width, direct2DPixelData->height };
         paintAreas = paintBounds;
 
         //
@@ -667,9 +751,10 @@ public:
         deviceResources.deviceContext.setTransform (transform);
     }
 
-    ComSmartPtr<ID2D1RectangleGeometry>      rectangleGeometryUnitSize;
-    direct2d::DirectWriteGlyphRun glyphRun;
-    D2D1_COLOR_F                  backgroundColor {};
+    SharedResourcePointer<DirectXFactories> factories;
+    ComSmartPtr<ID2D1RectangleGeometry>     rectangleGeometryUnitSize;
+    direct2d::DirectWriteGlyphRun           glyphRun;
+    D2D1_COLOR_F                            backgroundColor {};
 
 #if JUCE_DIRECT2D_METRICS
     int64 paintStartTicks = 0;
@@ -678,19 +763,23 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext(Direct2DPixelData::Ptr direct2DPixelData_)
-    : Direct2DLowLevelGraphicsImageContext(direct2DPixelData_, Point<int>{}, Rectangle<int>{ direct2DPixelData_->width, direct2DPixelData_->height })
+Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Direct2DPixelData::Ptr direct2DPixelData_)
+    : Direct2DLowLevelGraphicsImageContext (direct2DPixelData_,
+                                            Point<int> {},
+                                            Rectangle<int> { direct2DPixelData_->width, direct2DPixelData_->height })
 {
 }
 
-Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext(Direct2DPixelData::Ptr direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip)
+Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Direct2DPixelData::Ptr    direct2DPixelData_,
+                                                                            Point<int>                origin,
+                                                                            const RectangleList<int>& initialClip)
     : currentState (nullptr),
-    pimpl(new Pimpl{ *this, direct2DPixelData_, origin, initialClip })
+      pimpl (new Pimpl { *this, direct2DPixelData_, origin, initialClip })
 {
     startFrame();
 }
 
-Direct2DLowLevelGraphicsImageContext::~Direct2DLowLevelGraphicsImageContext() 
+Direct2DLowLevelGraphicsImageContext::~Direct2DLowLevelGraphicsImageContext()
 {
     endFrame();
 }
@@ -716,7 +805,7 @@ bool Direct2DLowLevelGraphicsImageContext::startFrame()
             }
             else
             {
-                currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
+                currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->factories->getDirect2DFactory(),
                                                                                        paintAreas,
                                                                                        AffineTransform {},
                                                                                        D2D1_FILL_MODE_WINDING));
@@ -767,8 +856,8 @@ bool Direct2DLowLevelGraphicsImageContext::clipToRectangle (const Rectangle<int>
     //
     // Transform the rectangle and update the current clip region
     //
-    auto currentTransform = currentState->currentTransform.getTransform();
-    auto transformedR     = r.transformedBy (currentTransform);
+    auto currentTransform    = currentState->currentTransform.getTransform();
+    auto transformedR        = r.transformedBy (currentTransform);
     currentState->clipRegion = currentState->clipRegion.getIntersection (transformedR);
 
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -790,9 +879,9 @@ bool Direct2DLowLevelGraphicsImageContext::clipToRectangle (const Rectangle<int>
             // created by the pimpl. rectangleGeometryUnitSize is a 1x1 rectangle at the origin,
             // so pass a transform that scales, translates, and then applies the world transform.
             //
-            auto transform = AffineTransform::scale(static_cast<float>(r.getWidth()), static_cast<float>(r.getHeight()))
-                .translated(r.toFloat().getTopLeft())
-                .followedBy(currentState->currentTransform.getTransform());
+            auto transform = AffineTransform::scale (static_cast<float> (r.getWidth()), static_cast<float> (r.getHeight()))
+                                 .translated (r.toFloat().getTopLeft())
+                                 .followedBy (currentState->currentTransform.getTransform());
 
             currentState->pushTransformedRectangleGeometryClipLayer (pimpl->rectangleGeometryUnitSize, transform);
         }
@@ -822,7 +911,7 @@ bool Direct2DLowLevelGraphicsImageContext::clipToRectangleList (const RectangleL
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->factories->getDirect2DFactory(),
                                                                                clipRegion,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_WINDING));
@@ -848,7 +937,7 @@ void Direct2DLowLevelGraphicsImageContext::excludeClipRectangle (const Rectangle
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->factories->getDirect2DFactory(),
                                                                                rectangles,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_ALTERNATE));
@@ -861,7 +950,7 @@ void Direct2DLowLevelGraphicsImageContext::clipToPath (const Path& path, const A
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::pathToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::pathToPathGeometry (pimpl->factories->getDirect2DFactory(),
                                                                            path,
                                                                            currentState->currentTransform.getTransformWith (transform)));
     }
@@ -1068,7 +1157,7 @@ void Direct2DLowLevelGraphicsImageContext::fillPath (const Path& p, const Affine
             return;
         }
 
-        if (auto geometry = direct2d::pathToPathGeometry (DirectXFactories::getInstance()->getDirect2DFactory(), p, transform))
+        if (auto geometry = direct2d::pathToPathGeometry (pimpl->factories->getDirect2DFactory(), p, transform))
         {
             updateDeviceContextTransform();
             deviceContext->FillGeometry (geometry, currentState->currentBrush);
@@ -1087,7 +1176,7 @@ bool Direct2DLowLevelGraphicsImageContext::drawPath (const Path& p, const PathSt
             return true;
         }
 
-        if (auto factory = DirectXFactories::getInstance()->getDirect2DFactory())
+        if (auto factory = pimpl->factories->getDirect2DFactory())
         {
             if (auto geometry = direct2d::pathToPathGeometry (factory, p, transform))
             {
@@ -1237,8 +1326,8 @@ bool Direct2DLowLevelGraphicsImageContext::drawTextLayout (const AttributedStrin
     }
 
     auto deviceContext      = pimpl->getDeviceContext();
-    auto directWriteFactory = DirectXFactories::getInstance()->getDirectWriteFactory();
-    auto fontCollection     = DirectXFactories::getInstance()->getSystemFonts();
+    auto directWriteFactory = pimpl->factories->getDirectWriteFactory();
+    auto fontCollection     = pimpl->factories->getSystemFonts();
 
     if (deviceContext && directWriteFactory && fontCollection)
     {
@@ -1338,10 +1427,10 @@ bool Direct2DLowLevelGraphicsImageContext::fillEllipse (Rectangle<float> area)
 }
 
 void Direct2DLowLevelGraphicsImageContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs,
-                                                    int                           startIndex,
-                                                    int                           numGlyphs,
-                                                    const AffineTransform&        transform,
-                                                    Rectangle<float>              underlineArea)
+                                                         int                           startIndex,
+                                                         int                           numGlyphs,
+                                                         const AffineTransform&        transform,
+                                                         Rectangle<float>              underlineArea)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawGlyphRun);
 
@@ -1359,9 +1448,9 @@ void Direct2DLowLevelGraphicsImageContext::drawGlyphRun (Array<PositionedGlyph> 
         //
         pimpl->glyphRun.ensureStorageAllocated (numGlyphs);
 
-        auto const& font = glyphs[startIndex].getFont();
-        auto fontHorizontalScale = font.getHorizontalScale();
-        auto inverseHScale       = fontHorizontalScale > 0.0f ? 1.0f / fontHorizontalScale : 1.0f;
+        auto const& font                = glyphs[startIndex].getFont();
+        auto        fontHorizontalScale = font.getHorizontalScale();
+        auto        inverseHScale       = fontHorizontalScale > 0.0f ? 1.0f / fontHorizontalScale : 1.0f;
 
         auto indices = pimpl->glyphRun.glyphIndices.getData();
         auto offsets = pimpl->glyphRun.glyphOffsets.getData();
@@ -1378,7 +1467,7 @@ void Direct2DLowLevelGraphicsImageContext::drawGlyphRun (Array<PositionedGlyph> 
                     -glyph.getBaselineY()
                 }; // note the essential minus sign before the baselineY value; negative offset goes down, positive goes up (opposite from JUCE)
                 jassert (pimpl->glyphRun.glyphAdvances[numGlyphsToDraw] == 0.0f);
-                jassert(glyph.getFont() == font);
+                jassert (glyph.getFont() == font);
                 ++numGlyphsToDraw;
             }
         }
@@ -1387,7 +1476,10 @@ void Direct2DLowLevelGraphicsImageContext::drawGlyphRun (Array<PositionedGlyph> 
     }
 }
 
-void Direct2DLowLevelGraphicsImageContext::drawGlyphCommon(int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea)
+void Direct2DLowLevelGraphicsImageContext::drawGlyphCommon (int                    numGlyphs,
+                                                            Font const&            font,
+                                                            const AffineTransform& transform,
+                                                            Rectangle<float>       underlineArea)
 {
     auto deviceContext = pimpl->getDeviceContext();
     if (! deviceContext)
@@ -1395,7 +1487,7 @@ void Direct2DLowLevelGraphicsImageContext::drawGlyphCommon(int numGlyphs, Font c
         return;
     }
 
-    auto dwriteFontFace = direct2d::DirectWriteFontFace::fromFont(font);
+    auto dwriteFontFace = direct2d::DirectWriteFontFace::fromFont (font);
     if (dwriteFontFace.fontFace == nullptr)
     {
         return;

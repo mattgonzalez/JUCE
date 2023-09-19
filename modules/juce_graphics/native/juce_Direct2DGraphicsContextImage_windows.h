@@ -141,6 +141,8 @@ public:
 
     //==============================================================================
 private:
+    friend class Direct2DPixelData;
+
     struct SavedState;
     SavedState* currentState = nullptr;
 

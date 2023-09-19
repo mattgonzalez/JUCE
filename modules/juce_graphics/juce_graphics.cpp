@@ -75,7 +75,7 @@
   #include <evntrace.h>
   #include <TraceLoggingProvider.h>
 #endif
-  
+
  #endif
 
  #if JUCE_MINGW

@@ -87,13 +87,16 @@ public:
                 D2D1_POINT_2U destPoint { 0, 0 };
                 D2D1_RECT_U   sourceRect { (uint32)x, (uint32)y, (uint32) (width - x), (uint32) (height - y) };
 
+                //
+                // Copy from the painted target bitmap to the mappable bitmap
+                //
                 if (auto hr = mappableBitmap->CopyFromBitmap (&destPoint, targetBitmap, &sourceRect); FAILED(hr))
                 {
                     return;
                 }
 
                 //
-                // ID2D1Bitmap::Map will populate D2D1_MAPPED_RECT
+                // Map the mappable bitmap to CPU memory; ID2D1Bitmap::Map will allocate memory and populate mappedRect
                 //
                 mappedRect = {};
                 if (auto hr = mappableBitmap->Map (D2D1_MAP_OPTIONS_READ, &mappedRect); FAILED (hr))
@@ -137,7 +140,7 @@ public:
         {
             if (pixelData.mappedRect.bits && pixelData.mappableBitmap)
             {
-                if (pixelData.targetBitmap && mode == Image::BitmapData::readWrite)
+                if (pixelData.targetBitmap && mode != Image::BitmapData::readOnly)
                 {
                     D2D1_RECT_U   rect { 0, 0, (uint32) pixelData.width, (uint32) pixelData.height };
 

@@ -50,13 +50,12 @@ namespace juce
 class Direct2DPixelData : public ImagePixelData
 {
 public:
-    Direct2DPixelData (Image::PixelFormat /*formatToUse*/, int w, int h, bool clearImage)
-        : ImagePixelData (Image::ARGB, w, h),
+    Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage)
+        : ImagePixelData ((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB, w, h),
           pixelStride (4),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3),
         imageDataSize((size_t)lineStride* (size_t)jmax(1, h))
     {
-        imageData.allocate (imageDataSize, clearImage);
     }
 
     ~Direct2DPixelData() override {}
@@ -69,26 +68,45 @@ public:
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
-        if (mappableBitmap)
-        {
-            imageData.clear(imageDataSize);
-
-            D2D1_MAPPED_RECT mappedRect;
-            mappedRect.pitch = lineStride;
-            mappedRect.bits = imageData.getData();
-            auto hr = mappableBitmap->Map(D2D1_MAP_OPTIONS_READ, &mappedRect);
-            D2D1_PIXEL_FORMAT mapFormat = mappableBitmap->GetPixelFormat();
-            
-            DBG("hr " << hr);
-        }
-
         bitmap.size        = imageDataSize;
-        bitmap.data        = imageData.getData();
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
-        bitmap.lineStride  = lineStride;
+        bitmap.data = nullptr;
 
-        bitmap.dataReleaser = std::make_unique<Direct2DBitmapReleaser> (*this);
+        if (mappedRect.bits == nullptr)
+        {
+            if (!targetBitmap)
+            {
+                createLowLevelContext();
+            }
+
+            jassert(mappableBitmap);
+
+            if (mappableBitmap)
+            {
+                D2D1_POINT_2U destPoint { 0, 0 };
+                D2D1_RECT_U   sourceRect { (uint32)x, (uint32)y, (uint32) (width - x), (uint32) (height - y) };
+
+                if (auto hr = mappableBitmap->CopyFromBitmap (&destPoint, targetBitmap, &sourceRect); FAILED(hr))
+                {
+                    return;
+                }
+
+                //
+                // ID2D1Bitmap::Map will populate D2D1_MAPPED_RECT
+                //
+                mappedRect = {};
+                if (auto hr = mappableBitmap->Map (D2D1_MAP_OPTIONS_READ, &mappedRect); FAILED (hr))
+                {
+                    return;
+                }
+            }
+        }
+
+        bitmap.lineStride = mappedRect.pitch;
+        bitmap.data       = mappedRect.bits;
+
+        bitmap.dataReleaser = std::make_unique<Direct2DBitmapReleaser> (*this, mode);
 
         if (mode != Image::BitmapData::readOnly) sendDataChangeMessage();
     }
@@ -110,17 +128,31 @@ public:
     class Direct2DBitmapReleaser : public Image::BitmapData::BitmapDataReleaser
     {
     public:
-        Direct2DBitmapReleaser (Direct2DPixelData& pixelData_)
-            : pixelData (pixelData_)
+        Direct2DBitmapReleaser (Direct2DPixelData& pixelData_, Image::BitmapData::ReadWriteMode mode_)
+            : pixelData (pixelData_), mode(mode_)
         {
         }
 
         ~Direct2DBitmapReleaser() override
         {
+            if (pixelData.mappedRect.bits && pixelData.mappableBitmap)
+            {
+                if (pixelData.targetBitmap && mode == Image::BitmapData::readWrite)
+                {
+                    D2D1_RECT_U   rect { 0, 0, (uint32) pixelData.width, (uint32) pixelData.height };
+
+                    pixelData.targetBitmap->CopyFromMemory(&rect, pixelData.mappedRect.bits, pixelData.mappedRect.pitch);
+                }
+
+                pixelData.mappableBitmap->Unmap();
+            }
+
+            pixelData.mappedRect = {};
         }
 
     private:
         Direct2DPixelData& pixelData;
+        Image::BitmapData::ReadWriteMode mode;
     };
 
     using Ptr = ReferenceCountedObjectPtr<Direct2DPixelData>;
@@ -131,9 +163,9 @@ private:
 
     const int        pixelStride, lineStride;
     size_t const imageDataSize;
-    HeapBlock<uint8> imageData;
     ComSmartPtr<ID2D1Bitmap1>   targetBitmap;
     ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
+    D2D1_MAPPED_RECT mappedRect {};
 
     // keep a reference to the DirectXFactories so the bitmap is freed before the DLLs
     SharedResourcePointer<DirectXFactories> factories;
@@ -536,12 +568,13 @@ private:
             }
         }
 
+        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+        bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        bitmapProperties.pixelFormat.format = (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+
         if (! direct2DPixelData->targetBitmap)
         {
-            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-            bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_TARGET;
-            bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
-            bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
+            bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
             hr                                       = deviceResources.deviceContext.context->CreateBitmap (
                 D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
                 nullptr,
@@ -554,12 +587,7 @@ private:
 
         if (! direct2DPixelData->mappableBitmap)
         {
-            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
             bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-            //bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-
-            bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
-            bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
             hr                                       = deviceResources.deviceContext.context->CreateBitmap (
                 D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
                 nullptr,
@@ -657,15 +685,6 @@ public:
         //
         auto hr = deviceResources.deviceContext.context->EndDraw();
         deviceResources.deviceContext.context->SetTarget (nullptr);
-
-        {
-            D2D1_POINT_2U destPoint { 0, 0 };
-            D2D1_RECT_U   sourceRect { 0, 0, (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height };
-
-            hr = direct2DPixelData->mappableBitmap->CopyFromBitmap (&destPoint, direct2DPixelData->targetBitmap, &sourceRect);
-        }
-
-
 
         jassert (SUCCEEDED (hr));
 

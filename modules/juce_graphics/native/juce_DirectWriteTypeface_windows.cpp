@@ -344,28 +344,17 @@ public:
         jassert(MessageManager::getInstance()->isThisTheMessageThread());
         return customFontCollectionLoaders;
     }
-#endif
 
-    ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
+    GraphicsAdapter::Ptr const getAdapterForHwnd (HWND hwnd) const
     {
-        return directWriteRenderTarget;
-    }
-
-    ID2D1Factory2* const getDirect2DFactory() const
-    {
-        return d2dSharedFactory;
-    }
-
-    GraphicsAdapter::Ptr const getAdapterForHwnd(HWND hwnd) const
-    {
-        if (auto monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL))
+        if (auto monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONULL))
         {
             for (auto& adapter : adapters)
             {
                 for (auto output : adapter->outputs)
                 {
                     DXGI_OUTPUT_DESC desc;
-                    if (auto hr = output.dxgiOutput->GetDesc(&desc); SUCCEEDED(hr))
+                    if (auto hr = output.dxgiOutput->GetDesc (&desc); SUCCEEDED (hr))
                     {
                         if (desc.Monitor == monitor)
                         {
@@ -383,6 +372,18 @@ public:
     {
         return adapters.getFirst();
     }
+#endif
+
+    ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
+    {
+        return directWriteRenderTarget;
+    }
+
+    ID2D1Factory2* const getDirect2DFactory() const
+    {
+        return d2dSharedFactory;
+    }
+
 
 private:
     ComSmartPtr<ID2D1Factory2> d2dSharedFactory;

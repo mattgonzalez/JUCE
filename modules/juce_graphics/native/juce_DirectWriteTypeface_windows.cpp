@@ -241,11 +241,6 @@ public:
                 }
             }
         }
-
-//         {
-//             auto hr = wicFactory.CoCreateInstance(CLSID_WICImagingFactory);
-//             jassertquiet(SUCCEEDED(hr));
-//         }
 #endif
 
         JUCE_END_IGNORE_WARNINGS_GCC_LIKE
@@ -349,11 +344,6 @@ public:
         jassert(MessageManager::getInstance()->isThisTheMessageThread());
         return customFontCollectionLoaders;
     }
-
-//     IWICImagingFactory* const getWicImagingFactory() const
-//     {
-//         return wicFactory;
-//     }
 #endif
 
     ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
@@ -406,8 +396,6 @@ private:
     DynamicLibrary                                    dxgiDll;
     OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
     ComSmartPtr<IDXGIFactory2>                        dxgiFactory;
-
-    //ComSmartPtr<IWICImagingFactory> wicFactory;
 
     ReferenceCountedArray<GraphicsAdapter> adapters;
 #endif

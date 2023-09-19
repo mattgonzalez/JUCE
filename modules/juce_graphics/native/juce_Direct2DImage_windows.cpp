@@ -69,68 +69,6 @@ public:
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
-#if 0
-        bitmap.size = 0;
-        bitmap.data = nullptr;
-
-        if (direct2dBitmap == nullptr)
-        {
-            return;
-        }
-
-        factories->getWicImagingFactory()->CreateBitmap (width,
-                                                         height,
-                                                         GUID_WICPixelFormat128bppPRGBAFloat,
-                                                         WICBitmapCacheOnDemand,
-                                                         wicBitmap.resetAndGetPointerAddress());
-        if (wicBitmap == nullptr)
-        {
-            return;
-        }
-
-        {
-            ComSmartPtr<ID2D1RenderTarget> wicRenderTarget;
-
-            D2D1_RENDER_TARGET_PROPERTIES renderTargetProperties {};
-            renderTargetProperties.type                  = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
-            renderTargetProperties.pixelFormat.format    = DXGI_FORMAT_UNKNOWN;
-            renderTargetProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_UNKNOWN;
-            renderTargetProperties.dpiX                  = USER_DEFAULT_SCREEN_DPI;
-            renderTargetProperties.dpiY                  = USER_DEFAULT_SCREEN_DPI;
-            factories->getDirect2DFactory()->CreateWicBitmapRenderTarget (wicBitmap,
-                                                                          renderTargetProperties,
-                                                                          wicRenderTarget.resetAndGetPointerAddress());
-            if (wicRenderTarget == nullptr)
-            {
-                return;
-            }
-
-            D2D1_RECT_F rect { 0, 0, (float) width, (float) height };
-            wicRenderTarget->SetTarget(
-            wicRenderTarget->DrawBitmap (direct2dBitmap, rect, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, rect);
-            auto hr = wicRenderTarget->EndDraw();
-            jassertquiet (SUCCEEDED (hr));
-        }
-
-        uint32 accessMode = WICBitmapLockRead;
-        if (mode == Image::BitmapData::readWrite)
-        {
-            accessMode |= WICBitmapLockWrite;
-        }
-
-        WICRect rect { x, y, width - x, height - y };
-        auto    hr = wicBitmap->Lock (&rect, accessMode, wicBitmapLock.resetAndGetPointerAddress());
-        jassertquiet (SUCCEEDED (hr));
-
-        uint32 bitmapLockDataSize = 0;
-        hr                        = wicBitmapLock->GetDataPointer (&bitmapLockDataSize, &bitmap.data);
-        jassertquiet (SUCCEEDED (hr));
-
-        uint32 wicLineStride = 0;
-        wicBitmapLock->GetStride (&wicLineStride);
-#endif
-
-#if 1
         if (mappableBitmap)
         {
             imageData.clear(imageDataSize);
@@ -143,7 +81,6 @@ public:
             
             DBG("hr " << hr);
         }
-#endif
 
         bitmap.size        = imageDataSize;
         bitmap.data        = imageData.getData();
@@ -195,8 +132,6 @@ private:
     const int        pixelStride, lineStride;
     size_t const imageDataSize;
     HeapBlock<uint8> imageData;
-//     ComSmartPtr<IWICBitmap>     wicBitmap;
-//     ComSmartPtr<IWICBitmapLock> wicBitmapLock;
     ComSmartPtr<ID2D1Bitmap1>   targetBitmap;
     ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
 

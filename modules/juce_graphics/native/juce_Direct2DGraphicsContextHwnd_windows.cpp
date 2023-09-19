@@ -1275,29 +1275,44 @@ void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const Af
 
 void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
 {
+    HRESULT hr = S_OK;
+
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToImageAlpha);
 
     if (auto deviceContext = pimpl->getDeviceContext())
     {
         //
-        // Convert sourceImage to single-channel alpha-only maskImage
+        // Is this a Direct2D image already?
         //
-        auto const        maskImage = sourceImage.convertedToFormat (Image::SingleChannel);
-        Image::BitmapData bitmapData { maskImage, Image::BitmapData::readOnly };
+        ComSmartPtr<ID2D1Bitmap> sourceBitmap;
 
-        auto bitmapProperties                  = D2D1::BitmapProperties();
-        bitmapProperties.pixelFormat.format    = DXGI_FORMAT_A8_UNORM;
-        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (sourceImage.getPixelData()))
+        {
+            sourceBitmap = direct2DPixelData->targetBitmap;
+        }
+        else
+        {
+            //
+            // Convert sourceImage to single-channel alpha-only maskImage
+            //
+            auto const        maskImage = sourceImage.convertedToFormat (Image::SingleChannel);
+            Image::BitmapData bitmapData { maskImage, Image::BitmapData::readOnly };
 
-        //
-        // Convert maskImage to a Direct2D bitmap
-        //
-        ComSmartPtr<ID2D1Bitmap> bitmap;
-        auto hr = deviceContext->CreateBitmap (D2D1_SIZE_U { (UINT32) maskImage.getWidth(), (UINT32) maskImage.getHeight() },
-                                               bitmapData.data,
-                                               bitmapData.lineStride,
-                                               bitmapProperties,
-                                               bitmap.resetAndGetPointerAddress());
+            auto bitmapProperties                  = D2D1::BitmapProperties();
+            bitmapProperties.pixelFormat.format    = DXGI_FORMAT_A8_UNORM;
+            bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+
+            //
+            // Convert maskImage to a Direct2D bitmap
+            //
+            hr = deviceContext->CreateBitmap (D2D1_SIZE_U { (UINT32) maskImage.getWidth(), (UINT32) maskImage.getHeight() },
+                                                   bitmapData.data,
+                                                   bitmapData.lineStride,
+                                                   bitmapProperties,
+                                                   sourceBitmap.resetAndGetPointerAddress());
+        }
+
+
         if (SUCCEEDED (hr))
         {
             //
@@ -1311,7 +1326,7 @@ void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceI
             D2D1_BRUSH_PROPERTIES         brushProps     = { 1.0f, matrix };
 
             auto bitmapBrushProps = D2D1::BitmapBrushProperties (D2D1_EXTEND_MODE_CLAMP, D2D1_EXTEND_MODE_CLAMP);
-            hr = deviceContext->CreateBitmapBrush (bitmap, bitmapBrushProps, brushProps, brush.resetAndGetPointerAddress());
+            hr = deviceContext->CreateBitmapBrush (sourceBitmap, bitmapBrushProps, brushProps, brush.resetAndGetPointerAddress());
             if (SUCCEEDED (hr))
             {
                 //
@@ -1321,7 +1336,7 @@ void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceI
                 // Do set the contentBounds member, transformed appropriately
                 //
                 auto layerParams          = D2D1::LayerParameters();
-                auto transformedBounds    = maskImage.getBounds().toFloat().transformedBy (brushTransform);
+                auto transformedBounds    = sourceImage.getBounds().toFloat().transformedBy (brushTransform);
                 layerParams.contentBounds = direct2d::rectangleToRectF (transformedBounds);
                 layerParams.opacityBrush  = brush;
 
@@ -1568,12 +1583,18 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
     {
         updateDeviceContextTransform (transform);
 
+        //
+        // Is this a Direct2D image already?
+        //
         if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*>(image.getPixelData()))
         {
             deviceContext->DrawBitmap(direct2DPixelData->targetBitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
             return;
         }
 
+        //
+        // Convert to Direct2D image
+        //
         auto              argbImage = image.convertedToFormat (Image::ARGB);
         Image::BitmapData bitmapData { argbImage, Image::BitmapData::readOnly };
 

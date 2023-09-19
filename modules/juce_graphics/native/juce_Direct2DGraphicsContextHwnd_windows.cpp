@@ -1570,7 +1570,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
 
         if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*>(image.getPixelData()))
         {
-            deviceContext->DrawBitmap(direct2DPixelData->direct2dBitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
+            deviceContext->DrawBitmap(direct2DPixelData->targetBitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
             return;
         }
 

@@ -53,8 +53,10 @@ public:
     Direct2DPixelData (Image::PixelFormat /*formatToUse*/, int w, int h, bool clearImage)
         : ImagePixelData (Image::ARGB, w, h),
           pixelStride (4),
-          lineStride ((pixelStride * jmax (1, w) + 3) & ~3)
+          lineStride ((pixelStride * jmax (1, w) + 3) & ~3),
+        imageDataSize((size_t)lineStride* (size_t)jmax(1, h))
     {
+        imageData.allocate (imageDataSize, clearImage);
     }
 
     ~Direct2DPixelData() override {}
@@ -128,6 +130,21 @@ public:
         wicBitmapLock->GetStride (&wicLineStride);
 #endif
 
+#if 1
+        if (mappableBitmap)
+        {
+            imageData.clear(imageDataSize);
+
+            D2D1_MAPPED_RECT mappedRect;
+            mappedRect.pitch = lineStride;
+            mappedRect.bits = imageData.getData();
+            auto hr = mappableBitmap->Map(D2D1_MAP_OPTIONS_READ, &mappedRect);
+            D2D1_PIXEL_FORMAT mapFormat = mappableBitmap->GetPixelFormat();
+            
+            DBG("hr " << hr);
+        }
+#endif
+
         bitmap.size        = 0;
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
@@ -174,10 +191,13 @@ private:
     friend class Direct2DLowLevelGraphicsHwndContext;
     friend struct Direct2DLowLevelGraphicsImageContext::Pimpl;
 
-     const int                   pixelStride, lineStride;
+    const int        pixelStride, lineStride;
+    size_t const imageDataSize;
+    HeapBlock<uint8> imageData;
 //     ComSmartPtr<IWICBitmap>     wicBitmap;
 //     ComSmartPtr<IWICBitmapLock> wicBitmapLock;
-    ComSmartPtr<ID2D1Bitmap1>   direct2dBitmap;
+    ComSmartPtr<ID2D1Bitmap1>   targetBitmap;
+    ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
 
     // keep a reference to the DirectXFactories so the bitmap is freed before the DLLs
     SharedResourcePointer<DirectXFactories> factories;
@@ -580,7 +600,7 @@ private:
             }
         }
 
-        if (! direct2DPixelData->direct2dBitmap)
+        if (! direct2DPixelData->targetBitmap)
         {
             D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
             bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_TARGET;
@@ -591,7 +611,25 @@ private:
                 nullptr,
                 direct2DPixelData->lineStride,
                 bitmapProperties,
-                direct2DPixelData->direct2dBitmap.resetAndGetPointerAddress());
+                direct2DPixelData->targetBitmap.resetAndGetPointerAddress());
+
+            direct2DPixelData->mappableBitmap = nullptr;
+        }
+
+        if (! direct2DPixelData->mappableBitmap)
+        {
+            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+            bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+            //bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+
+            bitmapProperties.pixelFormat.format      = DXGI_FORMAT_B8G8R8A8_UNORM;
+            bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
+            hr                                       = deviceResources.deviceContext.context->CreateBitmap (
+                D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
+                nullptr,
+                direct2DPixelData->lineStride,
+                bitmapProperties,
+                direct2DPixelData->mappableBitmap.resetAndGetPointerAddress());
         }
 
         jassert (SUCCEEDED (hr));
@@ -663,7 +701,7 @@ public:
         //
         // Start drawing
         //
-        deviceResources.deviceContext.context->SetTarget (direct2DPixelData->direct2dBitmap);
+        deviceResources.deviceContext.context->SetTarget (direct2DPixelData->targetBitmap);
         deviceResources.deviceContext.context->BeginDraw();
 
         return firstSavedState;
@@ -683,6 +721,15 @@ public:
         //
         auto hr = deviceResources.deviceContext.context->EndDraw();
         deviceResources.deviceContext.context->SetTarget (nullptr);
+
+        {
+            D2D1_POINT_2U destPoint { 0, 0 };
+            D2D1_RECT_U   sourceRect { 0, 0, (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height };
+
+            hr = direct2DPixelData->mappableBitmap->CopyFromBitmap (&destPoint, direct2DPixelData->targetBitmap, &sourceRect);
+        }
+
+
 
         jassert (SUCCEEDED (hr));
 

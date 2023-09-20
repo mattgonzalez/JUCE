@@ -86,7 +86,7 @@ namespace juce
 // Saved state struct to handle saveState() and restoreState()
 //
 
-struct Direct2DLowLevelGraphicsHwndContext::SavedState
+struct Direct2DHwndContext::SavedState
 {
 private:
     //==============================================================================
@@ -445,10 +445,10 @@ public:
 
 //==============================================================================
 
-struct Direct2DLowLevelGraphicsHwndContext::Pimpl
+struct Direct2DHwndContext::Pimpl
 {
 private:
-    Direct2DLowLevelGraphicsHwndContext&    owner;
+    Direct2DHwndContext&    owner;
     SharedResourcePointer<DirectXFactories> factories;
     double                                  dpiScalingFactor              = 1.0;
     double                                  snappedDpiScalingFactor       = 1.0;
@@ -463,7 +463,7 @@ private:
     direct2d::UpdateRegion                 updateRegion;
     bool                                   swapChainReady = false;
 
-    std::stack<std::unique_ptr<Direct2DLowLevelGraphicsHwndContext::SavedState>> savedClientStates;
+    std::stack<std::unique_ptr<Direct2DHwndContext::SavedState>> savedClientStates;
 
     int                frameNumber = 0;
     RectangleList<int> deferredRepaints;
@@ -527,7 +527,7 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DLowLevelGraphicsHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
+    Pimpl (Direct2DHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
           adapter (factories->getAdapterForHwnd (hwnd_)),
           hwnd (hwnd_),
@@ -955,50 +955,50 @@ public:
 };
 
 //==============================================================================
-Direct2DLowLevelGraphicsHwndContext::Direct2DLowLevelGraphicsHwndContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
+Direct2DHwndContext::Direct2DHwndContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
     : currentState (nullptr),
       pimpl (new Pimpl { *this, hwnd_, dpiScalingFactor_, opaque })
 {
 }
 
-Direct2DLowLevelGraphicsHwndContext::~Direct2DLowLevelGraphicsHwndContext() {}
+Direct2DHwndContext::~Direct2DHwndContext() {}
 
-void Direct2DLowLevelGraphicsHwndContext::handleShowWindow()
+void Direct2DHwndContext::handleShowWindow()
 {
     pimpl->handleShowWindow();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setWindowAlpha (float alpha)
+void Direct2DHwndContext::setWindowAlpha (float alpha)
 {
     pimpl->setWindowAlpha (alpha);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::resize()
+void Direct2DHwndContext::resize()
 {
     pimpl->resize();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::resize (int width, int height)
+void Direct2DHwndContext::resize (int width, int height)
 {
     pimpl->resize ({ width, height });
 }
 
-void Direct2DLowLevelGraphicsHwndContext::restoreWindow()
+void Direct2DHwndContext::restoreWindow()
 {
     pimpl->restoreWindow();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::addDeferredRepaint (Rectangle<int> deferredRepaint)
+void Direct2DHwndContext::addDeferredRepaint (Rectangle<int> deferredRepaint)
 {
     pimpl->addDeferredRepaint (deferredRepaint);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::addInvalidWindowRegionToDeferredRepaints()
+void Direct2DHwndContext::addInvalidWindowRegionToDeferredRepaints()
 {
     pimpl->addInvalidWindowRegionToDeferredRepaints();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::startFrame()
+bool Direct2DHwndContext::startFrame()
 {
     TRACE_LOG_D2D_START_FRAME;
 
@@ -1048,7 +1048,7 @@ bool Direct2DLowLevelGraphicsHwndContext::startFrame()
     return false;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::endFrame()
+void Direct2DHwndContext::endFrame()
 {
     pimpl->popAllSavedStates();
     currentState = nullptr;
@@ -1056,24 +1056,24 @@ void Direct2DLowLevelGraphicsHwndContext::endFrame()
     pimpl->finishFrame();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setOrigin (Point<int> o)
+void Direct2DHwndContext::setOrigin (Point<int> o)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setOrigin);
     currentState->currentTransform.setOrigin (o);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::addTransform (const AffineTransform& transform)
+void Direct2DHwndContext::addTransform (const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::addTransform);
     currentState->currentTransform.addTransform (transform);
 }
 
-float Direct2DLowLevelGraphicsHwndContext::getPhysicalPixelScaleFactor()
+float Direct2DHwndContext::getPhysicalPixelScaleFactor()
 {
     return currentState->currentTransform.getPhysicalPixelScaleFactor();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipToRectangle (const Rectangle<int>& r)
+bool Direct2DHwndContext::clipToRectangle (const Rectangle<int>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToRectangle);
 
@@ -1114,7 +1114,7 @@ bool Direct2DLowLevelGraphicsHwndContext::clipToRectangle (const Rectangle<int>&
     return ! isClipEmpty();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipToRectangleList (const RectangleList<int>& clipRegion)
+bool Direct2DHwndContext::clipToRectangleList (const RectangleList<int>& clipRegion)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToRectangleList);
 
@@ -1144,7 +1144,7 @@ bool Direct2DLowLevelGraphicsHwndContext::clipToRectangleList (const RectangleLi
     return ! isClipEmpty();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<int>& r)
+void Direct2DHwndContext::excludeClipRectangle (const Rectangle<int>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::excludeClipRectangle);
 
@@ -1168,7 +1168,7 @@ void Direct2DLowLevelGraphicsHwndContext::excludeClipRectangle (const Rectangle<
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const AffineTransform& transform)
+void Direct2DHwndContext::clipToPath (const Path& path, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToPath);
 
@@ -1179,7 +1179,7 @@ void Direct2DLowLevelGraphicsHwndContext::clipToPath (const Path& path, const Af
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
+void Direct2DHwndContext::clipToImageAlpha (const Image& sourceImage, const AffineTransform& transform)
 {
     HRESULT hr = S_OK;
 
@@ -1251,29 +1251,29 @@ void Direct2DLowLevelGraphicsHwndContext::clipToImageAlpha (const Image& sourceI
     }
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::clipRegionIntersects (const Rectangle<int>& r)
+bool Direct2DHwndContext::clipRegionIntersects (const Rectangle<int>& r)
 {
     return getClipBounds().intersects (r);
 }
 
-Rectangle<int> Direct2DLowLevelGraphicsHwndContext::getClipBounds() const
+Rectangle<int> Direct2DHwndContext::getClipBounds() const
 {
     return currentState->currentTransform.deviceSpaceToUserSpace (currentState->clipRegion);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::isClipEmpty() const
+bool Direct2DHwndContext::isClipEmpty() const
 {
     return getClipBounds().isEmpty();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::saveState()
+void Direct2DHwndContext::saveState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::saveState);
 
     currentState = pimpl->pushSavedState();
 }
 
-void Direct2DLowLevelGraphicsHwndContext::restoreState()
+void Direct2DHwndContext::restoreState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::restoreState);
 
@@ -1281,7 +1281,7 @@ void Direct2DLowLevelGraphicsHwndContext::restoreState()
     jassert (currentState);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::beginTransparencyLayer (float opacity)
+void Direct2DHwndContext::beginTransparencyLayer (float opacity)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::beginTransparencyLayer);
 
@@ -1291,7 +1291,7 @@ void Direct2DLowLevelGraphicsHwndContext::beginTransparencyLayer (float opacity)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::endTransparencyLayer()
+void Direct2DHwndContext::endTransparencyLayer()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::endTransparencyLayer);
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -1300,7 +1300,7 @@ void Direct2DLowLevelGraphicsHwndContext::endTransparencyLayer()
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setFill (const FillType& fillType)
+void Direct2DHwndContext::setFill (const FillType& fillType)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setFill);
     if (auto deviceContext = pimpl->getDeviceContext())
@@ -1310,7 +1310,7 @@ void Direct2DLowLevelGraphicsHwndContext::setFill (const FillType& fillType)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setOpacity (float newOpacity)
+void Direct2DHwndContext::setOpacity (float newOpacity)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setOpacity);
 
@@ -1321,7 +1321,7 @@ void Direct2DLowLevelGraphicsHwndContext::setOpacity (float newOpacity)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setInterpolationQuality (Graphics::ResamplingQuality quality)
+void Direct2DHwndContext::setInterpolationQuality (Graphics::ResamplingQuality quality)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setInterpolationQuality);
 
@@ -1339,12 +1339,12 @@ void Direct2DLowLevelGraphicsHwndContext::setInterpolationQuality (Graphics::Res
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<int>& r, bool /*replaceExistingContents*/)
+void Direct2DHwndContext::fillRect (const Rectangle<int>& r, bool /*replaceExistingContents*/)
 {
     fillRect (r.toFloat());
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<float>& r)
+void Direct2DHwndContext::fillRect (const Rectangle<float>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRect);
 
@@ -1360,12 +1360,12 @@ void Direct2DLowLevelGraphicsHwndContext::fillRect (const Rectangle<float>& r)
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillRectList (const RectangleList<float>& list)
+void Direct2DHwndContext::fillRectList (const RectangleList<float>& list)
 {
     for (auto& r : list) fillRect (r);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawRect (const Rectangle<float>& r, float lineThickness)
+bool Direct2DHwndContext::drawRect (const Rectangle<float>& r, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRect);
 
@@ -1383,7 +1383,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawRect (const Rectangle<float>& r, f
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::fillPath (const Path& p, const AffineTransform& transform)
+void Direct2DHwndContext::fillPath (const Path& p, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillPath);
 
@@ -1402,7 +1402,7 @@ void Direct2DLowLevelGraphicsHwndContext::fillPath (const Path& p, const AffineT
     }
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
+bool Direct2DHwndContext::drawPath (const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawPath);
 
@@ -1479,7 +1479,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawPath (const Path& p, const PathStr
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const AffineTransform& transform)
+void Direct2DHwndContext::drawImage (const Image& image, const AffineTransform& transform)
 {
 #if 1
     TRACE_LOG_D2D_PAINT_CALL (etw::drawImage);
@@ -1524,12 +1524,12 @@ void Direct2DLowLevelGraphicsHwndContext::drawImage (const Image& image, const A
 #endif
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line)
+void Direct2DHwndContext::drawLine (const Line<float>& line)
 {
     drawLine (line, 1.0f);
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line, float lineThickness)
+bool Direct2DHwndContext::drawLine (const Line<float>& line, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawLine);
 
@@ -1550,19 +1550,19 @@ bool Direct2DLowLevelGraphicsHwndContext::drawLine (const Line<float>& line, flo
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setFont (const Font& newFont)
+void Direct2DHwndContext::setFont (const Font& newFont)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setFont);
 
     currentState->setFont (newFont);
 }
 
-const Font& Direct2DLowLevelGraphicsHwndContext::getFont()
+const Font& Direct2DHwndContext::getFont()
 {
     return currentState->font;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyph (int glyphNumber, const AffineTransform& transform)
+void Direct2DHwndContext::drawGlyph (int glyphNumber, const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawGlyph);
 
@@ -1572,7 +1572,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyph (int glyphNumber, const Affi
     drawGlyphCommon (1, currentState->font, transform, {});
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
+bool Direct2DHwndContext::drawTextLayout (const AttributedString& text, const Rectangle<float>& area)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawTextLayout);
 
@@ -1604,17 +1604,17 @@ bool Direct2DLowLevelGraphicsHwndContext::drawTextLayout (const AttributedString
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::setScaleFactor (double scale_)
+void Direct2DHwndContext::setScaleFactor (double scale_)
 {
     pimpl->setScaleFactor (scale_);
 }
 
-double Direct2DLowLevelGraphicsHwndContext::getScaleFactor() const
+double Direct2DHwndContext::getScaleFactor() const
 {
     return pimpl->getScaleFactor();
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
+bool Direct2DHwndContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRoundedRectangle);
 
@@ -1633,7 +1633,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawRoundedRectangle (Rectangle<float>
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::fillRoundedRectangle (Rectangle<float> area, float cornerSize)
+bool Direct2DHwndContext::fillRoundedRectangle (Rectangle<float> area, float cornerSize)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRoundedRectangle);
 
@@ -1652,7 +1652,7 @@ bool Direct2DLowLevelGraphicsHwndContext::fillRoundedRectangle (Rectangle<float>
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::drawEllipse (Rectangle<float> area, float lineThickness)
+bool Direct2DHwndContext::drawEllipse (Rectangle<float> area, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawEllipse);
 
@@ -1672,7 +1672,7 @@ bool Direct2DLowLevelGraphicsHwndContext::drawEllipse (Rectangle<float> area, fl
     return true;
 }
 
-bool Direct2DLowLevelGraphicsHwndContext::fillEllipse (Rectangle<float> area)
+bool Direct2DHwndContext::fillEllipse (Rectangle<float> area)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillEllipse);
 
@@ -1692,7 +1692,7 @@ bool Direct2DLowLevelGraphicsHwndContext::fillEllipse (Rectangle<float> area)
     return true;
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs,
+void Direct2DHwndContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs,
                                                         int                           startIndex,
                                                         int                           numGlyphs,
                                                         const AffineTransform&        transform,
@@ -1742,7 +1742,7 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyphRun (Array<PositionedGlyph> c
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::drawGlyphCommon (int                    numGlyphs,
+void Direct2DHwndContext::drawGlyphCommon (int                    numGlyphs,
                                                            Font const&            font,
                                                            const AffineTransform& transform,
                                                            Rectangle<float>       underlineArea)
@@ -1797,12 +1797,12 @@ void Direct2DLowLevelGraphicsHwndContext::drawGlyphCommon (int                  
     }
 }
 
-void Direct2DLowLevelGraphicsHwndContext::updateDeviceContextTransform()
+void Direct2DHwndContext::updateDeviceContextTransform()
 {
     pimpl->setDeviceContextTransform (currentState->currentTransform.getTransform());
 }
 
-void Direct2DLowLevelGraphicsHwndContext::updateDeviceContextTransform (AffineTransform chainedTransform)
+void Direct2DHwndContext::updateDeviceContextTransform (AffineTransform chainedTransform)
 {
     pimpl->setDeviceContextTransform (currentState->currentTransform.getTransformWith (chainedTransform));
 }

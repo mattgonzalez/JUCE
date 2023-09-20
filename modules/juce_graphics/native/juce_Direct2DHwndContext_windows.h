@@ -130,11 +130,11 @@ struct ETWEventProvider
 
 #endif
 
-class Direct2DLowLevelGraphicsHwndContext : public LowLevelGraphicsContext
+class Direct2DHwndContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsHwndContext (HWND, double dpiScalingFactor, bool opaque);
-    ~Direct2DLowLevelGraphicsHwndContext() override;
+    Direct2DHwndContext (HWND, double dpiScalingFactor, bool opaque);
+    ~Direct2DHwndContext() override;
 
     void handleShowWindow();
     void setWindowAlpha (float alpha);
@@ -246,7 +246,7 @@ private:
     void updateDeviceContextTransform();
     void updateDeviceContextTransform (AffineTransform chainedTransform);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsHwndContext)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DHwndContext)
 };
 
 } // namespace juce

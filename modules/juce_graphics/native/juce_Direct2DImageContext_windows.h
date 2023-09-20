@@ -28,16 +28,16 @@ namespace juce
 
 class Direct2DPixelData;
 
-class Direct2DLowLevelGraphicsImageContext : public LowLevelGraphicsContext
+class Direct2ImageContext : public LowLevelGraphicsContext
 {
 public:
     /** Creates a context to render into an image. */
-    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
+    Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
 
     /** Creates a context to render into a clipped subsection of an image. */
-    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
+    Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
 
-    ~Direct2DLowLevelGraphicsImageContext() override;
+    ~Direct2ImageContext() override;
 
     //==============================================================================
     bool isVectorDevice() const override
@@ -146,7 +146,7 @@ private:
     void updateDeviceContextTransform();
     void updateDeviceContextTransform (AffineTransform chainedTransform);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsImageContext)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2ImageContext)
 };
 
 } // namespace juce

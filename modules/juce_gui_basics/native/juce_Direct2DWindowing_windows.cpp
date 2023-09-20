@@ -335,24 +335,6 @@ private:
                 break;
             }
 
-            case WM_ENTERSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->startResizing();
-                }
-                break;
-            }
-
-            case WM_EXITSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->finishResizing();
-                }
-                break;
-            }
-
             case WM_SYSCOMMAND:
             {
                 switch (wParam & 0xfff0)

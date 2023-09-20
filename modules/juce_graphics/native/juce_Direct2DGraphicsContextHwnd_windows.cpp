@@ -468,7 +468,6 @@ private:
     int                frameNumber = 0;
     RectangleList<int> deferredRepaints;
     Rectangle<int>     frameSize;
-    Rectangle<int>     previousWindowSize;
     int                dirtyRectanglesCapacity = 0;
     HeapBlock<RECT>    dirtyRectangles;
 
@@ -559,7 +558,6 @@ public:
         prepare();
 
         frameSize         = getClientRect();
-        previousWindowSize = frameSize;
         deferredRepaints   = frameSize;
     }
 
@@ -571,22 +569,10 @@ public:
         return Rectangle<int>::leftTopRightBottom (clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
     }
 
-    void startResizing()
-    {
-        previousWindowSize = frameSize;
-    }
-
-    void finishResizing()
-    {
-        if (previousWindowSize != frameSize)
-        {
-            resize (frameSize);
-        }
-    }
 
     void resize (Rectangle<int> size)
     {
-        if (frameSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1)
+        if ((frameSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1) || (size == frameSize))
         {
             return;
         }
@@ -987,11 +973,6 @@ void Direct2DLowLevelGraphicsHwndContext::setWindowAlpha (float alpha)
     pimpl->setWindowAlpha (alpha);
 }
 
-void Direct2DLowLevelGraphicsHwndContext::startResizing()
-{
-    pimpl->startResizing();
-}
-
 void Direct2DLowLevelGraphicsHwndContext::resize()
 {
     pimpl->resize();
@@ -1000,11 +981,6 @@ void Direct2DLowLevelGraphicsHwndContext::resize()
 void Direct2DLowLevelGraphicsHwndContext::resize (int width, int height)
 {
     pimpl->resize ({ width, height });
-}
-
-void Direct2DLowLevelGraphicsHwndContext::finishResizing()
-{
-    pimpl->finishResizing();
 }
 
 void Direct2DLowLevelGraphicsHwndContext::restoreWindow()

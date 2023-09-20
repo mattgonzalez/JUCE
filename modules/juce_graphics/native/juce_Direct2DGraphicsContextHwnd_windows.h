@@ -182,10 +182,8 @@ public:
     void        drawGlyph (int glyphNumber, const AffineTransform&) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
-    void startResizing();
     void resize();
     void resize (int width, int height);
-    void finishResizing();
     void restoreWindow();
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint);

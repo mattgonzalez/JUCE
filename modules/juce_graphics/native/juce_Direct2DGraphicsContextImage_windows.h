@@ -82,10 +82,8 @@ public:
     void        drawGlyph (int glyphNumber, const AffineTransform&) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
-    void startResizing();
     void resize();
     void resize (int width, int height);
-    void finishResizing();
     void restoreWindow();
 
     bool startFrame();
@@ -120,13 +118,6 @@ public:
                        int                           numGlyphs,
                        const AffineTransform&        transform,
                        Rectangle<float>              underlineArea) override;
-
-    enum
-    {
-        createChildWindowMessageID = 0x400 + 0xd2d, // WM_USER + 0xd2d
-        removeChildWindowMessageID,
-        childWindowCreatedMessageID
-    };
 
     //==============================================================================
     //

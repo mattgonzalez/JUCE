@@ -597,7 +597,6 @@ private:
 
     std::stack<std::unique_ptr<Direct2DLowLevelGraphicsImageContext::SavedState>> savedClientStates;
 
-    int                       frameNumber = 0;
     Direct2DPixelData::Ptr    direct2DPixelData;
     Point<int> const          origin;
     RectangleList<int> const& initialClip;

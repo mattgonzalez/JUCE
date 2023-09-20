@@ -96,7 +96,7 @@ public:
     //
     // These methods are not part of the standard LowLevelGraphicsContext; they
     // were added because Direct2D supports these drawing primitives
-    // 
+    //
     // Standard LLGC only supports drawing one glyph at a time; it's much more
     // efficient to pass an entire run of glyphs to the device context
     //
@@ -121,17 +121,10 @@ public:
                        const AffineTransform&        transform,
                        Rectangle<float>              underlineArea) override;
 
-    enum
-    {
-        createChildWindowMessageID = 0x400 + 0xd2d, // WM_USER + 0xd2d
-        removeChildWindowMessageID,
-        childWindowCreatedMessageID
-    };
-
     //==============================================================================
     //
     // Min & max windows sizes; same as Direct3D texture size limits
-    // 
+    //
     static int constexpr minFrameSize = 1;
     static int constexpr maxFrameSize = 16384;
 

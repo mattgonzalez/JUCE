@@ -45,7 +45,7 @@ namespace juce
 //==============================================================================
 //
 // Direct2D native image type
-//
+// 
 
 class Direct2DPixelData : public ImagePixelData
 {
@@ -69,6 +69,20 @@ public:
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
+        //
+        // Use a mappable Direct2D bitmap to read the contents of the bitmap from the CPU back to the CPU
+        // 
+        // Mapping the bitmap to the CPU means this class can read the pixel data, but the mappable bitmap
+        // cannot be a render target
+        // 
+        // So - the Direct2D image low-level graphics context allocates two bitmaps - the target bitmap and the mappable bitmap.
+        // initialiseBitmapData copies the contents of the target bitmap to the mappable bitmap, then maps that mappable bitmap to the
+        // CPU. 
+        // 
+        // Ultimately the data releaser copies the bitmap data from the CPU back to the GPU
+        // 
+        // Target bitmap -> mappable bitmap -> mapped bitmap data -> target bitmap
+        //
         bitmap.size        = imageDataSize;
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
@@ -78,6 +92,9 @@ public:
         {
             if (! targetBitmap)
             {
+                //
+                // The low-level graphics context creates the bitmaps
+                //
                 createLowLevelContext();
             }
 
@@ -149,6 +166,11 @@ public:
 
         ~Direct2DBitmapReleaser() override
         {
+            //
+            // Unmap the mappable bitmap if it was mapped
+            // 
+            // If the mappable bitmap was mapped, copy the mapped bitmap data to the target bitmap
+            //
             if (pixelData.mappedRect.bits && pixelData.mappableBitmap)
             {
                 if (pixelData.targetBitmap && mode != Image::BitmapData::readOnly)

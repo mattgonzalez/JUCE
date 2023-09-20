@@ -35,7 +35,7 @@ public:
     Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
 
     /** Creates a context to render into a clipped subsection of an image. */
-    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip);
+    Direct2DLowLevelGraphicsImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
 
     ~Direct2DLowLevelGraphicsImageContext() override;
 
@@ -142,6 +142,8 @@ public:
     //==============================================================================
 private:
     friend class Direct2DPixelData;
+
+    bool clearImage = true;
 
     struct SavedState;
     SavedState* currentState = nullptr;

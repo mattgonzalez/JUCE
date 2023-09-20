@@ -50,11 +50,12 @@ namespace juce
 class Direct2DPixelData : public ImagePixelData
 {
 public:
-    Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage)
+    Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage_)
         : ImagePixelData ((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB, w, h),
           pixelStride (4),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3),
-        imageDataSize((size_t)lineStride* (size_t)jmax(1, h))
+          imageDataSize ((size_t) lineStride * (size_t) jmax (1, h)),
+           clearImage(clearImage_)
     {
     }
 
@@ -63,7 +64,7 @@ public:
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
     {
         sendDataChangeMessage();
-        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this, Point<int> {}, RectangleList<int> { { width, height } });
+        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this, Point<int> {}, RectangleList<int> { { width, height } }, clearImage);
     }
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
@@ -71,26 +72,26 @@ public:
         bitmap.size        = imageDataSize;
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
-        bitmap.data = nullptr;
+        bitmap.data        = nullptr;
 
         if (mappedRect.bits == nullptr)
         {
-            if (!targetBitmap)
+            if (! targetBitmap)
             {
                 createLowLevelContext();
             }
 
-            jassert(mappableBitmap);
+            jassert (mappableBitmap);
 
             if (mappableBitmap)
             {
                 D2D1_POINT_2U destPoint { 0, 0 };
-                D2D1_RECT_U   sourceRect { (uint32)x, (uint32)y, (uint32) (width - x), (uint32) (height - y) };
+                D2D1_RECT_U   sourceRect { (uint32) x, (uint32) y, (uint32) (width - x), (uint32) (height - y) };
 
                 //
                 // Copy from the painted target bitmap to the mappable bitmap
                 //
-                if (auto hr = mappableBitmap->CopyFromBitmap (&destPoint, targetBitmap, &sourceRect); FAILED(hr))
+                if (auto hr = mappableBitmap->CopyFromBitmap (&destPoint, targetBitmap, &sourceRect); FAILED (hr))
                 {
                     return;
                 }
@@ -116,11 +117,20 @@ public:
 
     ImagePixelData::Ptr clone() override
     {
-        jassertfalse;
+        Direct2DPixelData::Ptr clone = new Direct2DPixelData{ pixelFormat, width, height, false };
+
+        clone->createLowLevelContext();
+        
+        D2D1_POINT_2U point{ 0, 0 };
+        D2D1_RECT_U rect{ 0, 0, (uint32)width, (uint32)height };
+        auto hr = clone->targetBitmap->CopyFromBitmap(&point, targetBitmap, &rect);
+        jassertquiet(SUCCEEDED(hr));
+        if (SUCCEEDED(hr))
+        {
+            return clone;
+        }
+
         return nullptr;
-        //         auto s = new SoftwarePixelData (pixelFormat, width, height, false);
-        //         memcpy (s->imageData, imageData, (size_t) lineStride * (size_t) height);
-        //         return *s;
     }
 
     std::unique_ptr<ImageType> createType() const override
@@ -132,7 +142,8 @@ public:
     {
     public:
         Direct2DBitmapReleaser (Direct2DPixelData& pixelData_, Image::BitmapData::ReadWriteMode mode_)
-            : pixelData (pixelData_), mode(mode_)
+            : pixelData (pixelData_),
+              mode (mode_)
         {
         }
 
@@ -142,9 +153,9 @@ public:
             {
                 if (pixelData.targetBitmap && mode != Image::BitmapData::readOnly)
                 {
-                    D2D1_RECT_U   rect { 0, 0, (uint32) pixelData.width, (uint32) pixelData.height };
+                    D2D1_RECT_U rect { 0, 0, (uint32) pixelData.width, (uint32) pixelData.height };
 
-                    pixelData.targetBitmap->CopyFromMemory(&rect, pixelData.mappedRect.bits, pixelData.mappedRect.pitch);
+                    pixelData.targetBitmap->CopyFromMemory (&rect, pixelData.mappedRect.bits, pixelData.mappedRect.pitch);
                 }
 
                 pixelData.mappableBitmap->Unmap();
@@ -154,7 +165,7 @@ public:
         }
 
     private:
-        Direct2DPixelData& pixelData;
+        Direct2DPixelData&               pixelData;
         Image::BitmapData::ReadWriteMode mode;
     };
 
@@ -164,13 +175,14 @@ private:
     friend class Direct2DLowLevelGraphicsHwndContext;
     friend struct Direct2DLowLevelGraphicsImageContext::Pimpl;
 
-    const int        pixelStride, lineStride;
-    size_t const imageDataSize;
-    ComSmartPtr<ID2D1Bitmap1>   targetBitmap;
+    const int                 pixelStride, lineStride;
+    size_t const              imageDataSize;
+    bool const clearImage;
+    ComSmartPtr<ID2D1Bitmap1> targetBitmap;
     ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
-    D2D1_MAPPED_RECT mappedRect {};
+    D2D1_MAPPED_RECT          mappedRect {};
 
-    // keep a reference to the DirectXFactories so the bitmap is freed before the DLLs
+    // keep a reference to the DirectXFactories to retain the DLLs & factories
     SharedResourcePointer<DirectXFactories> factories;
 
     JUCE_LEAK_DETECTOR (Direct2DPixelData)
@@ -549,6 +561,11 @@ struct Direct2DLowLevelGraphicsImageContext::Pimpl
 {
 private:
     Direct2DLowLevelGraphicsImageContext& owner;
+    double                                dpiScalingFactor              = 1.0;
+    double                                snappedDpiScalingFactor       = 1.0;
+    static constexpr int                  dpiScalingIntConversionShift  = 7;
+    static constexpr int                  dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
+    int                                   repaintAreaPixelSnap          = dpiScalingIntConversionFactor;
 
     direct2d::DeviceResources deviceResources;
 
@@ -565,7 +582,7 @@ private:
 
         if (! deviceResources.canPaint())
         {
-            if (hr = deviceResources.create (factories->getDefaultAdapter(), 1.0); FAILED (hr))
+            if (hr = deviceResources.create (factories->getDefaultAdapter(), snappedDpiScalingFactor); FAILED (hr))
             {
                 return hr;
             }
@@ -573,12 +590,13 @@ private:
 
         D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
         bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        bitmapProperties.pixelFormat.format = (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+        bitmapProperties.pixelFormat.format =
+            (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
 
         if (! direct2DPixelData->targetBitmap)
         {
             bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-            hr                                       = deviceResources.deviceContext.context->CreateBitmap (
+            hr                             = deviceResources.deviceContext.context->CreateBitmap (
                 D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
                 nullptr,
                 direct2DPixelData->lineStride,
@@ -590,8 +608,8 @@ private:
 
         if (! direct2DPixelData->mappableBitmap)
         {
-            bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-            hr                                       = deviceResources.deviceContext.context->CreateBitmap (
+            bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+            hr                             = deviceResources.deviceContext.context->CreateBitmap (
                 D2D1_SIZE_U { (uint32) direct2DPixelData->width, (uint32) direct2DPixelData->height },
                 nullptr,
                 direct2DPixelData->lineStride,
@@ -621,6 +639,8 @@ public:
           origin (origin_),
           initialClip (initialClip_)
     {
+        setScaleFactor (1.0);
+
         D2D1_RECT_F rect { 0.0f, 0.0f, 1.0f, 1.0f };
         factories->getDirect2DFactory()->CreateRectangleGeometry (rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
 
@@ -701,9 +721,46 @@ public:
         frameNumber++;
     }
 
+    void setScaleFactor (double scale_)
+    {
+        dpiScalingFactor        = scale_;
+        snappedDpiScalingFactor = roundToInt (dpiScalingFactor * dpiScalingIntConversionFactor) / double { dpiScalingIntConversionFactor };
+
+        //
+        // Round DPI scaling factor to nearest 1/128 so the repainted areas
+        // and the dirty rectangles both snap to pixel boundaries
+        //
+        // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
+        //
+        // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100.
+        // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels.
+        //
+        // For example: DPI scaling 150%
+        //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
+        //      repaintAreaPixel = 128 / 64 = 2
+        //      deferredRepaints will be expanded to snap to the next multiple of 2
+        //
+        // DPI scaling of 225%
+        //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
+        //      repaintAreaPixel = 128 / 32 = 4
+        //      deferredRepaints will be expanded to snap to the next multiple of 4
+        //
+        // DPI scaling of 301%
+        //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
+        //      repaintAreaPixel = 128 / 1 = 128
+        //      deferredRepaints will be expanded to snap to the next multiple of 128
+        //
+        // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
+        // scaling factors will be less efficient and require more painting.
+        //
+        auto greatestCommonDenominator =
+            std::gcd (roundToInt (double { dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
+        repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
+    }
+
     double getScaleFactor() const
     {
-        return 1.0;
+        return dpiScalingFactor;
     }
 
     SavedState* getCurrentSavedState() const
@@ -777,8 +834,10 @@ Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Dire
 
 Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Direct2DPixelData::Ptr    direct2DPixelData_,
                                                                             Point<int>                origin,
-                                                                            const RectangleList<int>& initialClip)
+                                                                            const RectangleList<int>& initialClip,
+    bool clearImage_)
     : currentState (nullptr),
+      clearImage(clearImage_),
       pimpl (new Pimpl { *this, direct2DPixelData_, origin, initialClip })
 {
     startFrame();
@@ -816,7 +875,10 @@ bool Direct2DLowLevelGraphicsImageContext::startFrame()
                                                                                        D2D1_FILL_MODE_WINDING));
             }
 
-            deviceContext->Clear (pimpl->backgroundColor);
+            if (clearImage)
+            {
+                deviceContext->Clear(pimpl->backgroundColor);
+            }
 
             setFont (currentState->font);
 

@@ -79,10 +79,6 @@
 
 #endif
 
-#ifndef JUCE_DIRECT2D_CHILD_WINDOW
-    #define JUCE_DIRECT2D_CHILD_WINDOW 0
-#endif
-
 namespace juce
 {
 //==============================================================================
@@ -460,9 +456,6 @@ private:
     static constexpr int                    dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
     int                                     repaintAreaPixelSnap          = dpiScalingIntConversionFactor;
 
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    SharedResourcePointer<direct2d::ChildWindowThread> childWindowThread;
-#endif
     DirectXFactories::GraphicsAdapter::Ptr adapter;
     direct2d::DeviceResources              deviceResources;
     direct2d::SwapChain                    swap;
@@ -474,26 +467,16 @@ private:
 
     int                frameNumber = 0;
     RectangleList<int> deferredRepaints;
-    Rectangle<int>     windowSize;
+    Rectangle<int>     frameSize;
     Rectangle<int>     previousWindowSize;
     int                dirtyRectanglesCapacity = 0;
     HeapBlock<RECT>    dirtyRectangles;
 
     HRESULT prepare()
     {
-        auto parentWindowSize = getParentClientRect();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        auto swapChainHwnd = childHwnd;
-#else
-        auto swapChainHwnd = parentHwnd;
-#endif
+        auto clientBounds = getClientRect();
 
-        if (swapChainHwnd == nullptr)
-        {
-            return E_FAIL;
-        }
-
-        if (! swapChainHwnd || parentWindowSize.isEmpty())
+        if (! hwnd || clientBounds.isEmpty())
         {
             return E_FAIL;
         }
@@ -508,14 +491,7 @@ private:
 
         if (! swap.canPaint())
         {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childHwnd)
-            {
-                childWindowThread->setSize (childHwnd, parentWindowSize);
-            }
-#endif
-
-            if (auto hr = swap.create (swapChainHwnd, parentWindowSize, adapter); FAILED (hr))
+            if (auto hr = swap.create (hwnd, clientBounds, adapter); FAILED (hr))
             {
                 return hr;
             }
@@ -528,7 +504,7 @@ private:
 
         if (! compositionTree.canPaint())
         {
-            if (auto hr = compositionTree.create (adapter->dxgiDevice, swapChainHwnd, swap.chain); FAILED (hr))
+            if (auto hr = compositionTree.create (adapter->dxgiDevice, hwnd, swap.chain); FAILED (hr))
             {
                 return hr;
             }
@@ -555,7 +531,7 @@ public:
     Pimpl (Direct2DLowLevelGraphicsHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
           adapter (factories->getAdapterForHwnd (hwnd_)),
-          parentHwnd (hwnd_),
+          hwnd (hwnd_),
           opaque (opaque_)
     {
         setWindowAlpha (1.0f);
@@ -570,69 +546,47 @@ public:
         popAllSavedStates();
 
         teardown();
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        if (childHwnd)
-        {
-            childWindowThread->removeChildWindow (childHwnd);
-            childHwnd = nullptr;
-        }
-#endif
     }
 
-    void handleParentShowWindow()
+    void handleShowWindow()
     {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        childWindowThread->createChildForParentWindow (parentHwnd);
-#else
-        handleWindowCreatedCommon();
-#endif
-    }
-
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    void handleChildShowWindow (HWND childHwnd_)
-#else
-    void handleChildShowWindow (HWND)
-#endif
-    {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-        childHwnd = childHwnd_;
-        handleWindowCreatedCommon();
-#endif
-    }
-
-    void handleWindowCreatedCommon()
-    {
+        //
+        // One of the trickier problems was determining when Direct2D & DXGI resources can be safely created;
+        // that's not really spelled out in the documentation.
+        // 
+        // This method creates resources on receipt of WM_SHOWWINDOW
+        //
         prepare();
 
-        windowSize         = getParentClientRect();
-        previousWindowSize = windowSize;
-        deferredRepaints   = windowSize;
+        frameSize         = getClientRect();
+        previousWindowSize = frameSize;
+        deferredRepaints   = frameSize;
     }
 
-    Rectangle<int> getParentClientRect() const
+    Rectangle<int> getClientRect() const
     {
         RECT clientRect;
-        GetClientRect (parentHwnd, &clientRect);
+        GetClientRect (hwnd, &clientRect);
 
         return Rectangle<int>::leftTopRightBottom (clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
     }
 
     void startResizing()
     {
-        previousWindowSize = windowSize;
+        previousWindowSize = frameSize;
     }
 
     void finishResizing()
     {
-        if (previousWindowSize != windowSize)
+        if (previousWindowSize != frameSize)
         {
-            resize (windowSize);
+            resize (frameSize);
         }
     }
 
     void resize (Rectangle<int> size)
     {
-        if (windowSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1)
+        if (frameSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1)
         {
             return;
         }
@@ -642,17 +596,11 @@ public:
         //
         // Require the entire window to be repainted
         //
-        windowSize       = size;
+        frameSize       = size;
         deferredRepaints = size;
 
         if (auto deviceContext = deviceResources.deviceContext.context)
         {
-#if JUCE_DIRECT2D_CHILD_WINDOW
-            if (childHwnd)
-            {
-                childWindowThread->setSize (childHwnd, windowSize);
-            }
-#endif
             auto hr = swap.resize (size, (float) snappedDpiScalingFactor, deviceContext);
             jassert (SUCCEEDED (hr));
             if (FAILED (hr))
@@ -664,15 +612,12 @@ public:
 
     void resize()
     {
-        resize (getParentClientRect());
+        resize (getClientRect());
     }
 
     void restoreWindow()
     {
-        //
-        // Child window still has the original window size
-        //
-        resize (windowSize);
+        resize (frameSize);
     }
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint)
@@ -696,7 +641,7 @@ public:
 
     void addInvalidWindowRegionToDeferredRepaints()
     {
-        updateRegion.getRECTAndValidate (parentHwnd);
+        updateRegion.getRECTAndValidate (hwnd);
         updateRegion.addToRectangleList (deferredRepaints);
         updateRegion.clear();
     }
@@ -744,7 +689,7 @@ public:
         // Anything to paint?
         //
         auto paintBounds = deferredRepaints.getBounds();
-        if (! windowSize.intersects (paintBounds) || paintBounds.isEmpty())
+        if (! frameSize.intersects (paintBounds) || paintBounds.isEmpty())
         {
             return nullptr;
         }
@@ -905,7 +850,7 @@ public:
     {
         dpiScalingFactor        = scale_;
         snappedDpiScalingFactor = roundToInt (dpiScalingFactor * dpiScalingIntConversionFactor) / double { dpiScalingIntConversionFactor };
-        deferredRepaints        = windowSize;
+        deferredRepaints        = frameSize;
         resize();
 
         //
@@ -1010,11 +955,8 @@ public:
         return factories->getSystemFonts();
     }
 
-    HWND                                parentHwnd = nullptr;
+    HWND                                hwnd = nullptr;
     ComSmartPtr<ID2D1RectangleGeometry> rectangleGeometryUnitSize;
-#if JUCE_DIRECT2D_CHILD_WINDOW
-    HWND childHwnd = nullptr;
-#endif
     direct2d::DirectWriteGlyphRun glyphRun;
     bool                          opaque      = true;
     float                         windowAlpha = 1.0f;
@@ -1035,14 +977,9 @@ Direct2DLowLevelGraphicsHwndContext::Direct2DLowLevelGraphicsHwndContext (HWND h
 
 Direct2DLowLevelGraphicsHwndContext::~Direct2DLowLevelGraphicsHwndContext() {}
 
-void Direct2DLowLevelGraphicsHwndContext::handleParentShowWindow()
+void Direct2DLowLevelGraphicsHwndContext::handleShowWindow()
 {
-    pimpl->handleParentShowWindow();
-}
-
-void Direct2DLowLevelGraphicsHwndContext::handleChildShowWindow (void* childWindowHandle)
-{
-    pimpl->handleChildShowWindow ((HWND) childWindowHandle);
+    pimpl->handleShowWindow();
 }
 
 void Direct2DLowLevelGraphicsHwndContext::setWindowAlpha (float alpha)

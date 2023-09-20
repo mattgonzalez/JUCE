@@ -169,7 +169,6 @@
     #include "native/juce_Direct2DHelpers_windows.cpp"
     #include "native/juce_Direct2DSwapChainDispatcher_windows.cpp"
     #include "native/juce_Direct2DResources_windows.cpp"
-    #include "native/juce_Direct2DChildWindow_windows.cpp"
     #include "native/juce_Direct2DImage_windows.cpp"
     #include "native/juce_Direct2DGraphicsContextHwnd_windows.cpp"
  #endif

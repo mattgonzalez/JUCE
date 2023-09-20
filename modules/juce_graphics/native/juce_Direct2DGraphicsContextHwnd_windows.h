@@ -136,8 +136,7 @@ public:
     Direct2DLowLevelGraphicsHwndContext (HWND, double dpiScalingFactor, bool opaque);
     ~Direct2DLowLevelGraphicsHwndContext() override;
 
-    void handleParentShowWindow();
-    void handleChildShowWindow (void* childWindowHandle);
+    void handleShowWindow();
     void setWindowAlpha (float alpha);
 
     //==============================================================================
@@ -225,13 +224,6 @@ public:
                        int                           numGlyphs,
                        const AffineTransform&        transform,
                        Rectangle<float>              underlineArea) override;
-
-    enum
-    {
-        createChildWindowMessageID = 0x400 + 0xd2d, // WM_USER + 0xd2d
-        removeChildWindowMessageID,
-        childWindowCreatedMessageID
-    };
 
     //==============================================================================
     //

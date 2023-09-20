@@ -380,22 +380,13 @@ private:
 
             case WM_SHOWWINDOW:
             {
-                if (direct2DContext && wParam)
-                {
-                    direct2DContext->handleParentShowWindow();
-                    handleDirect2DPaint();
-                }
-                break;
-            }
-
-            case Direct2DLowLevelGraphicsHwndContext::childWindowCreatedMessageID:
-            {
                 //
-                // Child window received WM_SHOWWINDOW
+                // If this window is now shown (wParam != 0), tell the Direct2D LLGC to create resources
+                // and paint the whole window immediately
                 //
                 if (direct2DContext && wParam)
                 {
-                    direct2DContext->handleChildShowWindow ((void*) lParam);
+                    direct2DContext->handleShowWindow();
                     handleDirect2DPaint();
                 }
                 break;

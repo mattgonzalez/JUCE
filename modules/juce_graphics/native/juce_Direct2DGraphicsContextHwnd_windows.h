@@ -237,8 +237,8 @@ public:
     //
     // Min & max windows sizes; same as Direct3D texture size limits
     // 
-    static int constexpr minWindowSize = 1;
-    static int constexpr maxWindowSize = 16384;
+    static int constexpr minFrameSize = 1;
+    static int constexpr maxFrameSize = 16384;
 
 #if JUCE_DIRECT2D_METRICS
     direct2d::PaintStats::Ptr stats;

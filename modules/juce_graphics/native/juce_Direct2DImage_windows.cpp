@@ -45,7 +45,7 @@ namespace juce
 //==============================================================================
 //
 // Direct2D native image type
-// 
+//
 
 class Direct2DPixelData : public ImagePixelData
 {
@@ -55,7 +55,7 @@ public:
           pixelStride (4),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3),
           imageDataSize ((size_t) lineStride * (size_t) jmax (1, h)),
-           clearImage(clearImage_)
+          clearImage (clearImage_)
     {
     }
 
@@ -64,23 +64,26 @@ public:
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
     {
         sendDataChangeMessage();
-        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this, Point<int> {}, RectangleList<int> { { width, height } }, clearImage);
+        return std::make_unique<Direct2DLowLevelGraphicsImageContext> (this,
+                                                                       Point<int> {},
+                                                                       RectangleList<int> { { width, height } },
+                                                                       clearImage);
     }
 
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
         //
         // Use a mappable Direct2D bitmap to read the contents of the bitmap from the CPU back to the CPU
-        // 
+        //
         // Mapping the bitmap to the CPU means this class can read the pixel data, but the mappable bitmap
         // cannot be a render target
-        // 
+        //
         // So - the Direct2D image low-level graphics context allocates two bitmaps - the target bitmap and the mappable bitmap.
         // initialiseBitmapData copies the contents of the target bitmap to the mappable bitmap, then maps that mappable bitmap to the
-        // CPU. 
-        // 
+        // CPU.
+        //
         // Ultimately the data releaser copies the bitmap data from the CPU back to the GPU
-        // 
+        //
         // Target bitmap -> mappable bitmap -> mapped bitmap data -> target bitmap
         //
         bitmap.size        = imageDataSize;
@@ -134,15 +137,15 @@ public:
 
     ImagePixelData::Ptr clone() override
     {
-        Direct2DPixelData::Ptr clone = new Direct2DPixelData{ pixelFormat, width, height, false };
+        Direct2DPixelData::Ptr clone = new Direct2DPixelData { pixelFormat, width, height, false };
 
         clone->createLowLevelContext();
-        
-        D2D1_POINT_2U point{ 0, 0 };
-        D2D1_RECT_U rect{ 0, 0, (uint32)width, (uint32)height };
-        auto hr = clone->targetBitmap->CopyFromBitmap(&point, targetBitmap, &rect);
-        jassertquiet(SUCCEEDED(hr));
-        if (SUCCEEDED(hr))
+
+        D2D1_POINT_2U point { 0, 0 };
+        D2D1_RECT_U   rect { 0, 0, (uint32) width, (uint32) height };
+        auto          hr = clone->targetBitmap->CopyFromBitmap (&point, targetBitmap, &rect);
+        jassertquiet (SUCCEEDED (hr));
+        if (SUCCEEDED (hr))
         {
             return clone;
         }
@@ -168,7 +171,7 @@ public:
         {
             //
             // Unmap the mappable bitmap if it was mapped
-            // 
+            //
             // If the mappable bitmap was mapped, copy the mapped bitmap data to the target bitmap
             //
             if (pixelData.mappedRect.bits && pixelData.mappableBitmap)
@@ -199,7 +202,7 @@ private:
 
     const int                 pixelStride, lineStride;
     size_t const              imageDataSize;
-    bool const clearImage;
+    bool const                clearImage;
     ComSmartPtr<ID2D1Bitmap1> targetBitmap;
     ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
     D2D1_MAPPED_RECT          mappedRect {};
@@ -857,9 +860,9 @@ Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Dire
 Direct2DLowLevelGraphicsImageContext::Direct2DLowLevelGraphicsImageContext (Direct2DPixelData::Ptr    direct2DPixelData_,
                                                                             Point<int>                origin,
                                                                             const RectangleList<int>& initialClip,
-    bool clearImage_)
+                                                                            bool                      clearImage_)
     : currentState (nullptr),
-      clearImage(clearImage_),
+      clearImage (clearImage_),
       pimpl (new Pimpl { *this, direct2DPixelData_, origin, initialClip })
 {
     startFrame();
@@ -899,7 +902,7 @@ bool Direct2DLowLevelGraphicsImageContext::startFrame()
 
             if (clearImage)
             {
-                deviceContext->Clear(pimpl->backgroundColor);
+                deviceContext->Clear (pimpl->backgroundColor);
             }
 
             setFont (currentState->font);

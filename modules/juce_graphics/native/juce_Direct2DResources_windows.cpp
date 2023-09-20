@@ -280,8 +280,8 @@ public:
         {
             auto scaledSize = newSize * dpiScalingFactor;
             scaledSize =
-                scaledSize.getUnion ({ Direct2DLowLevelGraphicsHwndContext::minWindowSize, Direct2DLowLevelGraphicsHwndContext::minWindowSize })
-                    .getIntersection ({ Direct2DLowLevelGraphicsHwndContext::maxWindowSize, Direct2DLowLevelGraphicsHwndContext::maxWindowSize });
+                scaledSize.getUnion ({ Direct2DLowLevelGraphicsHwndContext::minFrameSize, Direct2DLowLevelGraphicsHwndContext::minFrameSize })
+                    .getIntersection ({ Direct2DLowLevelGraphicsHwndContext::maxFrameSize, Direct2DLowLevelGraphicsHwndContext::maxFrameSize });
 
             buffer = nullptr;
             state  = chainAllocated;

@@ -87,7 +87,7 @@ public:
     {
         HWNDComponentPeer::updateBorderSize();
 
-        handleDirect2DResize();
+        updateDirect2DSize();
     }
 
     void setAlpha (float newAlpha) override
@@ -141,7 +141,7 @@ private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
     #endif
-    std::unique_ptr<Direct2DLowLevelGraphicsContext> direct2DContext;
+    std::unique_ptr<Direct2DHwndContext> direct2DContext;
 
     void handlePaintMessage() override
     {
@@ -221,15 +221,15 @@ private:
     {
         if (direct2DContext)
         {
-            direct2DContext->resize (width, height);
+            direct2DContext->setSize (width, height);
         }
     }
 
-    void handleDirect2DResize()
+    void updateDirect2DSize()
     {
         if (direct2DContext && component.isVisible())
         {
-            direct2DContext->resize();
+            direct2DContext->updateSize();
         }
     }
 
@@ -246,13 +246,11 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
         {
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsContext> (hwnd,
-                                                                                 scaleFactor,
-                                                                                 component.isOpaque());
+            direct2DContext = std::make_unique<Direct2DHwndContext> (hwnd, (float) scaleFactor, component.isOpaque());
     #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
     #endif
-            direct2DContext->setScaleFactor (getPlatformScaleFactor());
+            direct2DContext->setPhysicalPixelScaleFactor ((float) getPlatformScaleFactor());
         }
     }
 
@@ -298,7 +296,7 @@ private:
     {
         auto result = HWNDComponentPeer::handleSizeConstraining (r, wParam);
 
-        handleDirect2DResize();
+        updateDirect2DSize();
 
         return result;
     }
@@ -310,7 +308,7 @@ private:
 
         if (direct2DContext)
         {
-            direct2DContext->setScaleFactor (scaleFactor);
+            direct2DContext->setPhysicalPixelScaleFactor ((float) scaleFactor);
         }
 
         return result;
@@ -341,25 +339,7 @@ private:
                 if (direct2DContext && component.isVisible())
                 {
                     RECT* rect = (RECT*) lParam;
-                    direct2DContext->resize (rect->right - rect->left, rect->bottom - rect->top);
-                }
-                break;
-            }
-
-            case WM_ENTERSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->startResizing();
-                }
-                break;
-            }
-
-            case WM_EXITSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->finishResizing();
+                    direct2DContext->setSize (rect->right - rect->left, rect->bottom - rect->top);
                 }
                 break;
             }
@@ -375,7 +355,7 @@ private:
                         {
                             auto status = HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
 
-                            handleDirect2DResize();
+                            updateDirect2DSize();
 
                             return status;
                         }
@@ -391,22 +371,13 @@ private:
 
             case WM_SHOWWINDOW:
             {
-                if (direct2DContext && wParam)
-                {
-                    direct2DContext->handleParentShowWindow();
-                    handleDirect2DPaint();
-                }
-                break;
-            }
-
-            case Direct2DLowLevelGraphicsContext::childWindowCreatedMessageID:
-            {
                 //
-                // Child window received WM_SHOWWINDOW
+                // If this window is now shown (wParam != 0), tell the Direct2D LLGC to create resources
+                // and paint the whole window immediately
                 //
                 if (direct2DContext && wParam)
                 {
-                    direct2DContext->handleChildShowWindow ((void*) lParam);
+                    direct2DContext->handleShowWindow();
                     handleDirect2DPaint();
                 }
                 break;

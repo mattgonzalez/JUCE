@@ -130,15 +130,11 @@ struct ETWEventProvider
 
 #endif
 
-class Direct2DLowLevelGraphicsContext : public LowLevelGraphicsContext
+class Direct2DGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    Direct2DLowLevelGraphicsContext (HWND, double dpiScalingFactor, bool opaque);
-    ~Direct2DLowLevelGraphicsContext() override;
-
-    void handleParentShowWindow();
-    void handleChildShowWindow (void* childWindowHandle);
-    void setWindowAlpha (float alpha);
+    Direct2DGraphicsContext();
+    ~Direct2DGraphicsContext() override;
 
     //==============================================================================
     bool isVectorDevice() const override
@@ -183,25 +179,12 @@ public:
     void        drawGlyph (int glyphNumber, const AffineTransform&) override;
     bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
 
-    void startResizing();
-    void resize();
-    void resize (int width, int height);
-    void finishResizing();
-    void restoreWindow();
-
-    void addDeferredRepaint (Rectangle<int> deferredRepaint);
-    void addInvalidWindowRegionToDeferredRepaints();
-    bool startFrame();
-    void endFrame();
-
-    void   setScaleFactor (double scale_);
-    double getScaleFactor() const;
 
     //==============================================================================
     //
     // These methods are not part of the standard LowLevelGraphicsContext; they
     // were added because Direct2D supports these drawing primitives
-    // 
+    //
     // Standard LLGC only supports drawing one glyph at a time; it's much more
     // efficient to pass an entire run of glyphs to the device context
     //
@@ -226,37 +209,39 @@ public:
                        const AffineTransform&        transform,
                        Rectangle<float>              underlineArea) override;
 
-    enum
-    {
-        createChildWindowMessageID = 0x400 + 0xd2d, // WM_USER + 0xd2d
-        removeChildWindowMessageID,
-        childWindowCreatedMessageID
-    };
-
     //==============================================================================
-    //
-    // Min & max windows sizes; same as Direct3D texture size limits
-    // 
-    static int constexpr minWindowSize = 1;
-    static int constexpr maxWindowSize = 16384;
+    bool startFrame();
+    void endFrame();
+
+    void setPhysicalPixelScaleFactor(float scale_);
+
 
 #if JUCE_DIRECT2D_METRICS
     direct2d::PaintStats::Ptr stats;
 #endif
 
     //==============================================================================
-private:
+    //
+    // Min & max frame sizes; same as Direct3D texture size limits
+    //
+    static int constexpr minFrameSize = 1;
+    static int constexpr maxFrameSize = 16384;
+
+
+    //==============================================================================
+protected:
     struct SavedState;
     SavedState* currentState = nullptr;
 
     struct Pimpl;
-    std::unique_ptr<Pimpl> pimpl;
+    virtual Pimpl* const getPimpl() const noexcept = 0;
 
+    virtual void clearTargetBuffer() = 0;
     void drawGlyphCommon (int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea);
     void updateDeviceContextTransform();
     void updateDeviceContextTransform (AffineTransform chainedTransform);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DLowLevelGraphicsContext)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DGraphicsContext)
 };
 
 } // namespace juce

@@ -79,78 +79,25 @@ public:
     }
 
     //
-    // This code...lacks elegance, shall we say.
+    // Create a Direct2D device context for a DXGI adapter
     //
-    // A better solution would be to integrate this with the VBlankDispatcher;
-    // VBlankDispatcher already has a list of DXGI adapters
-    //
-    // Also - creating all these resources takes quite a while. The worst offender seems to be 
-    // creating the Direct3D device. Ideally this class could cache the Direct3D device; they 
-    // can be associated with the DXGI adapter using the adapter's unique ID.
-    //
-    HRESULT create (ID2D1Factory2* const direct2dFactory, double dpiScalingFactor)
+    HRESULT create(DirectXFactories::GraphicsAdapter::Ptr adapter, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
 
-        if (direct2dFactory != nullptr)
+        if (deviceContext.context == nullptr)
         {
-            if (deviceContext.context == nullptr)
+            hr = adapter->createDirect2DResources();
+            if (SUCCEEDED(hr))
             {
-                // This flag adds support for surfaces with a different color channel ordering
-                // than the API default. It is required for compatibility with Direct2D.
-                UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-#if JUCE_DEBUG
-                creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-
-                hr = D3D11CreateDevice (nullptr,
-                                        D3D_DRIVER_TYPE_HARDWARE,
-                                        nullptr,
-                                        creationFlags,
-                                        nullptr,
-                                        0,
-                                        D3D11_SDK_VERSION,
-                                        direct3DDevice.resetAndGetPointerAddress(),
-                                        nullptr,
-                                        nullptr);
-                if (SUCCEEDED (hr))
-                {
-                    hr = direct3DDevice->QueryInterface (dxgiDevice.resetAndGetPointerAddress());
-                    if (SUCCEEDED (hr))
-                    {
-                        ComSmartPtr<IDXGIAdapter> dxgiAdapter;
-                        hr = dxgiDevice->GetAdapter (dxgiAdapter.resetAndGetPointerAddress());
-
-                        if (SUCCEEDED (hr))
-                        {
-                            hr = dxgiAdapter->GetParent (__uuidof (dxgiFactory),
-                                                         reinterpret_cast<void**> (dxgiFactory.resetAndGetPointerAddress()));
-                            if (SUCCEEDED (hr))
-                            {
-                                ComSmartPtr<ID2D1Device1> direct2DDevice;
-                                hr = direct2dFactory->CreateDevice (
-                                    dxgiDevice,
-                                    direct2DDevice.resetAndGetPointerAddress());
-                                if (SUCCEEDED (hr))
-                                {
-                                    hr = direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-                                                                              deviceContext.context.resetAndGetPointerAddress());
-                                    if (SUCCEEDED (hr))
-                                    {
-                                        deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-
-                                        TRACE_LOG_D2D_RESOURCE (etw::createDeviceResources);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                jassert (SUCCEEDED (hr));
+                hr = adapter->direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
+                    deviceContext.context.resetAndGetPointerAddress());
             }
 
             if (deviceContext.context)
             {
+                deviceContext.context->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
                 float dpi = (float) (USER_DEFAULT_SCREEN_DPI * dpiScalingFactor);
                 deviceContext.context->SetDpi (dpi, dpi);
 
@@ -170,9 +117,6 @@ public:
     {
         colourBrush = nullptr;
         deviceContext.release();
-        dxgiFactory    = nullptr;
-        dxgiDevice     = nullptr;
-        direct3DDevice = nullptr;
     }
 
     bool canPaint()
@@ -180,9 +124,6 @@ public:
         return deviceContext.context != nullptr && colourBrush != nullptr;
     }
 
-    ComSmartPtr<ID3D11Device>         direct3DDevice;
-    ComSmartPtr<IDXGIFactory2>        dxgiFactory;
-    ComSmartPtr<IDXGIDevice>          dxgiDevice;
     DeviceContext                     deviceContext;
     ComSmartPtr<ID2D1SolidColorBrush> colourBrush;
 };
@@ -202,10 +143,18 @@ public:
         release();
     }
 
-    HRESULT create (HWND hwnd, Rectangle<int> size, ID3D11Device* const direct3DDevice, IDXGIFactory2* const dxgiFactory)
+    HRESULT create(HWND hwnd, Rectangle<int> size, DirectXFactories::GraphicsAdapter::Ptr adapter)
     {
-        if (dxgiFactory && direct3DDevice && ! chain && hwnd)
+        if (!chain && hwnd)
         {
+            SharedResourcePointer<DirectXFactories> factories;
+            auto dxgiFactory = factories->getDXGIFactory();
+
+            if (dxgiFactory == nullptr || adapter->direct3DDevice == nullptr)
+            {
+                return E_FAIL;
+            }
+
             HRESULT hr = S_OK;
 
             buffer = nullptr;
@@ -228,7 +177,7 @@ public:
 
             swapChainDescription.Scaling   = DXGI_SCALING_STRETCH;
             swapChainDescription.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-            hr                             = dxgiFactory->CreateSwapChainForComposition (direct3DDevice,
+            hr                             = dxgiFactory->CreateSwapChainForComposition (adapter->direct3DDevice,
                                                              &swapChainDescription,
                                                              nullptr,
                                                              chain.resetAndGetPointerAddress());
@@ -331,13 +280,13 @@ public:
         {
             auto scaledSize = newSize * dpiScalingFactor;
             scaledSize =
-                scaledSize.getUnion ({ Direct2DLowLevelGraphicsContext::minWindowSize, Direct2DLowLevelGraphicsContext::minWindowSize })
-                    .getIntersection ({ Direct2DLowLevelGraphicsContext::maxWindowSize, Direct2DLowLevelGraphicsContext::maxWindowSize });
+                scaledSize.getUnion ({ Direct2DGraphicsContext::minFrameSize, Direct2DGraphicsContext::minFrameSize })
+                    .getIntersection ({ Direct2DGraphicsContext::maxFrameSize, Direct2DGraphicsContext::maxFrameSize });
 
             buffer = nullptr;
             state  = chainAllocated;
 
-            auto dpi = 96.0f * dpiScalingFactor;
+            auto dpi = USER_DEFAULT_SCREEN_DPI * dpiScalingFactor;
             deviceContext->SetDpi (dpi, dpi);
 
             auto hr = chain->ResizeBuffers (0, scaledSize.getWidth(), scaledSize.getHeight(), DXGI_FORMAT_B8G8R8A8_UNORM, swapChainFlags);

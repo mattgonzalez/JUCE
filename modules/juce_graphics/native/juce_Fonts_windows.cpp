@@ -178,7 +178,7 @@ StringArray Font::findAllTypefaceNames()
     StringArray results;
 
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    SharedResourcePointer<DirectXFactories> factories;
 
     if (auto systemFonts = factories->getSystemFonts())
     {
@@ -228,7 +228,7 @@ StringArray Font::findAllTypefaceStyles (const String& family)
     StringArray results;
 
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    SharedResourcePointer<DirectXFactories> factories;
 
     if (auto systemFonts = factories->getSystemFonts())
     {
@@ -606,7 +606,8 @@ const MAT2 WindowsTypeface::identityMatrix = { { 0, 1 }, { 0, 0 }, { 0, 0 }, { 0
 Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)
 {
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    //auto factories = DirectXFactories::getInstance();
+    SharedResourcePointer<DirectXFactories> factories;
 
     if (auto systemFonts = factories->getSystemFonts())
     {

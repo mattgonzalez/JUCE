@@ -480,12 +480,9 @@ protected:
     }
 
     virtual Rectangle<int> getFrameSize()           = 0;
-    virtual ID2D1Image*    getDeviceContextTarget() = 0;
+    virtual ID2D1Image* const getDeviceContextTarget() = 0;
 
-    virtual Rectangle<int> updatePaintAreas (RectangleList<int>& paintAreas)
-    {
-        return paintAreas.getBounds();
-    }
+    virtual void adjustPaintAreas(RectangleList<int>& paintAreas) = 0;
 
     virtual bool checkPaintReady()
     {
@@ -506,7 +503,7 @@ public:
         factories->getDirect2DFactory()->CreateRectangleGeometry (rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
     }
 
-    ~Pimpl()
+    virtual ~Pimpl()
     {
         popAllSavedStates();
 
@@ -526,7 +523,8 @@ public:
         //
         // Anything to paint?
         //
-        auto paintBounds = updatePaintAreas (paintAreas);
+        adjustPaintAreas(paintAreas);
+        auto paintBounds = paintAreas.getBounds();
         if (! getFrameSize().intersects (paintBounds) || paintBounds.isEmpty())
         {
             return nullptr;

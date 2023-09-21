@@ -28,7 +28,7 @@ namespace juce
 
 class Direct2DPixelData;
 
-class Direct2ImageContext : public LowLevelGraphicsContext
+class Direct2ImageContext : public Direct2DGraphicsContext
 {
 public:
     /** Creates a context to render into an image. */
@@ -39,112 +39,16 @@ public:
 
     ~Direct2ImageContext() override;
 
-    //==============================================================================
-    bool isVectorDevice() const override
-    {
-        return false;
-    }
-
-    void           setOrigin (Point<int>) override;
-    void           addTransform (const AffineTransform&) override;
-    float          getPhysicalPixelScaleFactor() override;
-    bool           clipToRectangle (const Rectangle<int>&) override;
-    bool           clipToRectangleList (const RectangleList<int>&) override;
-    void           excludeClipRectangle (const Rectangle<int>&) override;
-    void           clipToPath (const Path&, const AffineTransform&) override;
-    void           clipToImageAlpha (const Image&, const AffineTransform&) override;
-    bool           clipRegionIntersects (const Rectangle<int>&) override;
-    Rectangle<int> getClipBounds() const override;
-    bool           isClipEmpty() const override;
-
-    //==============================================================================
-    void saveState() override;
-    void restoreState() override;
-    void beginTransparencyLayer (float opacity) override;
-    void endTransparencyLayer() override;
-
-    //==============================================================================
-    void setFill (const FillType&) override;
-    void setOpacity (float) override;
-    void setInterpolationQuality (Graphics::ResamplingQuality) override;
-
-    //==============================================================================
-    void fillRect (const Rectangle<int>&, bool replaceExistingContents) override;
-    void fillRect (const Rectangle<float>&) override;
-    void fillRectList (const RectangleList<float>&) override;
-    void fillPath (const Path&, const AffineTransform&) override;
-    void drawImage (const Image& sourceImage, const AffineTransform&) override;
-
-    //==============================================================================
-    void        drawLine (const Line<float>&) override;
-    void        setFont (const Font&) override;
-    const Font& getFont() override;
-    void        drawGlyph (int glyphNumber, const AffineTransform&) override;
-    bool drawTextLayout (const AttributedString&, const Rectangle<float>&) override;
-
-    void resize();
-    void resize (int width, int height);
-    void restoreWindow();
-
-    bool startFrame();
-    void endFrame();
-
-
-    //==============================================================================
-    //
-    // These methods are not part of the standard LowLevelGraphicsContext; they
-    // were added because Direct2D supports these drawing primitives
-    //
-    // Standard LLGC only supports drawing one glyph at a time; it's much more
-    // efficient to pass an entire run of glyphs to the device context
-    //
-    bool drawLine (const Line<float>&, float) override;
-
-    bool drawEllipse (Rectangle<float> area, float lineThickness) override;
-    bool fillEllipse (Rectangle<float> area) override;
-
-    bool drawRect (const Rectangle<float>&, float) override;
-    bool drawPath (const Path&, const PathStrokeType& strokeType, const AffineTransform&) override;
-
-    bool drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness) override;
-    bool fillRoundedRectangle (Rectangle<float> area, float cornerSize) override;
-
-    bool supportsGlyphRun() override
-    {
-        return true;
-    }
-    void drawGlyphRun (Array<PositionedGlyph> const& glyphs,
-                       int                           startIndex,
-                       int                           numGlyphs,
-                       const AffineTransform&        transform,
-                       Rectangle<float>              underlineArea) override;
-
-    //==============================================================================
-    //
-    // Min & max windows sizes; same as Direct3D texture size limits
-    //
-    static int constexpr minFrameSize = 1;
-    static int constexpr maxFrameSize = 16384;
-
-#if JUCE_DIRECT2D_METRICS
-    direct2d::PaintStats::Ptr stats;
-#endif
-
-    //==============================================================================
 private:
     friend class Direct2DPixelData;
 
     bool clearImage = true;
 
-    struct SavedState;
-    SavedState* currentState = nullptr;
+    struct ImagePimpl;
+    std::unique_ptr<ImagePimpl> pimpl;
 
-    struct Pimpl;
-    std::unique_ptr<Pimpl> pimpl;
-
-    void drawGlyphCommon (int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea);
-    void updateDeviceContextTransform();
-    void updateDeviceContextTransform (AffineTransform chainedTransform);
+    Pimpl* const getPimpl() const noexcept override;
+    void clearTargetBuffer() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2ImageContext)
 };

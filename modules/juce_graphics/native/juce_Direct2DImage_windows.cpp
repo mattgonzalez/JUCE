@@ -196,7 +196,7 @@ public:
 private:
     friend class Direct2DGraphicsContext;
     friend class Direct2DImageContext;
-    friend struct Direct2ImageContext::Pimpl;
+    friend struct Direct2ImageContext::ImagePimpl;
 
     const int                 pixelStride, lineStride;
     size_t const              imageDataSize;

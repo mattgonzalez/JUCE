@@ -102,7 +102,7 @@ private:
         Pimpl::teardown();
     }
 
-    Rectangle<int> updatePaintAreas (RectangleList<int>& paintAreas) override
+    void adjustPaintAreas (RectangleList<int>& paintAreas) override
     {
         //
         // Does the entire buffer need to be filled?
@@ -124,8 +124,6 @@ private:
         {
             paintAreas = deferredRepaints;
         }
-
-        return paintAreas.getBounds();
     }
 
     bool checkPaintReady() override
@@ -156,12 +154,7 @@ public:
         adapter = factories->getAdapterForHwnd(hwnd_);
     }
 
-    ~HwndPimpl()
-    {
-        popAllSavedStates();
-
-        teardown();
-    }
+    ~HwndPimpl() override {}
 
     void handleTargetVisible()
     {
@@ -190,7 +183,7 @@ public:
         return swap.getSize();
     }
 
-    ID2D1Image* getDeviceContextTarget()
+    ID2D1Image* const getDeviceContextTarget()
     {
         return swap.buffer;
     }

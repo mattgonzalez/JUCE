@@ -170,6 +170,7 @@
     #include "native/juce_Direct2DSwapChainDispatcher_windows.cpp"
         #include "native/juce_Direct2DImage_windows.cpp"
         #include "native/juce_Direct2DResources_windows.cpp"
+        #include "native/juce_Direct2DGraphicsContext_windows.cpp"
     #include "native/juce_Direct2DHwndContext_windows.cpp"
 #include "native/juce_Direct2DImageContext_windows.cpp"
  #endif

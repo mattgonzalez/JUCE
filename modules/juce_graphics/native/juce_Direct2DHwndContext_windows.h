@@ -29,15 +29,15 @@ namespace juce
 class Direct2DHwndContext : public Direct2DGraphicsContext
 {
 public:
-    Direct2DHwndContext (HWND, double dpiScalingFactor, bool opaque);
+    Direct2DHwndContext (HWND, float dpiScalingFactor, bool opaque);
     ~Direct2DHwndContext() override;
 
     void handleShowWindow();
     void setWindowAlpha (float alpha);
 
-    void resize();
-    void resize (int width, int height);
-    void restoreWindow();
+    void setSize (int width, int height);
+    void updateSize();
+    //void restoreWindow();
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();

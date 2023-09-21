@@ -147,7 +147,7 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE (HwndPimpl)
 
 public:
-    HwndPimpl (Direct2DHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
+    HwndPimpl (Direct2DHwndContext& owner_, HWND hwnd_, float dpiScalingFactor_, bool opaque_)
         : Pimpl (owner_, dpiScalingFactor_, opaque_),
           hwnd (hwnd_)
     {
@@ -188,9 +188,19 @@ public:
         return swap.buffer;
     }
 
-    void resize (Rectangle<int> size)
+    void setSize (Rectangle<int> size)
     {
-        if (size.isEmpty() || size == frameSize)
+        if (size == frameSize)
+        {
+            return;
+        }
+
+        resizeSwapChain(size);
+    }
+
+    void resizeSwapChain(Rectangle<int> size)
+    {
+        if (size.isEmpty())
         {
             return;
         }
@@ -201,6 +211,9 @@ public:
         frameSize        = size;
         deferredRepaints = size;
 
+        //
+        // Resize/scale the swap chain
+        //
         prepare();
 
         if (auto deviceContext = deviceResources.deviceContext.context)
@@ -214,15 +227,10 @@ public:
         }
     }
 
-    void resize()
-    {
-        resize (getClientRect());
-    }
-
-    void restoreWindow()
-    {
-        resize (frameSize);
-    }
+//     void restoreWindow()
+//     {
+//         resizeSwapChain (frameSize);
+//     }
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint)
     {
@@ -350,7 +358,7 @@ public:
         Pimpl::setScaleFactor (scale_);
 
         deferredRepaints = frameSize;
-        resize();
+        resizeSwapChain(getClientRect());
     }
 
     double getScaleFactor() const
@@ -432,7 +440,7 @@ public:
 };
 
 //==============================================================================
-Direct2DHwndContext::Direct2DHwndContext (HWND hwnd_, double dpiScalingFactor_, bool opaque)
+Direct2DHwndContext::Direct2DHwndContext (HWND hwnd_, float dpiScalingFactor_, bool opaque)
 {
     pimpl = std::make_unique<HwndPimpl> (*this, hwnd_, dpiScalingFactor_, opaque);
 }
@@ -454,19 +462,14 @@ void Direct2DHwndContext::setWindowAlpha (float alpha)
     pimpl->setTargetAlpha (alpha);
 }
 
-void Direct2DHwndContext::resize()
+void Direct2DHwndContext::setSize (int width, int height)
 {
-    pimpl->resize();
+    pimpl->setSize ({ width, height });
 }
 
-void Direct2DHwndContext::resize (int width, int height)
+void Direct2DHwndContext::updateSize()
 {
-    pimpl->resize ({ width, height });
-}
-
-void Direct2DHwndContext::restoreWindow()
-{
-    pimpl->restoreWindow();
+    pimpl->setSize(pimpl->getClientRect());
 }
 
 void Direct2DHwndContext::addDeferredRepaint (Rectangle<int> deferredRepaint)

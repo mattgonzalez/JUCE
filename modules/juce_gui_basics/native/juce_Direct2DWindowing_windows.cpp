@@ -87,7 +87,7 @@ public:
     {
         HWNDComponentPeer::updateBorderSize();
 
-        handleDirect2DResize();
+        updateDirect2DSize();
     }
 
     void setAlpha (float newAlpha) override
@@ -210,15 +210,15 @@ private:
     {
         if (direct2DContext)
         {
-            direct2DContext->resize (width, height);
+            direct2DContext->setSize (width, height);
         }
     }
 
-    void handleDirect2DResize()
+    void updateDirect2DSize()
     {
         if (direct2DContext && component.isVisible())
         {
-            direct2DContext->resize();
+            direct2DContext->updateSize();
         }
     }
 
@@ -235,13 +235,11 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
         {
-            direct2DContext = std::make_unique<Direct2DHwndContext> (hwnd,
-                                                                                 scaleFactor,
-                                                                                 component.isOpaque());
+            direct2DContext = std::make_unique<Direct2DHwndContext> (hwnd, (float) scaleFactor, component.isOpaque());
     #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
     #endif
-            direct2DContext->setPhysicalPixelScaleFactor ((float)getPlatformScaleFactor());
+            direct2DContext->setPhysicalPixelScaleFactor ((float) getPlatformScaleFactor());
         }
     }
 
@@ -287,7 +285,7 @@ private:
     {
         auto result = HWNDComponentPeer::handleSizeConstraining (r, wParam);
 
-        handleDirect2DResize();
+        updateDirect2DSize();
 
         return result;
     }
@@ -299,7 +297,7 @@ private:
 
         if (direct2DContext)
         {
-            direct2DContext->setPhysicalPixelScaleFactor(scaleFactor);
+            direct2DContext->setPhysicalPixelScaleFactor ((float) scaleFactor);
         }
 
         return result;
@@ -330,7 +328,7 @@ private:
                 if (direct2DContext && component.isVisible())
                 {
                     RECT* rect = (RECT*) lParam;
-                    direct2DContext->resize (rect->right - rect->left, rect->bottom - rect->top);
+                    direct2DContext->setSize (rect->right - rect->left, rect->bottom - rect->top);
                 }
                 break;
             }
@@ -346,7 +344,7 @@ private:
                         {
                             auto status = HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
 
-                            handleDirect2DResize();
+                            updateDirect2DSize();
 
                             return status;
                         }

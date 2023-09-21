@@ -345,7 +345,7 @@ public:
         return hr;
     }
 
-    void setScaleFactor (double scale_) override
+    void setScaleFactor (float scale_) override
     {
         Pimpl::setScaleFactor (scale_);
 

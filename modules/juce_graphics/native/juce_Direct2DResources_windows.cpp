@@ -286,7 +286,7 @@ public:
             buffer = nullptr;
             state  = chainAllocated;
 
-            auto dpi = 96.0f * dpiScalingFactor;
+            auto dpi = USER_DEFAULT_SCREEN_DPI * dpiScalingFactor;
             deviceContext->SetDpi (dpi, dpi);
 
             auto hr = chain->ResizeBuffers (0, scaledSize.getWidth(), scaledSize.getHeight(), DXGI_FORMAT_B8G8R8A8_UNORM, swapChainFlags);

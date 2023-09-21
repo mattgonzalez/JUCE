@@ -213,8 +213,7 @@ public:
     bool startFrame();
     void endFrame();
 
-    void   setScaleFactor (double scale_);
-    double getScaleFactor() const;
+    void setPhysicalPixelScaleFactor(float scale_);
 
 
 #if JUCE_DIRECT2D_METRICS

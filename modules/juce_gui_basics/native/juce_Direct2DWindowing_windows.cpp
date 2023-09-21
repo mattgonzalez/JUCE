@@ -241,7 +241,7 @@ private:
     #if JUCE_DIRECT2D_METRICS
             direct2DContext->stats = paintStats;
     #endif
-            direct2DContext->setScaleFactor (getPlatformScaleFactor());
+            direct2DContext->setPhysicalPixelScaleFactor ((float)getPlatformScaleFactor());
         }
     }
 
@@ -299,7 +299,7 @@ private:
 
         if (direct2DContext)
         {
-            direct2DContext->setScaleFactor (scaleFactor);
+            direct2DContext->setPhysicalPixelScaleFactor(scaleFactor);
         }
 
         return result;

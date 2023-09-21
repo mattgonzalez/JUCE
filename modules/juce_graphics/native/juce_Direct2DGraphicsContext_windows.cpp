@@ -450,8 +450,8 @@ struct Direct2DGraphicsContext::Pimpl
 protected:
     Direct2DGraphicsContext&                owner;
     SharedResourcePointer<DirectXFactories> factories;
-    double                                  dpiScalingFactor              = 1.0;
-    double                                  snappedDpiScalingFactor       = 1.0;
+    float                                   dpiScalingFactor              = 1.0f;
+    float                                   snappedDpiScalingFactor       = 1.0f;
     static constexpr int                    dpiScalingIntConversionShift  = 7;
     static constexpr int                    dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
     int                                     repaintAreaPixelSnap          = dpiScalingIntConversionFactor;
@@ -492,12 +492,12 @@ protected:
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DGraphicsContext& owner_, double dpiScalingFactor_, bool opaque_)
+    Pimpl (Direct2DGraphicsContext& owner_, float dpiScalingFactor_, bool opaque_)
         : owner (owner_),
           opaque (opaque_)
     {
         setTargetAlpha (1.0f);
-        setScaleFactor (dpiScalingFactor_);
+        setScaleFactor( dpiScalingFactor_);
 
         D2D1_RECT_F rect { 0.0f, 0.0f, 1.0f, 1.0f };
         factories->getDirect2DFactory()->CreateRectangleGeometry (rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
@@ -580,10 +580,10 @@ public:
         return hr;
     }
 
-    virtual void setScaleFactor (double scale_)
+    virtual void setScaleFactor (float scale_)
     {
         dpiScalingFactor        = scale_;
-        snappedDpiScalingFactor = roundToInt (dpiScalingFactor * dpiScalingIntConversionFactor) / double { dpiScalingIntConversionFactor };
+        snappedDpiScalingFactor = roundToInt (dpiScalingFactor * dpiScalingIntConversionFactor) / float { dpiScalingIntConversionFactor };
 
         //
         // Round DPI scaling factor to nearest 1/128 so the repainted areas
@@ -613,11 +613,11 @@ public:
         // scaling factors will be less efficient and require more painting.
         //
         auto greatestCommonDenominator =
-            std::gcd (roundToInt (double { dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
+            std::gcd (roundToInt (float { dpiScalingIntConversionFactor } * snappedDpiScalingFactor), dpiScalingIntConversionFactor);
         repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
     }
 
-    double getScaleFactor() const
+    float getScaleFactor() const
     {
         return dpiScalingFactor;
     }
@@ -766,11 +766,6 @@ void Direct2DGraphicsContext::addTransform (const AffineTransform& transform)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::addTransform);
     currentState->currentTransform.addTransform (transform);
-}
-
-float Direct2DGraphicsContext::getPhysicalPixelScaleFactor()
-{
-    return currentState->currentTransform.getPhysicalPixelScaleFactor();
 }
 
 bool Direct2DGraphicsContext::clipToRectangle (const Rectangle<int>& r)
@@ -1304,14 +1299,14 @@ bool Direct2DGraphicsContext::drawTextLayout (const AttributedString& text, cons
     return true;
 }
 
-void Direct2DGraphicsContext::setScaleFactor (double scale_)
-{
-    getPimpl()->setScaleFactor (scale_);
-}
-
-double Direct2DGraphicsContext::getScaleFactor() const
+float Direct2DGraphicsContext::getPhysicalPixelScaleFactor()
 {
     return getPimpl()->getScaleFactor();
+}
+
+void Direct2DGraphicsContext::setPhysicalPixelScaleFactor (float scale_)
+{
+    getPimpl()->setScaleFactor (scale_);
 }
 
 bool Direct2DGraphicsContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)

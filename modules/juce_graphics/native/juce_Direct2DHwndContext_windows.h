@@ -42,13 +42,11 @@ public:
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();
 
-    void   setScaleFactor (double scale_);
-    double getScaleFactor() const;
-
 private:
     struct HwndPimpl;
-    std::unique_ptr<HwndPimpl> hwndPimpl;
+    std::unique_ptr<HwndPimpl> pimpl;
 
+    Pimpl* const getPimpl() const noexcept override;
     void clearTargetBuffer() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DHwndContext)

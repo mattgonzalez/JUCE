@@ -65,16 +65,14 @@ private:
             return hr;
         }
 
-        auto clientBounds = getClientRect();
-
-        if (! hwnd || clientBounds.isEmpty())
+        if (! hwnd || frameSize.isEmpty())
         {
             return E_FAIL;
         }
 
         if (! swap.canPaint())
         {
-            if (auto hr = swap.create (hwnd, clientBounds, adapter); FAILED (hr))
+            if (auto hr = swap.create (hwnd, frameSize, adapter); FAILED (hr))
             {
                 return hr;
             }
@@ -152,9 +150,10 @@ private:
 
 public:
     HwndPimpl (Direct2DHwndContext& owner_, HWND hwnd_, double dpiScalingFactor_, bool opaque_)
-        : Pimpl (owner_, factories->getAdapterForHwnd (hwnd_), dpiScalingFactor_, opaque_),
+        : Pimpl (owner_, dpiScalingFactor_, opaque_),
           hwnd (hwnd_)
     {
+        adapter = factories->getAdapterForHwnd(hwnd_);
     }
 
     ~HwndPimpl()
@@ -164,13 +163,13 @@ public:
         teardown();
     }
 
-    void handleTargetVisible() override
+    void handleTargetVisible()
     {
         //
         // One of the trickier problems was determining when Direct2D & DXGI resources can be safely created;
         // that's not really spelled out in the documentation.
         //
-        // This method creates resources on receipt of WM_SHOWWINDOW
+        // This method is called when the component peer receives WM_SHOWWINDOW
         //
         prepare();
 
@@ -186,20 +185,30 @@ public:
         return Rectangle<int>::leftTopRightBottom (clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
     }
 
-    void resize (Rectangle<int> size) override
+    Rectangle<int> getFrameSize() override
+    {
+        return swap.getSize();
+    }
+
+    ID2D1Image* getDeviceContextTarget()
+    {
+        return swap.buffer;
+    }
+
+    void resize (Rectangle<int> size)
     {
         if ((frameSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1) || (size == frameSize))
         {
             return;
         }
 
-        prepare();
-
         //
         // Require the entire window to be repainted
         //
         frameSize        = size;
         deferredRepaints = size;
+
+        prepare();
 
         if (auto deviceContext = deviceResources.deviceContext.context)
         {
@@ -212,17 +221,17 @@ public:
         }
     }
 
-    void resize() override
+    void resize()
     {
         resize (getClientRect());
     }
 
-    void restoreWindow() override
+    void restoreWindow()
     {
         resize (frameSize);
     }
 
-    void addDeferredRepaint (Rectangle<int> deferredRepaint) override
+    void addDeferredRepaint (Rectangle<int> deferredRepaint)
     {
         //
         // Clipping regions are specified with floating-point values and can be anti-aliased with
@@ -241,7 +250,7 @@ public:
                                                                   (deferredRepaint.getBottom() + repaintAreaPixelSnap - 1) & snapMask));
     }
 
-    void addInvalidWindowRegionToDeferredRepaints() override
+    void addInvalidWindowRegionToDeferredRepaints()
     {
         updateRegion.getRECTAndValidate (hwnd);
         updateRegion.addToRectangleList (deferredRepaints);
@@ -284,15 +293,15 @@ public:
         DXGI_PRESENT_PARAMETERS presentParameters {};
         if (swap.state == direct2d::SwapChain::bufferFilled)
         {
-            RECT*      dirtyRectangle = dirtyRectangles.getData();
-            auto const swapChainSize  = swap.getSize();
+            RECT* dirtyRectangle = dirtyRectangles.getData();
+            auto const swapChainSize = swap.getSize();
             for (auto const& area : deferredRepaints)
             {
                 //
                 // If this deferred area contains the entire swap chain, then
                 // no need for dirty rectangles
                 //
-                if (area.contains (swapChainSize))
+                if (area.contains(swapChainSize))
                 {
                     presentParameters.DirtyRectsCount = 0;
                     break;
@@ -301,7 +310,7 @@ public:
                 //
                 // Intersect this deferred repaint area with the swap chain buffer
                 //
-                auto intersection = (area * snappedDpiScalingFactor).getSmallestIntegerContainer().getIntersection (swapChainSize);
+                auto intersection = (area * snappedDpiScalingFactor).getSmallestIntegerContainer().getIntersection(swapChainSize);
                 if (intersection.isEmpty())
                 {
                     //
@@ -313,36 +322,34 @@ public:
                 //
                 // Add this deferred repaint area to the dirty rectangle array (scaled for DPI)
                 //
-                *dirtyRectangle = direct2d::rectangleToRECT (intersection);
+                *dirtyRectangle = direct2d::rectangleToRECT(intersection);
 
                 dirtyRectangle++;
                 presentParameters.DirtyRectsCount++;
             }
             presentParameters.pDirtyRects = dirtyRectangles.getData();
-
-            //
-            // Present the freshly painted buffer
-            //
-            auto hr = swap.chain->Present1 (swap.presentSyncInterval, swap.presentFlags, &presentParameters);
-            jassert (SUCCEEDED (hr));
-
-            //
-            // If the dirty rectangle count was zero, then the buffer is now completely filled and
-            // ready for dirty rectangles
-            //
-            if (presentParameters.DirtyRectsCount == 0)
-            {
-                swap.state = direct2d::SwapChain::bufferFilled;
-            }
-
-            if (FAILED (hr))
-            {
-                teardown();
-            }
         }
+
+        //
+        // Present the freshly painted buffer
+        //
+        auto hr = swap.chain->Present1 (swap.presentSyncInterval, swap.presentFlags, &presentParameters);
+        jassert (SUCCEEDED (hr));
+
+        //
+        // The buffer is now completely filled and ready for dirty rectangles
+        //
+        swap.state = direct2d::SwapChain::bufferFilled;
 
         deferredRepaints.clear();
         swapChainReady = false;
+
+        if (FAILED (hr))
+        {
+            teardown();
+        }
+
+        return hr;
     }
 
     void setScaleFactor (double scale_) override
@@ -438,6 +445,11 @@ Direct2DHwndContext::Direct2DHwndContext (HWND hwnd_, double dpiScalingFactor_, 
 }
 
 Direct2DHwndContext::~Direct2DHwndContext() {}
+
+Direct2DGraphicsContext::Pimpl* const Direct2DHwndContext::getPimpl() const noexcept
+{
+    return pimpl.get();
+}
 
 void Direct2DHwndContext::handleShowWindow()
 {

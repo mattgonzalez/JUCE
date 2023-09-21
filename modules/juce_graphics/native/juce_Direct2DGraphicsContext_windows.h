@@ -216,6 +216,7 @@ public:
     void   setScaleFactor (double scale_);
     double getScaleFactor() const;
 
+
 #if JUCE_DIRECT2D_METRICS
     direct2d::PaintStats::Ptr stats;
 #endif
@@ -234,7 +235,7 @@ protected:
     SavedState* currentState = nullptr;
 
     struct Pimpl;
-    std::unique_ptr<Pimpl> pimpl;
+    virtual Pimpl* const getPimpl() const noexcept = 0;
 
     virtual void clearTargetBuffer() = 0;
     void drawGlyphCommon (int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea);

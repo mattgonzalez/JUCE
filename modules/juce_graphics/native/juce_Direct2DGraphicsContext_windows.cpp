@@ -495,9 +495,8 @@ protected:
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
 
 public:
-    Pimpl (Direct2DGraphicsContext& owner_, DirectXFactories::GraphicsAdapter::Ptr adapter_, double dpiScalingFactor_, bool opaque_)
+    Pimpl (Direct2DGraphicsContext& owner_, double dpiScalingFactor_, bool opaque_)
         : owner (owner_),
-          adapter (adapter_),
           opaque (opaque_)
     {
         setTargetAlpha (1.0f);
@@ -513,13 +512,6 @@ public:
 
         teardown();
     }
-
-    virtual void handleTargetVisible() {}
-    virtual void resize (Rectangle<int>) {}
-    virtual void resize();
-    virtual void restoreWindow();
-    virtual void addDeferredRepaint (Rectangle<int>);
-    virtual void addInvalidWindowRegionToDeferredRepaints();
 
     void setTargetAlpha (float alpha)
     {
@@ -564,8 +556,6 @@ public:
         //
         return pushFirstSavedState (paintBounds);
     }
-
-    virtual void clearTargetBuffer() = 0;
 
     virtual HRESULT finishFrame()
     {
@@ -722,9 +712,9 @@ bool Direct2DGraphicsContext::startFrame()
     TRACE_LOG_D2D_START_FRAME;
 
     RectangleList<int> paintAreas;
-    if (currentState = pimpl->startFrame (paintAreas); currentState != nullptr)
+    if (currentState = getPimpl()->startFrame (paintAreas); currentState != nullptr)
     {
-        if (auto deviceContext = pimpl->getDeviceContext())
+        if (auto deviceContext = getPimpl()->getDeviceContext())
         {
             //
             // Clip without transforming
@@ -739,13 +729,13 @@ bool Direct2DGraphicsContext::startFrame()
             else
             {
                 currentState->pushGeometryClipLayer (
-                    direct2d::rectListToPathGeometry (pimpl->getDirect2DFactory(), paintAreas, AffineTransform {}, D2D1_FILL_MODE_WINDING));
+                    direct2d::rectListToPathGeometry (getPimpl()->getDirect2DFactory(), paintAreas, AffineTransform {}, D2D1_FILL_MODE_WINDING));
             }
 
             //
             // Clear the buffer *after* setting the clip region
             //
-            pimpl->clearTargetBuffer();
+            clearTargetBuffer();
 
             //
             // Init font & brush
@@ -758,6 +748,14 @@ bool Direct2DGraphicsContext::startFrame()
     }
 
     return false;
+}
+
+void Direct2DGraphicsContext::endFrame()
+{
+    getPimpl()->popAllSavedStates();
+    currentState = nullptr;
+    
+    getPimpl()->finishFrame();
 }
 
 void Direct2DGraphicsContext::setOrigin (Point<int> o)
@@ -788,7 +786,7 @@ bool Direct2DGraphicsContext::clipToRectangle (const Rectangle<int>& r)
     auto transformedR        = r.transformedBy (currentTransform);
     currentState->clipRegion = currentState->clipRegion.getIntersection (transformedR);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->currentTransform.isAxisAligned())
         {
@@ -811,7 +809,7 @@ bool Direct2DGraphicsContext::clipToRectangle (const Rectangle<int>& r)
                                  .translated (r.toFloat().getTopLeft())
                                  .followedBy (currentState->currentTransform.getTransform());
 
-            currentState->pushTransformedRectangleGeometryClipLayer (pimpl->rectangleGeometryUnitSize, transform);
+            currentState->pushTransformedRectangleGeometryClipLayer (getPimpl()->rectangleGeometryUnitSize, transform);
         }
     }
 
@@ -837,9 +835,9 @@ bool Direct2DGraphicsContext::clipToRectangleList (const RectangleList<int>& cli
     auto       transformedR     = clipRegion.getBounds().transformedBy (currentTransform);
     currentState->clipRegion    = currentState->clipRegion.getIntersection (transformedR);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (getPimpl()->getDirect2DFactory(),
                                                                                clipRegion,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_WINDING));
@@ -863,9 +861,9 @@ void Direct2DGraphicsContext::excludeClipRectangle (const Rectangle<int>& r)
     RectangleList<int> rectangles { r };
     rectangles.addWithoutMerging ({ -maxFrameSize, -maxFrameSize, maxFrameSize * 2, maxFrameSize * 2 });
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
-        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (pimpl->getDirect2DFactory(),
+        currentState->pushGeometryClipLayer (direct2d::rectListToPathGeometry (getPimpl()->getDirect2DFactory(),
                                                                                rectangles,
                                                                                currentState->currentTransform.getTransform(),
                                                                                D2D1_FILL_MODE_ALTERNATE));
@@ -876,10 +874,10 @@ void Direct2DGraphicsContext::clipToPath (const Path& path, const AffineTransfor
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToPath);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->pushGeometryClipLayer (
-            direct2d::pathToPathGeometry (pimpl->getDirect2DFactory(), path, currentState->currentTransform.getTransformWith (transform)));
+            direct2d::pathToPathGeometry (getPimpl()->getDirect2DFactory(), path, currentState->currentTransform.getTransformWith (transform)));
     }
 }
 
@@ -889,7 +887,7 @@ void Direct2DGraphicsContext::clipToImageAlpha (const Image& sourceImage, const 
 
     TRACE_LOG_D2D_PAINT_CALL (etw::clipToImageAlpha);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         //
         // Is this a Direct2D image already?
@@ -974,14 +972,14 @@ void Direct2DGraphicsContext::saveState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::saveState);
 
-    currentState = pimpl->pushSavedState();
+    currentState = getPimpl()->pushSavedState();
 }
 
 void Direct2DGraphicsContext::restoreState()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::restoreState);
 
-    currentState = pimpl->popSavedState();
+    currentState = getPimpl()->popSavedState();
     jassert (currentState);
 }
 
@@ -989,7 +987,7 @@ void Direct2DGraphicsContext::beginTransparencyLayer (float opacity)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::beginTransparencyLayer);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->pushTransparencyLayer (opacity);
     }
@@ -998,7 +996,7 @@ void Direct2DGraphicsContext::beginTransparencyLayer (float opacity)
 void Direct2DGraphicsContext::endTransparencyLayer()
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::endTransparencyLayer);
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->popTopLayer();
     }
@@ -1007,7 +1005,7 @@ void Direct2DGraphicsContext::endTransparencyLayer()
 void Direct2DGraphicsContext::setFill (const FillType& fillType)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::setFill);
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->fillType = fillType;
         currentState->updateCurrentBrush();
@@ -1019,7 +1017,7 @@ void Direct2DGraphicsContext::setOpacity (float newOpacity)
     TRACE_LOG_D2D_PAINT_CALL (etw::setOpacity);
 
     currentState->setOpacity (newOpacity);
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->updateCurrentBrush();
     }
@@ -1052,7 +1050,7 @@ void Direct2DGraphicsContext::fillRect (const Rectangle<float>& r)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRect);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1073,7 +1071,7 @@ bool Direct2DGraphicsContext::drawRect (const Rectangle<float>& r, float lineThi
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRect);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1091,14 +1089,14 @@ void Direct2DGraphicsContext::fillPath (const Path& p, const AffineTransform& tr
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillPath);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
             return;
         }
 
-        if (auto geometry = direct2d::pathToPathGeometry (pimpl->getDirect2DFactory(), p, transform))
+        if (auto geometry = direct2d::pathToPathGeometry (getPimpl()->getDirect2DFactory(), p, transform))
         {
             updateDeviceContextTransform();
             deviceContext->FillGeometry (geometry, currentState->currentBrush);
@@ -1110,14 +1108,14 @@ bool Direct2DGraphicsContext::drawPath (const Path& p, const PathStrokeType& str
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawPath);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
             return true;
         }
 
-        if (auto factory = pimpl->getDirect2DFactory())
+        if (auto factory = getPimpl()->getDirect2DFactory())
         {
             if (auto geometry = direct2d::pathToPathGeometry (factory, p, transform))
             {
@@ -1188,7 +1186,7 @@ void Direct2DGraphicsContext::drawImage (const Image& image, const AffineTransfo
 #if 1
     TRACE_LOG_D2D_PAINT_CALL (etw::drawImage);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         updateDeviceContextTransform (transform);
 
@@ -1237,7 +1235,7 @@ bool Direct2DGraphicsContext::drawLine (const Line<float>& line, float lineThick
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawLine);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1270,8 +1268,8 @@ void Direct2DGraphicsContext::drawGlyph (int glyphNumber, const AffineTransform&
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawGlyph);
 
-    pimpl->glyphRun.glyphIndices[0] = (uint16) glyphNumber;
-    pimpl->glyphRun.glyphOffsets[0] = {};
+    getPimpl()->glyphRun.glyphIndices[0] = (uint16) glyphNumber;
+    getPimpl()->glyphRun.glyphOffsets[0] = {};
 
     drawGlyphCommon (1, currentState->font, transform, {});
 }
@@ -1285,9 +1283,9 @@ bool Direct2DGraphicsContext::drawTextLayout (const AttributedString& text, cons
         return true;
     }
 
-    auto deviceContext      = pimpl->getDeviceContext();
-    auto directWriteFactory = pimpl->getDirectWriteFactory();
-    auto fontCollection     = pimpl->getSystemFonts();
+    auto deviceContext      = getPimpl()->getDeviceContext();
+    auto directWriteFactory = getPimpl()->getDirectWriteFactory();
+    auto fontCollection     = getPimpl()->getSystemFonts();
 
     if (deviceContext && directWriteFactory && fontCollection)
     {
@@ -1310,19 +1308,19 @@ bool Direct2DGraphicsContext::drawTextLayout (const AttributedString& text, cons
 
 void Direct2DGraphicsContext::setScaleFactor (double scale_)
 {
-    pimpl->setScaleFactor (scale_);
+    getPimpl()->setScaleFactor (scale_);
 }
 
 double Direct2DGraphicsContext::getScaleFactor() const
 {
-    return pimpl->getScaleFactor();
+    return getPimpl()->getScaleFactor();
 }
 
 bool Direct2DGraphicsContext::drawRoundedRectangle (Rectangle<float> area, float cornerSize, float lineThickness)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawRoundedRectangle);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1341,7 +1339,7 @@ bool Direct2DGraphicsContext::fillRoundedRectangle (Rectangle<float> area, float
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillRoundedRectangle);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1360,7 +1358,7 @@ bool Direct2DGraphicsContext::drawEllipse (Rectangle<float> area, float lineThic
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::drawEllipse);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1380,7 +1378,7 @@ bool Direct2DGraphicsContext::fillEllipse (Rectangle<float> area)
 {
     TRACE_LOG_D2D_PAINT_CALL (etw::fillEllipse);
 
-    if (auto deviceContext = pimpl->getDeviceContext())
+    if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         if (currentState->fillType.isInvisible())
         {
@@ -1416,14 +1414,14 @@ void Direct2DGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs
         //
         // All the fonts should be the same for the glyph run
         //
-        pimpl->glyphRun.ensureStorageAllocated (numGlyphs);
+        getPimpl()->glyphRun.ensureStorageAllocated (numGlyphs);
 
         auto const& font                = glyphs[startIndex].getFont();
         auto        fontHorizontalScale = font.getHorizontalScale();
         auto        inverseHScale       = fontHorizontalScale > 0.0f ? 1.0f / fontHorizontalScale : 1.0f;
 
-        auto indices = pimpl->glyphRun.glyphIndices.getData();
-        auto offsets = pimpl->glyphRun.glyphOffsets.getData();
+        auto indices = getPimpl()->glyphRun.glyphIndices.getData();
+        auto offsets = getPimpl()->glyphRun.glyphOffsets.getData();
 
         int numGlyphsToDraw = 0;
         for (int sourceIndex = 0; sourceIndex < numGlyphs; ++sourceIndex)
@@ -1436,7 +1434,7 @@ void Direct2DGraphicsContext::drawGlyphRun (Array<PositionedGlyph> const& glyphs
                     glyph.getLeft() * inverseHScale,
                     -glyph.getBaselineY()
                 }; // note the essential minus sign before the baselineY value; negative offset goes down, positive goes up (opposite from JUCE)
-                jassert (pimpl->glyphRun.glyphAdvances[numGlyphsToDraw] == 0.0f);
+                jassert (getPimpl()->glyphRun.glyphAdvances[numGlyphsToDraw] == 0.0f);
                 jassert (glyph.getFont() == font);
                 ++numGlyphsToDraw;
             }
@@ -1451,7 +1449,7 @@ void Direct2DGraphicsContext::drawGlyphCommon (int                    numGlyphs,
                                                const AffineTransform& transform,
                                                Rectangle<float>       underlineArea)
 {
-    auto deviceContext = pimpl->getDeviceContext();
+    auto deviceContext = getPimpl()->getDeviceContext();
     if (! deviceContext)
     {
         return;
@@ -1473,15 +1471,15 @@ void Direct2DGraphicsContext::drawGlyphCommon (int                    numGlyphs,
     //
     auto scaledTransform   = AffineTransform::scale (dwriteFontFace.fontHorizontalScale, 1.0f).followedBy (transform);
     auto glyphRunTransform = scaledTransform.followedBy (currentState->currentTransform.getTransform());
-    pimpl->setDeviceContextTransform (glyphRunTransform);
+    getPimpl()->setDeviceContextTransform (glyphRunTransform);
 
     DWRITE_GLYPH_RUN directWriteGlyphRun;
     directWriteGlyphRun.fontFace      = dwriteFontFace.fontFace;
     directWriteGlyphRun.fontEmSize    = dwriteFontFace.getEmSize();
     directWriteGlyphRun.glyphCount    = numGlyphs;
-    directWriteGlyphRun.glyphIndices  = pimpl->glyphRun.glyphIndices.getData();
-    directWriteGlyphRun.glyphAdvances = pimpl->glyphRun.glyphAdvances.getData();
-    directWriteGlyphRun.glyphOffsets  = pimpl->glyphRun.glyphOffsets.getData();
+    directWriteGlyphRun.glyphIndices  = getPimpl()->glyphRun.glyphIndices.getData();
+    directWriteGlyphRun.glyphAdvances = getPimpl()->glyphRun.glyphAdvances.getData();
+    directWriteGlyphRun.glyphOffsets  = getPimpl()->glyphRun.glyphOffsets.getData();
     directWriteGlyphRun.isSideways    = FALSE;
     directWriteGlyphRun.bidiLevel     = 0;
 
@@ -1503,12 +1501,12 @@ void Direct2DGraphicsContext::drawGlyphCommon (int                    numGlyphs,
 
 void Direct2DGraphicsContext::updateDeviceContextTransform()
 {
-    pimpl->setDeviceContextTransform (currentState->currentTransform.getTransform());
+    getPimpl()->setDeviceContextTransform (currentState->currentTransform.getTransform());
 }
 
 void Direct2DGraphicsContext::updateDeviceContextTransform (AffineTransform chainedTransform)
 {
-    pimpl->setDeviceContextTransform (currentState->currentTransform.getTransformWith (chainedTransform));
+    getPimpl()->setDeviceContextTransform (currentState->currentTransform.getTransformWith (chainedTransform));
 }
 
 } // namespace juce

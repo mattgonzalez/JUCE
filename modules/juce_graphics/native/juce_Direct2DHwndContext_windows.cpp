@@ -190,7 +190,7 @@ public:
 
     void resize (Rectangle<int> size)
     {
-        if ((frameSize.isEmpty() && size.getWidth() <= 1 && size.getHeight() <= 1) || (size == frameSize))
+        if (size.isEmpty() || size == frameSize)
         {
             return;
         }

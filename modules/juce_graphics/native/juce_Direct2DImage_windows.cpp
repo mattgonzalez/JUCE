@@ -54,7 +54,6 @@ public:
         : ImagePixelData ((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB, w, h),
           pixelStride (4),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3),
-          imageDataSize ((size_t) lineStride * (size_t) jmax (1, h)),
           clearImage (clearImage_)
     {
     }
@@ -83,7 +82,7 @@ public:
         //
         // Target bitmap -> mappable bitmap -> mapped bitmap data -> target bitmap
         //
-        bitmap.size        = imageDataSize;
+        bitmap.size        = 0;
         bitmap.pixelFormat = pixelFormat;
         bitmap.pixelStride = pixelStride;
         bitmap.data        = nullptr;
@@ -126,6 +125,7 @@ public:
 
         bitmap.lineStride = mappedRect.pitch;
         bitmap.data       = mappedRect.bits;
+        bitmap.size       = mappedRect.pitch * height;
 
         bitmap.dataReleaser = std::make_unique<Direct2DBitmapReleaser> (*this, mode);
 
@@ -199,7 +199,6 @@ private:
     friend struct Direct2ImageContext::ImagePimpl;
 
     const int                 pixelStride, lineStride;
-    size_t const              imageDataSize;
     bool const                clearImage;
     ComSmartPtr<ID2D1Bitmap1> targetBitmap;
     ComSmartPtr<ID2D1Bitmap1> mappableBitmap;

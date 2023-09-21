@@ -37,7 +37,6 @@ public:
 
     void setSize (int width, int height);
     void updateSize();
-    //void restoreWindow();
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();

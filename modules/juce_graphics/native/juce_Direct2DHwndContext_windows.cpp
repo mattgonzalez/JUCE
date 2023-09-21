@@ -227,11 +227,6 @@ public:
         }
     }
 
-//     void restoreWindow()
-//     {
-//         resizeSwapChain (frameSize);
-//     }
-
     void addDeferredRepaint (Rectangle<int> deferredRepaint)
     {
         //

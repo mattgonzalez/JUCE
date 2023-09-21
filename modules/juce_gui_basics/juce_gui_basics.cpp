@@ -68,7 +68,12 @@
  #include <commdlg.h>
  #include <commctrl.h>
  #include <sapi.h>
- #include <dxgi.h>
+ #include <dxgi1_2.h>
+
+#if JUCE_ETW_TRACELOGGING
+#include <evntrace.h>
+#include <TraceLoggingProvider.h>
+#endif
 
  #if JUCE_MINGW
   // Some MinGW headers use 'new' as a parameter name
@@ -102,6 +107,9 @@
   #if JUCE_DIRECT2D
    #pragma comment (lib, "Dwrite.lib")
    #pragma comment (lib, "D2d1.lib")
+   #pragma comment (lib, "D3D11.lib")
+   #pragma comment (lib, "DXGI.lib")
+   #pragma comment (lib, "DComp.lib")
   #endif
  #endif
 #endif
@@ -167,6 +175,7 @@
  #include "native/juce_MouseCursor_mac.mm"
 
 #elif JUCE_WINDOWS
+ #include "../juce_graphics/native/juce_ETW_windows.h"
  #include "native/accessibility/juce_ComInterfaces_windows.h"
  #include "native/accessibility/juce_WindowsUIAWrapper_windows.h"
  #include "native/accessibility/juce_AccessibilityElement_windows.h"

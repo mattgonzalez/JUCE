@@ -703,6 +703,24 @@ void GlyphArrangement::drawGlyphUnderline (const Graphics& g, const PositionedGl
     g.fillPath (p, transform);
 }
 
+Rectangle<float> GlyphArrangement::getUnderlineArea(Font const& font, PositionedGlyph const& firstGlyph, PositionedGlyph const& lastGlyph)
+{
+    if (font.isUnderlined())
+    {
+        auto lineThickness = font.getDescent() * 0.3f;
+
+        return
+        {
+            firstGlyph.x,
+            firstGlyph.y + lineThickness * 2.0f,
+            lastGlyph.getRight() - firstGlyph.x,
+            lineThickness
+        };
+    }
+
+    return {};
+}
+
 void GlyphArrangement::draw (const Graphics& g) const
 {
     draw (g, {});
@@ -711,7 +729,47 @@ void GlyphArrangement::draw (const Graphics& g) const
 void GlyphArrangement::draw (const Graphics& g, AffineTransform transform) const
 {
     auto& context = g.getInternalContext();
-    auto lastFont = context.getFont();
+    auto originalFont = context.getFont();
+    auto lastFont = originalFont;
+
+    if (context.supportsGlyphRun())
+    {
+        int start = 0;
+        int index = 0;
+        while (index < glyphs.size())
+        {
+            auto& pg = glyphs.getReference(index);
+            if (lastFont != pg.getFont())
+            {
+                context.setFont(pg.getFont());
+                lastFont = pg.getFont();
+
+                int numGlyphs = index - start;
+                if (numGlyphs > 0)
+                {
+                    auto underlineArea = getUnderlineArea(lastFont, glyphs[0], glyphs[index + start - 1]);
+                    context.drawGlyphRun(glyphs, start, numGlyphs, transform, underlineArea);
+                    start = index;
+                }
+            }
+
+            ++index;
+        }
+
+        int numGlyphs = index - start;
+        if (numGlyphs > 0)
+        {
+            auto underlineArea = getUnderlineArea (lastFont, glyphs[0], glyphs[index + start - 1]);
+            context.drawGlyphRun(glyphs, start, numGlyphs, transform, underlineArea);
+        }
+
+        context.setFont(originalFont);
+    }
+    else
+    {
+        //
+        // Send one glyph at a time to the low-level graphics context
+        // 
     bool needToRestore = false;
 
     for (int i = 0; i < glyphs.size(); ++i)
@@ -736,13 +794,16 @@ void GlyphArrangement::draw (const Graphics& g, AffineTransform transform) const
                 context.setFont (lastFont);
             }
 
-            context.drawGlyph (pg.glyph, AffineTransform::translation (pg.x, pg.y)
-                                                         .followedBy (transform));
+                auto tx = AffineTransform::translation(pg.x, pg.y)
+                    .followedBy(transform);
+
+                context.drawGlyph(pg.glyph, tx);
         }
     }
 
     if (needToRestore)
         context.restoreState();
+    }
 }
 
 void GlyphArrangement::createPath (Path& path) const

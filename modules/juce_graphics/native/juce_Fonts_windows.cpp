@@ -178,17 +178,17 @@ StringArray Font::findAllTypefaceNames()
     StringArray results;
 
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    SharedResourcePointer<DirectXFactories> factories;
 
-    if (factories->systemFonts != nullptr)
+    if (auto systemFonts = factories->getSystemFonts())
     {
         ComSmartPtr<IDWriteFontFamily> fontFamily;
         uint32 fontFamilyCount = 0;
-        fontFamilyCount = factories->systemFonts->GetFontFamilyCount();
+        fontFamilyCount = systemFonts->GetFontFamilyCount();
 
         for (uint32 i = 0; i < fontFamilyCount; ++i)
         {
-            auto hr = factories->systemFonts->GetFontFamily (i, fontFamily.resetAndGetPointerAddress());
+            auto hr = systemFonts->GetFontFamily (i, fontFamily.resetAndGetPointerAddress());
 
             if (SUCCEEDED (hr))
                 results.addIfNotAlreadyThere (getFontFamilyName (fontFamily));
@@ -228,13 +228,13 @@ StringArray Font::findAllTypefaceStyles (const String& family)
     StringArray results;
 
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    SharedResourcePointer<DirectXFactories> factories;
 
-    if (factories->systemFonts != nullptr)
+    if (auto systemFonts = factories->getSystemFonts())
     {
         BOOL fontFound = false;
         uint32 fontIndex = 0;
-        [[maybe_unused]] auto hr = factories->systemFonts->FindFamilyName (family.toWideCharPointer(), &fontIndex, &fontFound);
+        [[maybe_unused]] auto hr = systemFonts->FindFamilyName (family.toWideCharPointer(), &fontIndex, &fontFound);
 
         if (! fontFound)
             fontIndex = 0;
@@ -242,7 +242,7 @@ StringArray Font::findAllTypefaceStyles (const String& family)
         // Get the font family using the search results
         // Fonts like: Times New Roman, Times New Roman Bold, Times New Roman Italic are all in the same font family
         ComSmartPtr<IDWriteFontFamily> fontFamily;
-        hr = factories->systemFonts->GetFontFamily (fontIndex, fontFamily.resetAndGetPointerAddress());
+        hr = systemFonts->GetFontFamily (fontIndex, fontFamily.resetAndGetPointerAddress());
 
         // Get the font faces
         ComSmartPtr<IDWriteFont> dwFont;
@@ -606,11 +606,11 @@ const MAT2 WindowsTypeface::identityMatrix = { { 0, 1 }, { 0, 0 }, { 0, 0 }, { 0
 Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)
 {
    #if JUCE_USE_DIRECTWRITE
-    SharedResourcePointer<Direct2DFactories> factories;
+    SharedResourcePointer<DirectXFactories> factories;
 
-    if (factories->systemFonts != nullptr)
+    if (auto systemFonts = factories->getSystemFonts())
     {
-        std::unique_ptr<WindowsDirectWriteTypeface> wtf (new WindowsDirectWriteTypeface (font, factories->systemFonts));
+        std::unique_ptr<WindowsDirectWriteTypeface> wtf (new WindowsDirectWriteTypeface (font, systemFonts));
 
         if (wtf->loadedOk() && wtf->isFontFound())
             return wtf.release();
@@ -622,7 +622,16 @@ Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)
 
 Typeface::Ptr Typeface::createSystemTypefaceFor (const void* data, size_t dataSize)
 {
-    return new WindowsTypeface (data, dataSize);
+#if JUCE_DIRECT2D
+     {
+         auto wtf = std::make_unique<WindowsDirectWriteTypeface>(data, dataSize);
+         if (wtf->loadedOk() && wtf->isFontFound())
+             return wtf.release();
+     }
+#endif
+
+    auto typeface = new WindowsTypeface (data, dataSize);
+    return typeface;
 }
 
 void Typeface::scanFolderForFonts (const File&)

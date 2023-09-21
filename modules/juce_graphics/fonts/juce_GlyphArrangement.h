@@ -47,6 +47,10 @@ public:
     PositionedGlyph (const Font& font, juce_wchar character, int glyphNumber,
                      float anchorX, float baselineY, float width, bool isWhitespace);
 
+    /** Returns the glyph number */
+    int getGlyphNumber() const noexcept { return glyph; }
+    Font const& getFont() const noexcept { return font; }
+
     /** Returns the character the glyph represents. */
     juce_wchar getCharacter() const noexcept    { return character; }
     /** Checks whether the glyph is actually empty. */
@@ -314,6 +318,7 @@ private:
                      float lineWidth, Justification, float minimumHorizontalScale);
     void addLinesWithLineBreaks (const String&, const Font&, float x, float y, float width, float height, Justification);
     void drawGlyphUnderline (const Graphics&, const PositionedGlyph&, int, AffineTransform) const;
+    static Rectangle<float> getUnderlineArea(Font const& font, PositionedGlyph const& firstGlyph, PositionedGlyph const& lastGlyph);
 
     JUCE_LEAK_DETECTOR (GlyphArrangement)
 };

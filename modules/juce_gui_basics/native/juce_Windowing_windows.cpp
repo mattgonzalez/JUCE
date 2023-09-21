@@ -1497,14 +1497,22 @@ private:
         while (! threadShouldExit())
         {
             if (output->WaitForVBlank() == S_OK)
+            {
+                TRACE_LOG_JUCE_VBLANK_THREAD_EVENT;
+
                 triggerAsyncUpdate();
+            }
             else
+            {
                 Thread::sleep (1);
         }
+    }
     }
 
     void handleAsyncUpdate() override
     {
+        TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS;
+
         for (auto& listener : listeners)
             listener.get().onVBlank();
     }
@@ -1593,7 +1601,7 @@ public:
     {
         adapters.clear();
 
-        ComSmartPtr<IDXGIFactory> factory;
+        ComSmartPtr<IDXGIFactory2> factory;
         JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wlanguage-extension-token")
         CreateDXGIFactory (__uuidof (IDXGIFactory), (void**)factory.resetAndGetPointerAddress());
         JUCE_END_IGNORE_WARNINGS_GCC_LIKE
@@ -1685,25 +1693,31 @@ private:
 
 //==============================================================================
 class HWNDComponentPeer  : public ComponentPeer,
-                           private VBlankListener,
+                          protected VBlankListener,
                            private Timer
                           #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
                            , public ModifierKeyReceiver
                           #endif
 {
 public:
-    enum RenderingEngineType
+    enum
     {
-        softwareRenderingEngine = 0,
-        direct2DRenderingEngine
+        softwareRenderingEngine = 0
     };
 
     //==============================================================================
-    HWNDComponentPeer (Component& comp, int windowStyleFlags, HWND parent, bool nonRepainting)
+    HWNDComponentPeer (Component& comp, int windowStyleFlags, 
+        HWND parent, 
+        bool nonRepainting, 
+        int currentRenderingEngine_ = softwareRenderingEngine)
         : ComponentPeer (comp, windowStyleFlags),
           dontRepaint (nonRepainting),
           parentToAddTo (parent),
-          currentRenderingEngine (softwareRenderingEngine)
+          currentRenderingEngine (currentRenderingEngine_)
+    {
+    }
+
+    virtual void initialise()
     {
         callFunctionIfNotLocked (&createWindowCallback, this);
 
@@ -1755,10 +1769,6 @@ public:
             dropTarget->Release();
             dropTarget = nullptr;
         }
-
-       #if JUCE_DIRECT2D
-        direct2DContext = nullptr;
-       #endif
     }
 
     //==============================================================================
@@ -1790,7 +1800,7 @@ public:
             handlePaintMessage();
     }
 
-    void updateBorderSize()
+    virtual void updateBorderSize()
     {
         WINDOWINFO info;
         info.cbSize = sizeof (info);
@@ -1800,11 +1810,6 @@ public:
                                             roundToInt ((info.rcClient.left   - info.rcWindow.left)   / scaleFactor),
                                             roundToInt ((info.rcWindow.bottom - info.rcClient.bottom) / scaleFactor),
                                             roundToInt ((info.rcWindow.right  - info.rcClient.right)  / scaleFactor));
-
-       #if JUCE_DIRECT2D
-        if (direct2DContext != nullptr)
-            direct2DContext->resized();
-       #endif
     }
 
     void setBounds (const Rectangle<int>& bounds, bool isNowFullScreen) override
@@ -2399,13 +2404,10 @@ public:
        #endif
     }
 
-private:
+protected:
     HWND hwnd, parentToAddTo;
     std::unique_ptr<DropShadower> shadower;
-    RenderingEngineType currentRenderingEngine;
-   #if JUCE_DIRECT2D
-    std::unique_ptr<Direct2DLowLevelGraphicsContext> direct2DContext;
-   #endif
+    int currentRenderingEngine;
     uint32 lastPaintTime = 0;
     ULONGLONG lastMagnifySize = 0;
     bool fullScreen = false, isDragging = false, isMouseOver = false,
@@ -2594,6 +2596,11 @@ private:
         return nullptr;
     }
 
+    virtual DWORD adjustWindowStyleFlags(DWORD exstyle)
+    {
+        return exstyle;
+    }
+
     void createWindow()
     {
         DWORD exstyle = 0;
@@ -2634,6 +2641,8 @@ private:
         if ((styleFlags & windowHasMaximiseButton) != 0)    type |= WS_MAXIMIZEBOX;
         if ((styleFlags & windowIgnoresMouseClicks) != 0)   exstyle |= WS_EX_TRANSPARENT;
         if ((styleFlags & windowIsSemiTransparent) != 0)    exstyle |= WS_EX_LAYERED;
+
+        exstyle = adjustWindowStyleFlags (exstyle);
 
         hwnd = CreateWindowEx (exstyle, WindowClassHolder::getInstance()->getWindowClassName(),
                                L"", type, 0, 0, 0, 0, parentToAddTo, nullptr,
@@ -2823,24 +2832,7 @@ private:
     }
 
     //==============================================================================
-    void handlePaintMessage()
-    {
-       #if JUCE_DIRECT2D
-        if (direct2DContext != nullptr)
-        {
-            RECT r;
-
-            if (GetUpdateRect (hwnd, &r, false))
-            {
-                direct2DContext->start();
-                direct2DContext->clipToRectangle (convertPhysicalScreenRectangleToLogical (rectangleFromRECT (r), hwnd));
-                handlePaint (*direct2DContext);
-                direct2DContext->end();
-                ValidateRect (hwnd, &r);
-            }
-        }
-        else
-       #endif
+    virtual void handlePaintMessage()
         {
             HRGN rgn = CreateRectRgn (0, 0, 0, 0);
             const int regionType = GetUpdateRgn (hwnd, rgn, false);
@@ -2869,8 +2861,6 @@ private:
            #if JUCE_MSVC
             _fpreset(); // because some graphics cards can unmask FP exceptions
            #endif
-
-        }
 
         lastPaintTime = Time::getMillisecondCounter();
     }
@@ -2984,41 +2974,9 @@ private:
         handleMouseEvent (MouseInputSource::InputSourceType::mouse, position, mods, pressure, orientation, getMouseEventTime());
     }
 
-    StringArray getAvailableRenderingEngines() override
-    {
-        StringArray s ("Software Renderer");
-
-       #if JUCE_DIRECT2D
-        if (SystemStats::getOperatingSystemType() >= SystemStats::Windows7)
-            s.add ("Direct2D");
-       #endif
-
-        return s;
-    }
-
+    StringArray getAvailableRenderingEngines() override { return { "Software Renderer" }; }
     int getCurrentRenderingEngine() const override    { return currentRenderingEngine; }
-
-   #if JUCE_DIRECT2D
-    void updateDirect2DContext()
-    {
-        if (currentRenderingEngine != direct2DRenderingEngine)
-            direct2DContext = nullptr;
-        else if (direct2DContext == nullptr)
-            direct2DContext.reset (new Direct2DLowLevelGraphicsContext (hwnd));
-    }
-   #endif
-
-    void setCurrentRenderingEngine ([[maybe_unused]] int index) override
-    {
-       #if JUCE_DIRECT2D
-        if (getAvailableRenderingEngines().size() > 1)
-        {
-            currentRenderingEngine = index == 1 ? direct2DRenderingEngine : softwareRenderingEngine;
-            updateDirect2DContext();
-            repaint (component.getLocalBounds());
-        }
-       #endif
-    }
+    void setCurrentRenderingEngine (int) override       {}
 
     static uint32 getMinTimeBetweenMouseMoves()
     {
@@ -3682,7 +3640,7 @@ private:
         return detail::ScalingHelpers::unscaledScreenPosToScaled (component, windowBorder.addedTo (detail::ScalingHelpers::scaledScreenPosToUnscaled (component, component.getBounds())));
     }
 
-    LRESULT handleSizeConstraining (RECT& r, const WPARAM wParam)
+    virtual LRESULT handleSizeConstraining (RECT& r, const WPARAM wParam)
     {
         if (isConstrainedNativeWindow())
         {
@@ -3782,7 +3740,7 @@ private:
     }
 
     //==============================================================================
-    LRESULT handleDPIChanging (int newDPI, RECT newRect)
+    virtual LRESULT handleDPIChanging (int newDPI, RECT newRect)
     {
         // Sometimes, windows that should not be automatically scaled (secondary windows in plugins)
         // are sent WM_DPICHANGED. The size suggested by the OS is incorrect for our unscaled
@@ -3967,7 +3925,7 @@ public:
         return DefWindowProcW (h, message, wParam, lParam);
     }
 
-private:
+protected:
     static void* callFunctionIfNotLocked (MessageCallbackFunction* callback, void* userData)
     {
         auto& mm = *MessageManager::getInstance();
@@ -4004,7 +3962,7 @@ private:
         return globalToLocal (convertPhysicalScreenPointToLogical (pointFromPOINT (getPOINTFromLParam ((LPARAM) GetMessagePos())), hwnd).toFloat());
     }
 
-    LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam)
+    virtual LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam)
     {
         switch (message)
         {
@@ -4725,16 +4683,40 @@ private:
 MultiTouchMapper<DWORD> HWNDComponentPeer::currentTouches;
 ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
 
+#if JUCE_DIRECT2D
+#include "native/juce_Direct2DWindowing_windows.cpp"
+#else
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    return new HWNDComponentPeer (*this, styleFlags, (HWND) parentHWND, false);
+    auto peer = new HWNDComponentPeer (*this, styleFlags, (HWND) parentHWND, false);
+    peer->initialise();
+    return peer;
 }
+#endif
 
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND);
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, void* parentHWND)
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const * const parentComponent);
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const* const parentComponent)
 {
-    return new HWNDComponentPeer (component, ComponentPeer::windowIgnoresMouseClicks,
-                                  (HWND) parentHWND, true);
+    if (auto parentPeer = parentComponent->getPeer())
+    {
+        //
+        // Explicitly set the top-level window to software renderer mode in case
+        // this is switching from Direct2D to OpenGL
+        // 
+        // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to 
+        // embeddedWindowPeer->initialise() after creating the peer
+        // 
+        parentPeer->setCurrentRenderingEngine(HWNDComponentPeer::softwareRenderingEngine);
+        auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
+                                                                       ComponentPeer::windowIgnoresMouseClicks,
+                                                                       (HWND) parentPeer->getNativeHandle(),
+                                                                       true, /* nonRepainting*/
+                                                                       HWNDComponentPeer::softwareRenderingEngine);
+        embeddedWindowPeer->initialise();
+        return embeddedWindowPeer.release();
+    }
+
+    return nullptr;
 }
 
 JUCE_IMPLEMENT_SINGLETON (HWNDComponentPeer::WindowClassHolder)

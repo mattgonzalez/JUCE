@@ -565,7 +565,8 @@ public:
                     if (type != SharedCodeTarget)
                     {
                         auto librarySearchPaths = getLibrarySearchPaths (config);
-                        if (librarySearchPaths.size() > 0)
+
+                        if (! librarySearchPaths.isEmpty())
                         {
                             auto* libPath = props->createNewChildElement ("LibraryPath");
                             setConditionAttribute (*libPath, config);
@@ -1021,8 +1022,8 @@ public:
                 bool filesWereAdded = false;
 
                 for (int i = 0; i < projectItem.getNumChildren(); ++i)
-                    if (addFilesToFilter (projectItem.getChild(i),
-                                          (path.isEmpty() ? String() : (path + "\\")) + projectItem.getChild(i).getName(),
+                    if (addFilesToFilter (projectItem.getChild (i),
+                                          (path.isEmpty() ? String() : (path + "\\")) + projectItem.getChild (i).getName(),
                                           cpps, headers, otherFiles, groups))
                         filesWereAdded = true;
 
@@ -1135,6 +1136,14 @@ public:
                 return result + "\\" + config.getTargetBinaryNameString() + ".lv2";
 
             return result;
+        }
+
+        /*  Like getConfigTargetPath, but expands $(ProjectName) so that build products can be used
+            in other projects where $(ProjectName) will expand to a different value.
+        */
+        String getExpandedConfigTargetPath (const MSVCBuildConfiguration& config) const
+        {
+            return getConfigTargetPath (config).replace ("$(ProjectName)", getOwner().getProjectFileBaseName (getName()));
         }
 
         String getIntermediatesPath (const MSVCBuildConfiguration& config) const
@@ -1302,7 +1311,7 @@ public:
                     return nullptr;
                 }();
 
-                const auto writer = writerTarget->getConfigTargetPath (config)
+                const auto writer = writerTarget->getExpandedConfigTargetPath (config)
                                   + "\\"
                                   + writerTarget->getBinaryNameWithSuffix (config);
 
@@ -1335,7 +1344,7 @@ public:
                     if (writerTarget == nullptr)
                         return "";
 
-                    const auto writer = writerTarget->getConfigTargetPath (config)
+                    const auto writer = writerTarget->getExpandedConfigTargetPath (config)
                                       + "\\"
                                       + writerTarget->getBinaryNameWithSuffix (config);
 
@@ -1424,7 +1433,7 @@ public:
 
             if (type != SharedCodeTarget && type != LV2Helper && type != VST3Helper)
                 if (auto* shared = getOwner().getSharedCodeTarget())
-                    librarySearchPaths.add (shared->getConfigTargetPath (config));
+                    librarySearchPaths.add (shared->getExpandedConfigTargetPath (config));
 
             return librarySearchPaths;
         }
@@ -1700,12 +1709,18 @@ protected:
                                  targetPlatformVersion,
                                  manifestFileValue;
 
+    String getProjectFileBaseName (const String& target) const
+    {
+        const auto filename = project.getProjectFilenameRootString();
+
+        return filename + (target.isNotEmpty()
+                           ? (String ("_") + target.removeCharacters (" "))
+                           : "");
+    }
+
     File getProjectFile (const String& extension, const String& target) const
     {
-        auto filename = project.getProjectFilenameRootString();
-
-        if (target.isNotEmpty())
-            filename += String ("_") + target.removeCharacters (" ");
+        const auto filename = getProjectFileBaseName (target);
 
         return getTargetFolder().getChildFile (filename).withFileExtension (extension);
     }
@@ -1918,8 +1933,8 @@ public:
     {
         name = getDisplayName();
 
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
+        targetPlatformVersion.setDefault (defaultTargetPlatform);
+        platformToolsetValue.setDefault (defaultToolset);
     }
 
     static String getDisplayName()        { return "Visual Studio 2017"; }
@@ -1931,8 +1946,8 @@ public:
     int getVisualStudioVersion() const override                      { return 15; }
     String getSolutionComment() const override                       { return "# Visual Studio 15"; }
     String getToolsVersion() const override                          { return "15.0"; }
-    String getDefaultToolset() const override                        { return "v141"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "Latest"; }
+    String getDefaultToolset() const override                        { return defaultToolset; }
+    String getDefaultWindowsTargetPlatformVersion() const override   { return defaultTargetPlatform; }
 
     static MSVCProjectExporterVC2017* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
@@ -1948,6 +1963,9 @@ public:
         MSVCProjectExporterBase::createExporterProperties (props);
     }
 
+private:
+    const String defaultToolset { "v141" }, defaultTargetPlatform { "Latest" };
+
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2017)
 };
 
@@ -1960,8 +1978,8 @@ public:
     {
         name = getDisplayName();
 
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
+        targetPlatformVersion.setDefault (defaultTargetPlatform);
+        platformToolsetValue.setDefault (defaultToolset);
     }
 
     static String getDisplayName()        { return "Visual Studio 2019"; }
@@ -1973,8 +1991,8 @@ public:
     int getVisualStudioVersion() const override                      { return 16; }
     String getSolutionComment() const override                       { return "# Visual Studio Version 16"; }
     String getToolsVersion() const override                          { return "16.0"; }
-    String getDefaultToolset() const override                        { return "v142"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "10.0"; }
+    String getDefaultToolset() const override                        { return defaultToolset; }
+    String getDefaultWindowsTargetPlatformVersion() const override   { return defaultTargetPlatform; }
 
     static MSVCProjectExporterVC2019* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
@@ -1990,6 +2008,9 @@ public:
         MSVCProjectExporterBase::createExporterProperties (props);
     }
 
+private:
+    const String defaultToolset { "v142" }, defaultTargetPlatform { "10.0" };
+
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2019)
 };
 
@@ -2002,8 +2023,8 @@ public:
     {
         name = getDisplayName();
 
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
+        targetPlatformVersion.setDefault (defaultTargetPlatform);
+        platformToolsetValue.setDefault (defaultToolset);
     }
 
     static String getDisplayName()        { return "Visual Studio 2022"; }
@@ -2015,8 +2036,8 @@ public:
     int getVisualStudioVersion() const override                      { return 17; }
     String getSolutionComment() const override                       { return "# Visual Studio Version 17"; }
     String getToolsVersion() const override                          { return "17.0"; }
-    String getDefaultToolset() const override                        { return "v143"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "10.0"; }
+    String getDefaultToolset() const override                        { return defaultToolset; }
+    String getDefaultWindowsTargetPlatformVersion() const override   { return defaultTargetPlatform; }
 
     static MSVCProjectExporterVC2022* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
@@ -2031,6 +2052,9 @@ public:
         addToolsetProperty (props, { "v140", "v140_xp", "v141", "v141_xp", "v142", "v143", "ClangCL" });
         MSVCProjectExporterBase::createExporterProperties (props);
     }
+
+private:
+    const String defaultToolset { "v143" }, defaultTargetPlatform { "10.0" };
 
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2022)
 };

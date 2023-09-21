@@ -21,6 +21,7 @@
 */
 
 #include <juce_audio_basics/native/juce_CoreAudioTimeConversions_mac.h>
+#include <juce_audio_basics/native/juce_AudioWorkgroup_mac.h>
 
 namespace juce
 {
@@ -465,6 +466,18 @@ public:
 
         auto newBitDepth = jmax (getBitDepth (newInput), getBitDepth (newOutput));
 
+       #if JUCE_AUDIOWORKGROUP_TYPES_AVAILABLE
+        audioWorkgroup = [this]() -> AudioWorkgroup
+        {
+            AudioObjectPropertyAddress pa;
+            pa.mSelector = kAudioDevicePropertyIOThreadOSWorkgroup;
+            pa.mScope    = kAudioObjectPropertyScopeWildcard;
+            pa.mElement  = juceAudioObjectPropertyElementMain;
+
+            return makeRealAudioWorkgroup (audioObjectGetProperty<os_workgroup_t> (deviceID, pa).value_or (nullptr));
+        }();
+       #endif
+
         {
             const ScopedLock sl (callbackLock);
 
@@ -777,11 +790,15 @@ public:
 
             const auto* timeStamp = numOutputChans > 0 ? outputTimestamp : inputTimestamp;
             const auto nanos = timeStamp != nullptr ? timeConversions.hostTimeToNanos (timeStamp->mHostTime) : 0;
+            const AudioIODeviceCallbackContext context
+            {
+                timeStamp != nullptr ? &nanos : nullptr,
+            };
 
             callback->audioDeviceIOCallbackWithContext (getTempBuffers (inStream),  numInputChans,
                                                         getTempBuffers (outStream), numOutputChans,
                                                         bufferSize,
-                                                        { timeStamp != nullptr ? &nanos : nullptr });
+                                                        context);
 
             for (int i = numOutputChans; --i >= 0;)
             {
@@ -1025,6 +1042,8 @@ public:
     AudioDeviceID deviceID;
     std::unique_ptr<Stream> inStream, outStream;
 
+    AudioWorkgroup audioWorkgroup;
+
 private:
     class ScopedAudioDeviceIOProcID
     {
@@ -1188,12 +1207,10 @@ class CoreAudioIODevice   : public AudioIODevice,
 public:
     CoreAudioIODevice (CoreAudioIODeviceType* dt,
                        const String& deviceName,
-                       AudioDeviceID inputDeviceId, int inputIndex_,
-                       AudioDeviceID outputDeviceId, int outputIndex_)
+                       AudioDeviceID inputDeviceId,
+                       AudioDeviceID outputDeviceId)
         : AudioIODevice (deviceName, "CoreAudio"),
-          deviceType (dt),
-          inputIndex (inputIndex_),
-          outputIndex (outputIndex_)
+          deviceType (dt)
     {
         internal = [this, &inputDeviceId, &outputDeviceId]
         {
@@ -1241,7 +1258,7 @@ public:
     int getCurrentBufferSizeSamples() override          { return internal->getBufferSize(); }
     int getXRunCount() const noexcept override          { return internal->xruns; }
 
-    int getIndexOfDevice (bool asInput) const           { return asInput ? inputIndex : outputIndex; }
+    int getIndexOfDevice (bool asInput) const           { return deviceType->getDeviceNames (asInput).indexOf (getName()); }
 
     int getDefaultBufferSize() override
     {
@@ -1319,6 +1336,11 @@ public:
         return stopAndGetLastCallback();
     }
 
+    AudioWorkgroup getWorkgroup() const override
+    {
+        return internal->audioWorkgroup;
+    }
+
     bool isPlaying() override
     {
         return internal->isPlaying();
@@ -1365,7 +1387,6 @@ public:
     bool shouldRestartDevice() const noexcept    { return restartDevice; }
 
     WeakReference<CoreAudioIODeviceType> deviceType;
-    int inputIndex, outputIndex;
     bool hadDiscontinuity;
 
 private:
@@ -1512,6 +1533,11 @@ public:
             size = jmax (size, d->getDefaultBufferSize());
 
         return size;
+    }
+
+    AudioWorkgroup getWorkgroup() const override
+    {
+        return inputWrapper.getWorkgroup();
     }
 
     String open (const BigInteger& inputChannels,
@@ -1997,6 +2023,7 @@ private:
         void start (AudioIODeviceCallback* callbackToNotify)      const { return device->start (callbackToNotify); }
         AudioIODeviceCallback* stopInternal()                     const { return device->stopInternal(); }
         void close()                                              const { return device->close(); }
+        AudioWorkgroup getWorkgroup()                             const { return device->getWorkgroup(); }
 
         String open (const BigInteger& inputChannels, const BigInteger& outputChannels, double sampleRate, int bufferSizeSamples) const
         {
@@ -2235,12 +2262,12 @@ public:
                                                        : outputDeviceName;
 
         if (inputDeviceID == outputDeviceID)
-            return std::make_unique<CoreAudioIODevice> (this, combinedName, inputDeviceID, inputIndex, outputDeviceID, outputIndex).release();
+            return std::make_unique<CoreAudioIODevice> (this, combinedName, inputDeviceID, outputDeviceID).release();
 
-        auto in = inputDeviceID != 0 ? std::make_unique<CoreAudioIODevice> (this, inputDeviceName, inputDeviceID, inputIndex, 0, -1)
+        auto in = inputDeviceID != 0 ? std::make_unique<CoreAudioIODevice> (this, inputDeviceName, inputDeviceID, 0)
                                      : nullptr;
 
-        auto out = outputDeviceID != 0 ? std::make_unique<CoreAudioIODevice> (this, outputDeviceName, 0, -1, outputDeviceID, outputIndex)
+        auto out = outputDeviceID != 0 ? std::make_unique<CoreAudioIODevice> (this, outputDeviceName, 0, outputDeviceID)
                                        : nullptr;
 
         if (in  == nullptr)  return out.release();

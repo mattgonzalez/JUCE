@@ -63,6 +63,7 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
 #include <juce_audio_basics/native/juce_CoreAudioLayouts_mac.h>
 #include <juce_audio_basics/native/juce_CoreAudioTimeConversions_mac.h>
+#include <juce_audio_basics/native/juce_AudioWorkgroup_mac.h>
 #include <juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp>
 #include <juce_audio_processors/format_types/juce_AU_Shared.h>
 
@@ -403,6 +404,13 @@ public:
                     return noErr;
                #endif
 
+               #if JUCE_AUDIOWORKGROUP_TYPES_AVAILABLE
+                case kAudioUnitProperty_RenderContextObserver:
+                    outWritable = false;
+                    outDataSize = sizeof (AURenderContextObserver);
+                    return noErr;
+               #endif
+
               #if JucePlugin_ProducesMidiOutput || JucePlugin_IsMidiEffect
                 case kAudioUnitProperty_MIDIOutputCallbackInfo:
                     outDataSize = sizeof (CFArrayRef);
@@ -573,6 +581,20 @@ public:
                 }
                #endif
 
+               #if JUCE_AUDIOWORKGROUP_TYPES_AVAILABLE
+                case kAudioUnitProperty_RenderContextObserver:
+                {
+                    if (auto* ptr = (AURenderContextObserver*) outData)
+                    {
+                        *ptr = contextObserver;
+                        return noErr;
+                    }
+
+                    jassertfalse;
+                    break;
+                }
+               #endif
+
                #if JucePlugin_ProducesMidiOutput || JucePlugin_IsMidiEffect
                 case kAudioUnitProperty_MIDIOutputCallbackInfo:
                 {
@@ -599,7 +621,6 @@ public:
                                     pv->outValue = text.getFloatValue();
                                 else
                                     pv->outValue = param->getValueForText (text) * getMaximumParameterValue (param);
-
 
                                 return noErr;
                             }
@@ -647,6 +668,7 @@ public:
                                  const void* inData,
                                  UInt32 inDataSize) override
     {
+
         if (inScope == kAudioUnitScope_Global)
         {
             switch (inID)
@@ -1655,20 +1677,25 @@ public:
         {
             if (detail::PluginUtilities::getHostType().isAbletonLive())
             {
-                static NSTimeInterval lastEventTime = 0; // check we're not recursively sending the same event
-                NSTimeInterval eventTime = [[NSApp currentEvent] timestamp];
+                NSEvent* currentEvent = [NSApp currentEvent];
 
-                if (! approximatelyEqual (lastEventTime, eventTime))
+                if (currentEvent != nil)
                 {
-                    lastEventTime = eventTime;
+                    static NSTimeInterval lastEventTime = 0; // check we're not recursively sending the same event
+                    NSTimeInterval eventTime = [currentEvent timestamp];
 
-                    NSView* view = (NSView*) getWindowHandle();
-                    NSView* hostView = [view superview];
-                    NSWindow* hostWindow = [hostView window];
+                    if (! approximatelyEqual (lastEventTime, eventTime))
+                    {
+                        lastEventTime = eventTime;
 
-                    [hostWindow makeFirstResponder: hostView];
-                    [hostView keyDown: (NSEvent*) [NSApp currentEvent]];
-                    [hostWindow makeFirstResponder: view];
+                        auto* view = (NSView*) getWindowHandle();
+                        auto* hostView = [view superview];
+                        auto* hostWindow = [hostView window];
+
+                        [hostWindow makeFirstResponder: hostView];
+                        [hostView keyDown: currentEvent];
+                        [hostWindow makeFirstResponder: view];
+                    }
                 }
             }
 
@@ -1999,6 +2026,17 @@ private:
     int totalInChannels, totalOutChannels;
     HeapBlock<bool> pulledSucceeded;
     HeapBlock<MIDIPacketList> packetList { packetListBytes, 1 };
+
+   #if JUCE_AUDIOWORKGROUP_TYPES_AVAILABLE
+    ObjCBlock<AURenderContextObserver> contextObserver { ^(const AudioUnitRenderContext* context)
+    {
+        if (juceFilter == nullptr)
+            return;
+
+        auto workgroup = makeRealAudioWorkgroup (context != nullptr ? context->workgroup : nullptr);
+        juceFilter->audioWorkgroupContextChanged (std::move (workgroup));
+    } };
+   #endif
 
     ThreadLocalValue<bool> inParameterChangedCallback;
 

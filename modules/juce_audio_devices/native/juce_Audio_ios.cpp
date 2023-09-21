@@ -21,6 +21,8 @@
 */
 
 #include <juce_audio_basics/native/juce_CoreAudioTimeConversions_mac.h>
+#include <juce_audio_basics/native/juce_AudioWorkgroup_mac.h>
+
 
 namespace juce
 {
@@ -282,7 +284,7 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
 
     static void setAudioSessionCategory (NSString* category)
     {
-        NSUInteger options = 0;
+        NSUInteger options = AVAudioSessionCategoryOptionAllowAirPlay;
 
        #if ! JUCE_DISABLE_AUDIO_MIXING_WITH_OTHER_APPS
         options |= AVAudioSessionCategoryOptionMixWithOthers; // Alternatively AVAudioSessionCategoryOptionDuckOthers
@@ -290,8 +292,8 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
 
         if (category == AVAudioSessionCategoryPlayAndRecord)
         {
-            options |= (AVAudioSessionCategoryOptionDefaultToSpeaker
-                      | AVAudioSessionCategoryOptionAllowBluetooth);
+            options |= AVAudioSessionCategoryOptionDefaultToSpeaker
+                     | AVAudioSessionCategoryOptionAllowBluetooth;
 
             if (@available (iOS 10.0, *))
                 options |= AVAudioSessionCategoryOptionAllowBluetoothA2DP;
@@ -640,18 +642,18 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
             Boolean hostIsCycling               = NO;
             Float64 hostCycleStartBeat          = 0;
             Float64 hostCycleEndBeat            = 0;
-            OSStatus err = callbackInfo.transportStateProc2 (callbackInfo.hostUserData,
-                                                             &hostIsPlaying,
-                                                             &hostIsRecording,
-                                                             nullptr,
-                                                             &hostCurrentSampleInTimeLine,
-                                                             &hostIsCycling,
-                                                             &hostCycleStartBeat,
-                                                             &hostCycleEndBeat);
-            if (err == kAUGraphErr_CannotDoInCurrentContext)
+            auto transportErr = callbackInfo.transportStateProc2 (callbackInfo.hostUserData,
+                                                                  &hostIsPlaying,
+                                                                  &hostIsRecording,
+                                                                  nullptr,
+                                                                  &hostCurrentSampleInTimeLine,
+                                                                  &hostIsCycling,
+                                                                  &hostCycleStartBeat,
+                                                                  &hostCycleEndBeat);
+            if (transportErr == kAUGraphErr_CannotDoInCurrentContext)
                 return {};
 
-            jassert (err == noErr);
+            jassert (transportErr == noErr);
 
             PositionInfo result;
 
@@ -664,10 +666,10 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
 
             Float64 hostBeat = 0;
             Float64 hostTempo = 0;
-            err = callbackInfo.beatAndTempoProc (callbackInfo.hostUserData,
-                                                 &hostBeat,
-                                                 &hostTempo);
-            jassert (err == noErr);
+            [[maybe_unused]] auto batErr = callbackInfo.beatAndTempoProc (callbackInfo.hostUserData,
+                                                                          &hostBeat,
+                                                                          &hostTempo);
+            jassert (batErr == noErr);
 
             result.setPpqPosition (hostBeat);
             result.setBpm         (hostTempo);
@@ -675,12 +677,12 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
             Float32 hostTimeSigNumerator = 0;
             UInt32 hostTimeSigDenominator = 0;
             Float64 hostCurrentMeasureDownBeat = 0;
-            err = callbackInfo.musicalTimeLocationProc (callbackInfo.hostUserData,
-                                                        nullptr,
-                                                        &hostTimeSigNumerator,
-                                                        &hostTimeSigDenominator,
-                                                        &hostCurrentMeasureDownBeat);
-            jassert (err == noErr);
+            [[maybe_unused]] auto timeErr = callbackInfo.musicalTimeLocationProc (callbackInfo.hostUserData,
+                                                                                  nullptr,
+                                                                                  &hostTimeSigNumerator,
+                                                                                  &hostTimeSigDenominator,
+                                                                                  &hostCurrentMeasureDownBeat);
+            jassert (timeErr == noErr);
 
             result.setPpqPositionOfLastBarStart (hostCurrentMeasureDownBeat);
             result.setTimeSignature (TimeSignature { (int) hostTimeSigNumerator, (int) hostTimeSigDenominator });
@@ -787,9 +789,9 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
         switch (reason)
         {
         case AVAudioSessionRouteChangeReasonCategoryChange:
-        case AVAudioSessionRouteChangeReasonOverride:
         case AVAudioSessionRouteChangeReasonRouteConfigurationChange:
             break;
+        case AVAudioSessionRouteChangeReasonOverride:
         case AVAudioSessionRouteChangeReasonUnknown:
         case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
         case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
@@ -1064,6 +1066,19 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
                 channelData.setFloatBufferSize (static_cast<int> (framesPerSlice));
             }
         }
+
+       #if JUCE_AUDIOWORKGROUP_TYPES_AVAILABLE
+        workgroup = [this]
+        {
+            UInt32 dataSize = sizeof (os_workgroup_t);
+            os_workgroup_t wgHandle = nullptr;
+
+            AudioUnitGetProperty (audioUnit, kAudioOutputUnitProperty_OSWorkgroup,
+                                  kAudioUnitScope_Global, 0, &wgHandle, &dataSize);
+
+            return makeRealAudioWorkgroup (wgHandle);
+        }();
+       #endif
 
         AudioUnitAddPropertyListener (audioUnit, kAudioUnitProperty_StreamFormat, dispatchAudioUnitPropertyChange, this);
 
@@ -1373,6 +1388,7 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
     Atomic<bool> hardwareInfoNeedsUpdating { true };
 
     AudioUnit audioUnit {};
+    AudioWorkgroup workgroup;
 
     SharedResourcePointer<AudioSessionHolder> sessionHolder;
 
@@ -1429,6 +1445,7 @@ BigInteger iOSAudioIODevice::getActiveOutputChannels() const        { return pim
 int iOSAudioIODevice::getInputLatencyInSamples()                    { return roundToInt (pimpl->sampleRate * [AVAudioSession sharedInstance].inputLatency); }
 int iOSAudioIODevice::getOutputLatencyInSamples()                   { return roundToInt (pimpl->sampleRate * [AVAudioSession sharedInstance].outputLatency); }
 int iOSAudioIODevice::getXRunCount() const noexcept                 { return pimpl->xrun; }
+AudioWorkgroup iOSAudioIODevice::getWorkgroup() const               { return pimpl->workgroup; }
 
 void iOSAudioIODevice::setMidiMessageCollector (MidiMessageCollector* collector) { pimpl->messageCollector = collector; }
 AudioPlayHead* iOSAudioIODevice::getAudioPlayHead() const           { return &pimpl->playhead; }

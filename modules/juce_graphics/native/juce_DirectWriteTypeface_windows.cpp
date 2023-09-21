@@ -68,8 +68,8 @@ namespace
     {
         jassert (family != nullptr);
         ComSmartPtr<IDWriteLocalizedStrings> familyNames;
-        auto hr = family->GetFamilyNames (familyNames.resetAndGetPointerAddress());
-        jassertquiet (SUCCEEDED (hr));
+        [[maybe_unused]] auto hr = family->GetFamilyNames (familyNames.resetAndGetPointerAddress());
+        jassert (SUCCEEDED (hr));
         return getLocalisedName (familyNames);
     }
 
@@ -77,8 +77,8 @@ namespace
     {
         jassert (font != nullptr);
         ComSmartPtr<IDWriteLocalizedStrings> faceNames;
-        auto hr = font->GetFaceNames (faceNames.resetAndGetPointerAddress());
-        jassertquiet (SUCCEEDED (hr));
+        [[maybe_unused]] auto hr = font->GetFaceNames (faceNames.resetAndGetPointerAddress());
+        jassert (SUCCEEDED (hr));
         return getLocalisedName (faceNames);
     }
 

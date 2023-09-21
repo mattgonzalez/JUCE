@@ -997,6 +997,10 @@ function(_juce_add_vst3_manifest_helper_target)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
     target_link_libraries(juce_vst3_helper PRIVATE Threads::Threads ${CMAKE_DL_LIBS} juce_recommended_config_flags)
+
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+        target_link_libraries(juce_vst3_helper PRIVATE stdc++fs)
+    endif()
 endfunction()
 
 function(juce_enable_vst3_manifest_step shared_code_target)
@@ -1180,9 +1184,9 @@ function(_juce_set_plugin_target_properties shared_code_target kind)
 
         get_target_property(JUCE_LV2URI "${shared_code_target}" JUCE_LV2URI)
 
-        if(NOT JUCE_LV2URI MATCHES "https?://.*")
+        if(NOT JUCE_LV2URI MATCHES "https?://.*|urn:.*")
             message(WARNING
-                "LV2URI should be well-formed with an 'http' prefix. "
+                "LV2URI should be well-formed with an 'http' or 'urn' prefix. "
                 "Check the LV2URI argument to juce_add_plugin.")
         endif()
 

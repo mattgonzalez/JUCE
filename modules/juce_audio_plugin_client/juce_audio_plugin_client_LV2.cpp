@@ -61,6 +61,24 @@ namespace juce
 namespace lv2_client
 {
 
+constexpr bool startsWithValidScheme (const std::string_view str)
+{
+    constexpr const char* prefixes[] { "http://", "https://", "urn:" };
+
+    for (const std::string_view prefix : prefixes)
+        if (prefix == str.substr (0, prefix.size()))
+            return true;
+
+    return false;
+}
+
+// If your LV2 plugin fails to build here, it may be because you haven't explicitly set an LV2 URI,
+// or you've requested a malformed URI.
+// If you're using the Projucer, update the value of the "LV2 URI" field in your project settings.
+// If you're using CMake, specify a valid LV2URI argument to juce_add_plugin.
+static_assert (startsWithValidScheme (JucePlugin_LV2URI),
+               "Your configured LV2 URI must include a leading scheme specifier.");
+
 constexpr auto uriSeparator = ":";
 const auto JucePluginLV2UriUi      = String (JucePlugin_LV2URI) + uriSeparator + "UI";
 const auto JucePluginLV2UriState   = String (JucePlugin_LV2URI) + uriSeparator + "StateString";
@@ -1037,18 +1055,21 @@ private:
 
             os << "\trdfs:range atom:Float ;\n";
 
-            if (auto* rangedParam = dynamic_cast<const RangedAudioParameter*> (&param))
+            const auto [defaultValue, min, max] = [&]
             {
-                os << "\tlv2:default " << rangedParam->convertFrom0to1 (rangedParam->getDefaultValue()) << " ;\n"
-                      "\tlv2:minimum " << rangedParam->getNormalisableRange().start << " ;\n"
-                      "\tlv2:maximum " << rangedParam->getNormalisableRange().end;
-            }
-            else
-            {
-                os << "\tlv2:default " << param.getDefaultValue() << " ;\n"
-                      "\tlv2:minimum 0.0 ;\n"
-                      "\tlv2:maximum 1.0";
-            }
+                if (auto* rangedParam = dynamic_cast<const RangedAudioParameter*> (&param))
+                {
+                    return std::tuple (rangedParam->convertFrom0to1 (rangedParam->getDefaultValue()),
+                                       rangedParam->getNormalisableRange().start,
+                                       rangedParam->getNormalisableRange().end);
+                }
+
+                return std::tuple (param.getDefaultValue(), 0.0f, 1.0f);
+            }();
+
+            os << "\tlv2:default " << defaultValue << " ;\n"
+                  "\tlv2:minimum " << min << " ;\n"
+                  "\tlv2:maximum " << max;
 
             // Avoid writing out loads of scale points for parameters with lots of steps
             constexpr auto stepLimit = 1000;
@@ -1060,15 +1081,14 @@ private:
                       "\tlv2:portProperty lv2:enumeration " << (param.isBoolean() ? ", lv2:toggled " : "") << ";\n"
                       "\tlv2:scalePoint ";
 
-                const auto maxIndex = numSteps - 1;
+                auto counter = 0;
 
-                for (int i = 0; i < numSteps; ++i)
+                for (const auto& string : param.getAllValueStrings())
                 {
-                    const auto value = (float) i / (float) maxIndex;
-                    const auto text = param.getText (value, 1024);
+                    const auto value = jmap ((float) counter++, 0.0f, (float) numSteps - 1.0f, min, max);
 
-                    os << (i != 0 ? ", " : "") << "[\n"
-                          "\t\trdfs:label \"" << text << "\" ;\n"
+                    os << (counter != 0 ? ", " : "") << "[\n"
+                          "\t\trdfs:label \"" << string << "\" ;\n"
                           "\t\trdf:value " << value << " ;\n"
                           "\t]";
                 }

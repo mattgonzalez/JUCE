@@ -61,7 +61,13 @@ private:
             return hr;
         }
 
+        float dpiX = USER_DEFAULT_SCREEN_DPI;
+        float dpiY = USER_DEFAULT_SCREEN_DPI;
+        deviceResources.deviceContext.context->GetDpi(&dpiX, &dpiY);
+
         D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+        bitmapProperties.dpiX = dpiX;
+        bitmapProperties.dpiY = dpiY;
         bitmapProperties.pixelFormat.alphaMode   = D2D1_ALPHA_MODE_PREMULTIPLIED;
         bitmapProperties.pixelFormat.format =
             (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -117,7 +123,7 @@ public:
            Direct2DPixelData::Ptr                direct2DPixelData_,
            Point<int>                            origin_,
            const RectangleList<int>&             initialClip_)
-        : Pimpl(owner_, 1.0, true),
+        : Pimpl(owner_, 1.0, false /* opaque */),
           direct2DPixelData (direct2DPixelData_),
           origin (origin_),
           initialClip (initialClip_)

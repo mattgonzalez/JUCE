@@ -141,7 +141,7 @@ private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
     #endif
-    std::unique_ptr<Direct2DLowLevelGraphicsHwndContext> direct2DContext;
+    std::unique_ptr<Direct2DHwndContext> direct2DContext;
 
     void handlePaintMessage() override
     {
@@ -235,7 +235,7 @@ private:
     {
         if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
         {
-            direct2DContext = std::make_unique<Direct2DLowLevelGraphicsHwndContext> (hwnd,
+            direct2DContext = std::make_unique<Direct2DHwndContext> (hwnd,
                                                                                  scaleFactor,
                                                                                  component.isOpaque());
     #if JUCE_DIRECT2D_METRICS
@@ -331,24 +331,6 @@ private:
                 {
                     RECT* rect = (RECT*) lParam;
                     direct2DContext->resize (rect->right - rect->left, rect->bottom - rect->top);
-                }
-                break;
-            }
-
-            case WM_ENTERSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->startResizing();
-                }
-                break;
-            }
-
-            case WM_EXITSIZEMOVE:
-            {
-                if (direct2DContext && component.isVisible())
-                {
-                    direct2DContext->finishResizing();
                 }
                 break;
             }

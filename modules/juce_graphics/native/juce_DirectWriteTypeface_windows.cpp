@@ -581,7 +581,6 @@ public:
     float getUnitsToHeightScaleFactor() const noexcept      { return unitsToHeightScaleFactor; }
 
 private:
-    //DirectXFactories* const factories = DirectXFactories::getInstance();
     SharedResourcePointer<DirectXFactories> factories;
     ComSmartPtr<IDWriteFontFace> dwFontFace;
     float unitsToHeightScaleFactor = 1.0f, heightToPointsFactor = 1.0f, ascent = 0;

@@ -606,7 +606,6 @@ const MAT2 WindowsTypeface::identityMatrix = { { 0, 1 }, { 0, 0 }, { 0, 0 }, { 0
 Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)
 {
    #if JUCE_USE_DIRECTWRITE
-    //auto factories = DirectXFactories::getInstance();
     SharedResourcePointer<DirectXFactories> factories;
 
     if (auto systemFonts = factories->getSystemFonts())

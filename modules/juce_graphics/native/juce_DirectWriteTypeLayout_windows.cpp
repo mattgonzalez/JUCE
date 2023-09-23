@@ -108,7 +108,7 @@ namespace DirectWriteTypeLayout
             if (! (baselineOriginY >= -1.0e10f && baselineOriginY <= 1.0e10f))
                 baselineOriginY = 0; // DirectWrite sometimes sends NaNs in this parameter
 
-            if (baselineOriginY != lastOriginY)
+            if (! approximatelyEqual (baselineOriginY, lastOriginY))
             {
                 lastOriginY = baselineOriginY;
                 ++currentLine;
@@ -239,7 +239,7 @@ namespace DirectWriteTypeLayout
             case Justification::left:                   break;
             case Justification::right:                  alignment = DWRITE_TEXT_ALIGNMENT_TRAILING; break;
             case Justification::horizontallyCentred:    alignment = DWRITE_TEXT_ALIGNMENT_CENTER; break;
-            case Justification::horizontallyJustified:  alignment = DWRITE_TEXT_ALIGNMENT_JUSTIFIED; break; // DirectWrite cannot justify text, default to left alignment
+            case Justification::horizontallyJustified:  alignment = DWRITE_TEXT_ALIGNMENT_JUSTIFIED; break;
             default:                                    jassertfalse; break; // Illegal justification flags
         }
 
@@ -509,7 +509,6 @@ bool TextLayout::createNativeLayout ([[maybe_unused]] const AttributedString& te
     if (! canAllTypefacesAndFontsBeUsedInLayout (text))
         return false;
 
-//    auto factories = DirectXFactories::getInstance();
     SharedResourcePointer<DirectXFactories> factories;
     jassert(MessageManager::getInstance()->currentThreadHasLockedMessageManager());
 

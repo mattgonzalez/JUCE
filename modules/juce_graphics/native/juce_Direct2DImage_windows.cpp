@@ -58,7 +58,11 @@ public:
     {
     }
 
-    ~Direct2DPixelData() override {}
+    ~Direct2DPixelData() override
+    {
+        mappableBitmap = nullptr;
+        targetBitmap = nullptr;
+    }
 
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
     {

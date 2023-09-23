@@ -101,6 +101,14 @@ private:
         return hr;
     }
 
+        void teardown() override
+        {
+            Pimpl::teardown();
+
+            direct2DPixelData->mappableBitmap = nullptr;
+            direct2DPixelData->targetBitmap = nullptr;
+        }
+
     void adjustPaintAreas (RectangleList<int>& paintAreas) override
     {
         paintAreas = getFrameSize();

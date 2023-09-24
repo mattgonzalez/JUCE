@@ -159,6 +159,9 @@ public:
 
             buffer = nullptr;
             chain  = nullptr;
+#if JUCE_DIRECT2D_SNAPSHOT
+            snapshot = nullptr;
+#endif
 
             //
             // Make the waitable swap chain
@@ -250,6 +253,20 @@ public:
                 }
             }
 
+#if JUCE_DIRECT2D_SNAPSHOT
+            if (SUCCEEDED (hr))
+            {
+                D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+                bitmapProperties.bitmapOptions           = D2D1_BITMAP_OPTIONS_CANNOT_DRAW | D2D1_BITMAP_OPTIONS_CPU_READ;
+                buffer->GetDpi (&bitmapProperties.dpiX, &bitmapProperties.dpiY);
+                bitmapProperties.pixelFormat = buffer->GetPixelFormat();
+                auto size                    = buffer->GetPixelSize();
+
+                hr = deviceContext->CreateBitmap (size, nullptr, 0, bitmapProperties, snapshot.resetAndGetPointerAddress());
+                jassertquiet (SUCCEEDED (hr));
+            }
+#endif
+
             return hr;
         }
 
@@ -264,6 +281,9 @@ public:
         }
 
         buffer         = nullptr;
+#if JUCE_DIRECT2D_SNAPSHOT
+        snapshot = nullptr;
+#endif
         swapChainEvent = nullptr;
         chain          = nullptr;
         state          = idle;
@@ -284,6 +304,9 @@ public:
                     .getIntersection ({ Direct2DGraphicsContext::maxFrameSize, Direct2DGraphicsContext::maxFrameSize });
 
             buffer = nullptr;
+#if JUCE_DIRECT2D_SNAPSHOT
+            snapshot = nullptr;
+#endif
             state  = chainAllocated;
 
             auto dpi = USER_DEFAULT_SCREEN_DPI * dpiScalingFactor;
@@ -324,6 +347,9 @@ public:
     uint32 const                               presentFlags        = 0;
     ComSmartPtr<IDXGISwapChain1>               chain;
     ComSmartPtr<ID2D1Bitmap1>                  buffer;
+#if JUCE_DIRECT2D_SNAPSHOT
+    ComSmartPtr<ID2D1Bitmap1>                  snapshot;
+#endif
     std::unique_ptr<direct2d::ScopedEvent>     swapChainEvent;
     int                                        dispatcherBitNumber = -1;
     SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;

@@ -30,10 +30,16 @@ class Direct2DImageType : public ImageType
 {
 public:
     Direct2DImageType()           = default;
+    Direct2DImageType(float dpiScalingFactor_) :
+        dpiScalingFactor(dpiScalingFactor_)
+    {
+    }
     ~Direct2DImageType() override = default;
 
     ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool shouldClearImage) const override;
     int getTypeID() const override { return 0xd2d; }
+
+    float dpiScalingFactor = 1.0f;
 };
 
 } // namespace juce

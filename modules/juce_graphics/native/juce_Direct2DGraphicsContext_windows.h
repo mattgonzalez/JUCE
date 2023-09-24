@@ -215,6 +215,10 @@ public:
 
     void setPhysicalPixelScaleFactor(float scale_);
 
+    virtual Image getOutputSnapshot(Rectangle<int> /*area*/) 
+    {
+        return {};
+    }
 
 #if JUCE_DIRECT2D_METRICS
     direct2d::PaintStats::Ptr stats;

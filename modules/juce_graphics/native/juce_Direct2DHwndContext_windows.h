@@ -41,6 +41,8 @@ public:
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();
 
+    Image getOutputSnapshot(Rectangle<int> area) override;
+
 private:
     struct HwndPimpl;
     std::unique_ptr<HwndPimpl> pimpl;

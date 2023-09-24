@@ -348,6 +348,24 @@ public:
         return hr;
     }
 
+    void takeSnapshot() override
+    {
+#if JUCE_DIRECT2D_SNAPSHOT
+        if (swap.snapshot)
+        {
+            //
+            // Copy the swap chain buffer to another bitmap
+            //
+            D2D_POINT_2U p { 0, 0 };
+            auto         swapChainSize = swap.buffer->GetPixelSize();
+            auto snapshotSize = swap.snapshot->GetPixelSize();
+            D2D_RECT_U   sourceRect { 0, 0, swapChainSize.width, swapChainSize.height };
+            auto hr = swap.snapshot->CopyFromBitmap(&p, swap.buffer, &sourceRect);
+            jassertquiet(SUCCEEDED(hr));
+        }
+#endif
+    }
+
     void setScaleFactor (float scale_) override
     {
         Pimpl::setScaleFactor (scale_);
@@ -426,6 +444,16 @@ public:
         return factories->getSystemFonts();
     }
 
+    auto getOutputSnapshot(Rectangle<int> area)
+    {
+#if JUCE_DIRECT2D_SNAPSHOT
+        auto pixelData = Direct2DPixelData::fromDirect2DBitmap(swap.snapshot, area);
+        return Image{ pixelData };
+#else
+        return Image{};
+#endif
+    }
+
     HWND hwnd   = nullptr;
 
 #if JUCE_DIRECT2D_METRICS
@@ -475,6 +503,11 @@ void Direct2DHwndContext::addDeferredRepaint (Rectangle<int> deferredRepaint)
 void Direct2DHwndContext::addInvalidWindowRegionToDeferredRepaints()
 {
     pimpl->addInvalidWindowRegionToDeferredRepaints();
+}
+
+juce::Image Direct2DHwndContext::getOutputSnapshot(Rectangle<int> area)
+{
+    return pimpl->getOutputSnapshot(area);
 }
 
 void Direct2DHwndContext::clearTargetBuffer()

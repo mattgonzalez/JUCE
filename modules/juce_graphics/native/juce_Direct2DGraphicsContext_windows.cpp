@@ -447,10 +447,6 @@ namespace juce
         Direct2DGraphicsContext& owner;
         SharedResourcePointer<DirectXFactories> factories;
         float                                   dpiScalingFactor = 1.0f;
-        float                                   snappedDpiScalingFactor = 1.0f;
-        static constexpr int                    dpiScalingIntConversionShift = 7;
-        static constexpr int                    dpiScalingIntConversionFactor = 1 << dpiScalingIntConversionShift;
-        int                                     repaintAreaPixelSnap = dpiScalingIntConversionFactor;
 
         DirectXFactories::GraphicsAdapter::Ptr adapter;
         direct2d::DeviceResources              deviceResources;
@@ -461,7 +457,7 @@ namespace juce
         {
             if (!deviceResources.canPaint())
             {
-                if (auto hr = deviceResources.create(adapter, snappedDpiScalingFactor); FAILED(hr))
+                if (auto hr = deviceResources.create(adapter, dpiScalingFactor); FAILED(hr))
                 {
                     return hr;
                 }
@@ -583,38 +579,6 @@ namespace juce
         virtual void setScaleFactor(float scale_)
         {
             dpiScalingFactor = scale_;
-            snappedDpiScalingFactor = roundToInt(dpiScalingFactor * dpiScalingIntConversionFactor) / float{ dpiScalingIntConversionFactor };
-
-            //
-            // Round DPI scaling factor to nearest 1/128 so the repainted areas
-            // and the dirty rectangles both snap to pixel boundaries
-            //
-            // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
-            //
-            // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100.
-            // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels.
-            //
-            // For example: DPI scaling 150%
-            //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
-            //      repaintAreaPixel = 128 / 64 = 2
-            //      deferredRepaints will be expanded to snap to the next multiple of 2
-            //
-            // DPI scaling of 225%
-            //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
-            //      repaintAreaPixel = 128 / 32 = 4
-            //      deferredRepaints will be expanded to snap to the next multiple of 4
-            //
-            // DPI scaling of 301%
-            //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
-            //      repaintAreaPixel = 128 / 1 = 128
-            //      deferredRepaints will be expanded to snap to the next multiple of 128
-            //
-            // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
-            // scaling factors will be less efficient and require more painting.
-            //
-            auto greatestCommonDenominator =
-                std::gcd(roundToInt(float{ dpiScalingIntConversionFactor } *snappedDpiScalingFactor), dpiScalingIntConversionFactor);
-            repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
         }
 
         float getScaleFactor() const
@@ -1176,7 +1140,6 @@ namespace juce
 
     void Direct2DGraphicsContext::drawImage(const Image& image, const AffineTransform& transform)
     {
-#if 1
         TRACE_LOG_D2D_PAINT_CALL(etw::drawImage);
 
         if (auto deviceContext = getPimpl()->getDeviceContext())
@@ -1216,7 +1179,6 @@ namespace juce
                 deviceContext->DrawBitmap(bitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
             }
         }
-#endif
     }
 
     void Direct2DGraphicsContext::drawLine(const Line<float>& line)

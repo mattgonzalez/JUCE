@@ -215,7 +215,12 @@ public:
 
     void setPhysicalPixelScaleFactor(float scale_);
 
-    virtual Image getOutputSnapshot(Rectangle<int> /*area*/) 
+    virtual Image createSnapshot(Rectangle<int> /*areaDIPs*/)
+    {
+        return {};
+    }
+
+    virtual Image createSnapshot()
     {
         return {};
     }

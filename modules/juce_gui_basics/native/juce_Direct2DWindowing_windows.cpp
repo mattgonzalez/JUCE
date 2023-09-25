@@ -137,6 +137,16 @@ public:
         HWNDComponentPeer::performAnyPendingRepaintsNow();
     }
 
+    Image createWindowSnapshot()
+    {
+        if (direct2DContext)
+        {
+            return direct2DContext->createSnapshot();
+        }
+
+        return {};
+    }
+
 private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
@@ -401,5 +411,38 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
     peer->initialise();
     return peer;
 }
+
+
+#if JUCE_DIRECT2D_SNAPSHOT
+Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
+{
+    auto hwnd = (HWND)nativeWindowHandle;
+
+    if (auto flags = GetWindowLongPtr(hwnd, GWL_EXSTYLE); (flags & WS_EX_NOREDIRECTIONBITMAP) == 0)
+    {
+        return createGDISnapshotOfNativeWindow(nativeWindowHandle);
+    }
+
+    Direct2DComponentPeer* direct2DPeer = nullptr;
+
+    int numDesktopComponents = Desktop::getInstance().getNumComponents();
+    for (int index = 0; index < numDesktopComponents; ++index)
+    {
+        auto component = Desktop::getInstance().getComponent(index);
+        if (auto peer = component->getPeer(); peer && peer->getNativeHandle() == nativeWindowHandle)
+        {
+            direct2DPeer = dynamic_cast<Direct2DComponentPeer*>(peer);
+            break;
+        }
+    }
+
+    if (direct2DPeer)
+    {
+        return direct2DPeer->createWindowSnapshot();
+    }
+
+    return {};
+}
+#endif
 
 #endif

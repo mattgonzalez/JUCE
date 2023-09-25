@@ -50,31 +50,21 @@ namespace juce
     class Direct2DPixelData : public ImagePixelData
     {
     public:
-        Direct2DPixelData(Image::PixelFormat formatToUse, int w, int h, bool clearImage_, float dpiScalingFactor_)
-            : ImagePixelData((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB, w, h),
+        Direct2DPixelData(Image::PixelFormat formatToUse, direct2d::DPIScalableArea<int> area, bool clearImage_)
+            : ImagePixelData((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB,
+                area.getDeviceIndependentWidth<int>(),
+                area.getDeviceIndependentHeight<int>()),
+            scaledArea(area),
             pixelStride(4),
-            lineStride((pixelStride* jmax(1, w) + 3) & ~3),
-            clearImage(clearImage_),
-            dpiScalingFactor(dpiScalingFactor_)
+            lineStride((pixelStride* jmax(1, width) + 3) & ~3),
+            clearImage(clearImage_)
         {
         }
 
-        Direct2DPixelData(Image::PixelFormat formatToUse, int w, int h, bool clearImage_)
-            : Direct2DPixelData(formatToUse, w, h, clearImage_, 1.0f)
+        static Direct2DPixelData::Ptr fromDirect2DBitmap(ID2D1Bitmap1* const bitmap, direct2d::DPIScalableArea<int> area)
         {
-        }
-
-        static Direct2DPixelData::Ptr fromDirect2DBitmap(ID2D1Bitmap1* const bitmap, Rectangle<int> sourceArea)
-        {
-            float dpiX, dpiY;
-            bitmap->GetDpi(&dpiX, &dpiY);
-
-            Direct2DPixelData::Ptr pixelData = new Direct2DPixelData{ Image::ARGB, static_cast<int>(sourceArea.getWidth()), static_cast<int>(sourceArea.getHeight()), false, jmax(dpiX, dpiY) / (float)USER_DEFAULT_SCREEN_DPI};
-            auto context = pixelData->createLowLevelContext();
-            D2D1_POINT_2U p{ 0, 0 };
-            D2D1_RECT_U rect{ (uint32)sourceArea.getX(), (uint32)sourceArea.getY(), (uint32)sourceArea.getRight(), (uint32)sourceArea.getBottom() };
-            pixelData->targetBitmap->CopyFromBitmap(&p, bitmap, &rect);
-
+            Direct2DPixelData::Ptr pixelData = new Direct2DPixelData{ Image::ARGB, area, false };
+            pixelData->targetBitmap = bitmap;
             return pixelData;
         }
 
@@ -109,7 +99,7 @@ namespace juce
 
             if (mappedRect.bits == nullptr)
             {
-                if (!targetBitmap)
+                if (!targetBitmap || !mappableBitmap)
                 {
                     //
                     // The low-level graphics context creates the bitmaps
@@ -122,12 +112,22 @@ namespace juce
                 if (mappableBitmap)
                 {
                     D2D1_POINT_2U destPoint{ 0, 0 };
-                    D2D1_RECT_U   sourceRect{ (uint32)x, (uint32)y, (uint32)(x + width), (uint32)(y + height) };
+                    Rectangle<int> dipSourceRect{ x, y, width, height };
+                    dipSourceRect = dipSourceRect.getIntersection(scaledArea.getDeviceIndependentArea());
+                    auto scaledSourceRect = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(dipSourceRect, scaledArea.getDPIScalingFactor());
+                    auto physicalSourceRect = scaledSourceRect.getPhysicalArea();
+                    D2D1_RECT_U sourceRectU
+                    {
+                        (uint32)physicalSourceRect.getX(),
+                        (uint32)physicalSourceRect.getY(),
+                        (uint32)physicalSourceRect.getWidth(),
+                        (uint32)physicalSourceRect.getHeight()
+                    };
 
                     //
                     // Copy from the painted target bitmap to the mappable bitmap
                     //
-                    if (auto hr = mappableBitmap->CopyFromBitmap(&destPoint, targetBitmap, &sourceRect); FAILED(hr))
+                    if (auto hr = mappableBitmap->CopyFromBitmap(&destPoint, targetBitmap, &sourceRectU); FAILED(hr))
                     {
                         return;
                     }
@@ -147,6 +147,10 @@ namespace juce
             bitmap.data = mappedRect.bits;
             bitmap.size = mappedRect.pitch * height;
 
+            auto bitmapDataScaledArea = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, scaledArea.getDPIScalingFactor());
+            bitmap.width = bitmapDataScaledArea.getPhysicalArea().getWidth();
+            bitmap.height= bitmapDataScaledArea.getPhysicalArea().getHeight();
+
             bitmap.dataReleaser = std::make_unique<Direct2DBitmapReleaser>(*this, mode);
 
             if (mode != Image::BitmapData::readOnly) sendDataChangeMessage();
@@ -154,7 +158,7 @@ namespace juce
 
         ImagePixelData::Ptr clone() override
         {
-            Direct2DPixelData::Ptr clone = new Direct2DPixelData{ pixelFormat, width, height, false, dpiScalingFactor };
+            Direct2DPixelData::Ptr clone = new Direct2DPixelData{ pixelFormat, scaledArea, false };
 
             clone->createLowLevelContext();
 
@@ -195,8 +199,9 @@ namespace juce
                 {
                     if (pixelData.targetBitmap && mode != Image::BitmapData::readOnly)
                     {
-                        D2D1_RECT_U rect{ 0, 0, (uint32)pixelData.width, (uint32)pixelData.height };
+                        auto size = pixelData.mappableBitmap->GetPixelSize();
 
+                        D2D1_RECT_U rect{ 0, 0, size.width, size.height };
                         pixelData.targetBitmap->CopyFromMemory(&rect, pixelData.mappedRect.bits, pixelData.mappedRect.pitch);
                     }
 
@@ -218,10 +223,9 @@ namespace juce
         friend class Direct2DImageContext;
         friend struct Direct2ImageContext::ImagePimpl;
 
-        float const dpiScalingFactor;
+        direct2d::DPIScalableArea<int> scaledArea;
         const int                 pixelStride, lineStride;
         bool const                clearImage;
-        Rectangle<int>            targetBitmapSize;
         ComSmartPtr<ID2D1Bitmap1> targetBitmap;
         ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
         D2D1_MAPPED_RECT          mappedRect{};
@@ -232,16 +236,16 @@ namespace juce
         JUCE_LEAK_DETECTOR(Direct2DPixelData)
     };
 
-    ImagePixelData::Ptr NativeImageType::create(Image::PixelFormat format, int width, int height, bool clearImage) const
-    {
-        return new Direct2DPixelData{ format, width, height, clearImage };
-    }
-
     juce::ImagePixelData::Ptr Direct2DImageType::create(Image::PixelFormat format, int width, int height, bool shouldClearImage) const
     {
-        width = detail::ceilAsInt(width * dpiScalingFactor);
-        height = detail::ceilAsInt(height * dpiScalingFactor);
-        return new Direct2DPixelData{ format, width, height, shouldClearImage, dpiScalingFactor };
+        auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, dpiScalingFactor);
+        return new Direct2DPixelData{ format, area, shouldClearImage };
+    }
+
+    ImagePixelData::Ptr NativeImageType::create(Image::PixelFormat format, int width, int height, bool clearImage) const
+    {
+        auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, 1.0f);
+        return new Direct2DPixelData{ format, area, clearImage };
     }
 
 } // namespace juce

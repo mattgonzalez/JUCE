@@ -26,31 +26,31 @@
 namespace juce
 {
 
-class Direct2DPixelData;
+    class Direct2DPixelData;
 
-class Direct2ImageContext : public Direct2DGraphicsContext
-{
-public:
-    /** Creates a context to render into an image. */
-    Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
+    class Direct2ImageContext : public Direct2DGraphicsContext
+    {
+    public:
+        /** Creates a context to render into an image. */
+        Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
 
-    /** Creates a context to render into a clipped subsection of an image. */
-    Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
+        /** Creates a context to render into a clipped subsection of an image. */
+        Direct2ImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
 
-    ~Direct2ImageContext() override;
+        ~Direct2ImageContext() override;
 
-private:
-    friend class Direct2DPixelData;
+    private:
+        friend class Direct2DPixelData;
 
-    bool clearImage = true;
+        bool clearImage = true;
 
-    struct ImagePimpl;
-    std::unique_ptr<ImagePimpl> pimpl;
+        struct ImagePimpl;
+        std::unique_ptr<ImagePimpl> pimpl;
 
-    Pimpl* const getPimpl() const noexcept override;
-    void clearTargetBuffer() override;
+        Pimpl* const getPimpl() const noexcept override;
+        void clearTargetBuffer() override;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2ImageContext)
-};
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Direct2ImageContext)
+    };
 
 } // namespace juce

@@ -355,24 +355,6 @@ namespace juce
             return hr;
         }
 
-        void takeSnapshot() override
-        {
-#if JUCE_DIRECT2D_SNAPSHOT
-            if (swap.snapshot)
-            {
-                //
-                // Copy the swap chain buffer to another bitmap
-                //
-                D2D_POINT_2U p{ 0, 0 };
-                auto         swapChainSize = swap.buffer->GetPixelSize();
-                auto snapshotSize = swap.snapshot->GetPixelSize();
-                D2D_RECT_U   sourceRect{ 0, 0, swapChainSize.width, swapChainSize.height };
-                auto hr = swap.snapshot->CopyFromBitmap(&p, swap.buffer, &sourceRect);
-                jassertquiet(SUCCEEDED(hr));
-            }
-#endif
-        }
-
         void setScaleFactor(float scale_) override
         {
             Pimpl::setScaleFactor(scale_);
@@ -492,14 +474,53 @@ namespace juce
             return factories->getSystemFonts();
         }
 
-        auto getOutputSnapshot(Rectangle<int> area)
+        Image createSnapshot(direct2d::DPIScalableArea<int> scalableArea)
         {
 #if JUCE_DIRECT2D_SNAPSHOT
-            auto pixelData = Direct2DPixelData::fromDirect2DBitmap(swap.snapshot, area);
-            return Image{ pixelData };
-#else
-            return Image{};
+            scalableArea.clipToPhysicalArea(frameSize);
+
+            if (scalableArea.isEmpty() ||
+                deviceResources.deviceContext.context == nullptr ||
+                swap.buffer == nullptr)
+            {
+                return {};
+            }
+
+            //
+            // Create the bitmap to receive the snapshot
+            //
+            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+            bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+            bitmapProperties.dpiX = USER_DEFAULT_SCREEN_DPI * snappedDpiScalingFactor;
+            bitmapProperties.dpiY = bitmapProperties.dpiX;
+            bitmapProperties.pixelFormat = swap.buffer->GetPixelFormat();
+            
+            auto size = direct2d::getPhysicalD2DSizeU(scalableArea);
+
+            ComSmartPtr<ID2D1Bitmap1> snapshot;
+            auto hr = deviceResources.deviceContext.context->CreateBitmap(size, nullptr, 0, bitmapProperties, snapshot.resetAndGetPointerAddress());
+            if (SUCCEEDED(hr))
+            {
+                //
+                // Copy the swap chain buffer to the bitmap snapshot
+                //
+                D2D_POINT_2U p{ 0, 0 };
+                D2D_RECT_U  sourceRect
+                {
+                    (uint32)scalableArea.getPhysicalArea().getX(),
+                    (uint32)scalableArea.getPhysicalArea().getY(),
+                    (uint32)scalableArea.getPhysicalArea().getRight(),
+                    (uint32)scalableArea.getPhysicalArea().getBottom()
+                };
+                if (hr = snapshot->CopyFromBitmap(&p, swap.buffer, &sourceRect); SUCCEEDED(hr))
+                {
+                    auto pixelData = Direct2DPixelData::fromDirect2DBitmap(snapshot, scalableArea.withZeroOrigin());
+                    return Image{ pixelData };
+                }
+            }
 #endif
+
+            return Image{};
         }
 
         HWND hwnd = nullptr;
@@ -553,9 +574,14 @@ namespace juce
         pimpl->addInvalidWindowRegionToDeferredRepaints();
     }
 
-    juce::Image Direct2DHwndContext::getOutputSnapshot(Rectangle<int> area)
+    juce::Image Direct2DHwndContext::createSnapshot(Rectangle<int> deviceIndependentArea)
     {
-        return pimpl->getOutputSnapshot(area);
+        return pimpl->createSnapshot(direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(deviceIndependentArea, (float)pimpl->getScaleFactor()));
+    }
+
+    juce::Image Direct2DHwndContext::createSnapshot()
+    {
+        return pimpl->createSnapshot(direct2d::DPIScalableArea<int>::fromPhysicalArea(pimpl->getClientRect(), (float)pimpl->getScaleFactor()));
     }
 
     void Direct2DHwndContext::clearTargetBuffer()

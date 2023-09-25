@@ -1116,7 +1116,11 @@ private:
 };
 
 //==============================================================================
-Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
+#if JUCE_DIRECT2D && JUCE_DIRECT2D_SNAPSHOT
+Image createGDISnapshotOfNativeWindow (void* nativeWindowHandle)
+#else
+Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
+#endif
 {
     auto hwnd = (HWND) nativeWindowHandle;
 

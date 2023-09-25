@@ -41,7 +41,8 @@ public:
     void addDeferredRepaint (Rectangle<int> deferredRepaint);
     void addInvalidWindowRegionToDeferredRepaints();
 
-    Image getOutputSnapshot(Rectangle<int> area) override;
+    Image createSnapshot(Rectangle<int> deviceIndependentArea) override;
+    Image createSnapshot();
 
 private:
     struct HwndPimpl;

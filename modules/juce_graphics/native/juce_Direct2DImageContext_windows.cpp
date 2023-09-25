@@ -63,15 +63,11 @@ namespace juce
                 return hr;
             }
 
-#if JUCE_DEBUG
-            float dpiX, dpiY;
-            deviceResources.deviceContext.context->GetDpi(&dpiX, &dpiY);
-            jassert(dpiX == (USER_DEFAULT_SCREEN_DPI * dpiScalingFactor) && dpiX == dpiY);
-#endif
+            auto& deviceContext = deviceResources.deviceContext.context;
 
             D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-            bitmapProperties.dpiX = dpiX;
-            bitmapProperties.dpiY = dpiY;
+            bitmapProperties.dpiX = dpiScalingFactor * USER_DEFAULT_SCREEN_DPI;;
+            bitmapProperties.dpiY = bitmapProperties.dpiX;
             bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
             bitmapProperties.pixelFormat.format =
                 (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -90,14 +86,25 @@ namespace juce
             if (!direct2DPixelData->targetBitmap)
             {
                 bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-                hr = deviceResources.deviceContext.context->CreateBitmap(
+                hr = deviceContext->CreateBitmap(
                     size,
                     nullptr,
                     direct2DPixelData->lineStride,
                     bitmapProperties,
                     direct2DPixelData->targetBitmap.resetAndGetPointerAddress());
 
-                direct2DPixelData->targetBitmapSize = frameSizePhysicalPixels;
+                if (SUCCEEDED(hr))
+                {
+                    //
+                    // The bitmap may be slightly too large due
+                    // to DPI scaling, so fill it with transparent black
+                    //
+                    deviceContext->SetTarget(direct2DPixelData->targetBitmap);
+                    deviceContext->BeginDraw();
+                    deviceContext->Clear();
+                    deviceContext->EndDraw();
+                    deviceContext->SetTarget(nullptr);
+                }
 
                 direct2DPixelData->mappableBitmap = nullptr;
             }
@@ -105,7 +112,7 @@ namespace juce
             if (!direct2DPixelData->mappableBitmap)
             {
                 bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-                hr = deviceResources.deviceContext.context->CreateBitmap(
+                hr = deviceContext->CreateBitmap(
                     size,
                     nullptr,
                     direct2DPixelData->lineStride,
@@ -138,7 +145,7 @@ namespace juce
             Direct2DPixelData::Ptr                direct2DPixelData_,
             Point<int>                            origin_,
             const RectangleList<int>& initialClip_)
-            : Pimpl(owner_, direct2DPixelData_->dpiScalingFactor, false /* opaque */),
+            : Pimpl(owner_, direct2DPixelData_->scaledArea.getDPIScalingFactor(), false /* opaque */),
             direct2DPixelData(direct2DPixelData_),
             origin(origin_),
             initialClip(initialClip_)

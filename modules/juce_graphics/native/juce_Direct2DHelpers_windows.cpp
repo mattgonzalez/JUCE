@@ -447,6 +447,30 @@ private:
     HANDLE handle = nullptr;
 };
 
+D2D1_RECT_U getPhysicalD2DRectU(direct2d::DPIScalableArea<int> area)
+{
+    auto physicalArea = area.getPhysicalArea();
+
+    return
+    {
+        static_cast<uint32>(physicalArea.getX()),
+        static_cast<uint32>(physicalArea.getY()),
+        static_cast<uint32>(physicalArea.getRight()),
+        static_cast<uint32>(physicalArea.getBottom())
+    };
+}
+
+D2D_SIZE_U getPhysicalD2DSizeU(direct2d::DPIScalableArea<int> area)
+{
+    auto physicalArea = area.getPhysicalArea();
+
+    return
+    {
+        static_cast<uint32>(physicalArea.getWidth()),
+        static_cast<uint32>(physicalArea.getHeight())
+    };
+}
+
 } // namespace direct2d
 
 #if JUCE_ETW_TRACELOGGING

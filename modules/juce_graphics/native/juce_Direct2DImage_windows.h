@@ -29,6 +29,12 @@ namespace juce
     namespace direct2d
     {
 
+        //==============================================================================
+        //
+        // DPIScalableArea keeps track of an area for a window or a bitmap both in
+        // terms of device-independent pixels and physical pixels, as well as the DPI
+        // scaling factor.
+        //
         template <class valueType>
         class DPIScalableArea
         {
@@ -39,6 +45,9 @@ namespace juce
                 scalableArea.deviceIndependentArea = dipArea;
                 scalableArea.dpiScalingFactor = dpiScalingFactor;
 
+                //
+                // These need to round to the nearest integer, so use roundToInt instead of the standard Rectangle methods
+                //
                 Rectangle<float> physicalArea = dipArea.toFloat() * dpiScalingFactor;
                 scalableArea.physicalArea =
                 {
@@ -57,6 +66,9 @@ namespace juce
                 scalableArea.dpiScalingFactor = dpiScalingFactor;
                 scalableArea.physicalArea = physicalArea;
 
+                //
+                // These need to round to the nearest integer, so use roundToInt instead of the standard Rectangle methods
+                //
                 Rectangle<float> dipArea = physicalArea.toFloat() / dpiScalingFactor;
                 scalableArea.deviceIndependentArea =
                 {

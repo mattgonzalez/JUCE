@@ -4509,7 +4509,7 @@ MultiTouchMapper<DWORD> HWNDComponentPeer::currentTouches;
 ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
 
 #if JUCE_DIRECT2D
-#include "native/juce_Direct2DWindowing_windows.cpp"
+#include "juce_gui_basics/native/juce_Direct2DWindowing_windows.cpp"
 #else
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {

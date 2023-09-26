@@ -190,7 +190,7 @@ namespace juce
             return swap.getSize();
         }
 
-        ID2D1Image* const getDeviceContextTarget()
+        ID2D1Image* getDeviceContextTarget() override
         {
             return swap.buffer;
         }
@@ -473,7 +473,7 @@ namespace juce
             }
         }
 
-        inline ID2D1DeviceContext1* const getDeviceContext() const noexcept
+        inline ID2D1DeviceContext1* getDeviceContext() const noexcept
         {
             return deviceResources.deviceContext.context;
         }
@@ -498,7 +498,7 @@ namespace juce
             return factories->getSystemFonts();
         }
 
-        Image createSnapshot(direct2d::DPIScalableArea<int> scalableArea)
+        Image createSnapshot([[maybe_unused]] direct2d::DPIScalableArea<int> scalableArea)
         {
 #if JUCE_DIRECT2D_SNAPSHOT
             scalableArea.clipToPhysicalArea(frameSize);
@@ -571,7 +571,7 @@ namespace juce
         return pimpl->hwnd;
     }
 
-    Direct2DGraphicsContext::Pimpl* const Direct2DHwndContext::getPimpl() const noexcept
+    Direct2DGraphicsContext::Pimpl* Direct2DHwndContext::getPimpl() const noexcept
     {
         return pimpl.get();
     }

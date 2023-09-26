@@ -43,7 +43,7 @@ public:
     void addInvalidWindowRegionToDeferredRepaints();
 
     Image createSnapshot(Rectangle<int> deviceIndependentArea) override;
-    Image createSnapshot();
+    Image createSnapshot() override;
 
     static Colour getBackgroundTransparencyKeyColour() noexcept
     {
@@ -54,7 +54,7 @@ private:
     struct HwndPimpl;
     std::unique_ptr<HwndPimpl> pimpl;
 
-    Pimpl* const getPimpl() const noexcept override;
+    Pimpl* getPimpl() const noexcept override;
     void clearTargetBuffer() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DHwndContext)

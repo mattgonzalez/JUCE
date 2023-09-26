@@ -131,7 +131,7 @@ public:
 
                 if (colourBrush == nullptr)
                 {
-                    hr = deviceContext.context->CreateSolidColorBrush (D2D1::ColorF::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
+                    hr = deviceContext.context->CreateSolidColorBrush (D2D1::ColorF (0.0f, 0.0f, 0.0f, 1.0f),
                                                                        colourBrush.resetAndGetPointerAddress());
                     jassertquiet (SUCCEEDED (hr));
                 }

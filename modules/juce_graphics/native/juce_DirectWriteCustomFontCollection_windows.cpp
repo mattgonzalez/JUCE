@@ -18,22 +18,22 @@ private:
         }
         ~FontFileStream() override = default;
 
-        HRESULT GetFileSize (UINT64* fileSize) override
+        JUCE_COMRESULT GetFileSize (UINT64* fileSize) noexcept override
         {
             *fileSize = rawData.numBytes;
             return S_OK;
         }
 
-        HRESULT GetLastWriteTime (UINT64* lastWriteTime) override
+        JUCE_COMRESULT GetLastWriteTime (UINT64* lastWriteTime) noexcept override
         {
             *lastWriteTime = 0;
             return S_OK;
         }
 
-        HRESULT ReadFileFragment (void const** fragmentStart,
-                                  UINT64       fileOffset,
-                                  UINT64       fragmentSize,
-                                  void**       fragmentContext) override
+        JUCE_COMRESULT ReadFileFragment (void const** fragmentStart,
+                                         UINT64       fileOffset,
+                                         UINT64       fragmentSize,
+                                         void**       fragmentContext) noexcept override
         {
             if (fileOffset + fragmentSize >= rawData.numBytes)
             {
@@ -47,7 +47,7 @@ private:
             return S_OK;
         }
 
-        void ReleaseFileFragment (void* /*fragmentContext*/) override {}
+        void ReleaseFileFragment (void* /*fragmentContext*/) noexcept override {}
 
         FontRawData rawData;
     };
@@ -61,7 +61,7 @@ private:
 
         HRESULT CreateStreamFromKey (void const*             fontFileReferenceKey,
                                      UINT32                  fontFileReferenceKeySize,
-                                     IDWriteFontFileStream** fontFileStream) override
+                                     IDWriteFontFileStream** fontFileStream) noexcept override
         {
             jassert (sizeof (char*) == fontFileReferenceKeySize);
             if (sizeof (char*) == fontFileReferenceKeySize)
@@ -80,7 +80,9 @@ private:
             *fontFileStream = nullptr;
             return E_INVALIDARG;
         }
-    } fontFileLoader;
+    };
+
+    FontFileLoader fontFileLoader;
 
     struct FontFileEnumerator : public ComBaseClassHelper<IDWriteFontFileEnumerator>
     {
@@ -92,7 +94,7 @@ private:
 
         ~FontFileEnumerator() override = default;
 
-        HRESULT GetCurrentFontFile (IDWriteFontFile** fontFile) override
+        HRESULT GetCurrentFontFile (IDWriteFontFile** fontFile) noexcept override
         {
             if (rawDataIndex < 0 || rawDataIndex >= fontFileLoader.rawDataArray.size())
             {
@@ -107,7 +109,7 @@ private:
                                                            fontFile);
         }
 
-        HRESULT MoveNext (BOOL* hasCurrentFile) override
+        HRESULT MoveNext (BOOL* hasCurrentFile) noexcept override
         {
             ++rawDataIndex;
             *hasCurrentFile = rawDataIndex < fontFileLoader.rawDataArray.size() ? TRUE : FALSE;
@@ -129,7 +131,7 @@ public:
     HRESULT CreateEnumeratorFromKey (IDWriteFactory*             factory,
                                      void const*                 collectionKey,
                                      UINT32                      collectionKeySize,
-                                     IDWriteFontFileEnumerator** fontFileEnumerator) override
+                                     IDWriteFontFileEnumerator** fontFileEnumerator) noexcept override
     {
         jassertquiet (collectionKeySize == sizeof (key));
         jassertquiet (0 == std::memcmp (collectionKey, &key, collectionKeySize));

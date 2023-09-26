@@ -160,7 +160,7 @@ namespace juce
             return { direct2DPixelData->width, direct2DPixelData->height };
         }
 
-        ID2D1Image* const getDeviceContextTarget()
+        ID2D1Image* getDeviceContextTarget() override
         {
             return direct2DPixelData->targetBitmap;
         }
@@ -191,7 +191,7 @@ namespace juce
         endFrame();
     }
 
-    Direct2DGraphicsContext::Pimpl* const Direct2ImageContext::getPimpl() const noexcept
+    Direct2DGraphicsContext::Pimpl* Direct2ImageContext::getPimpl() const noexcept
     {
         return pimpl.get();
     }

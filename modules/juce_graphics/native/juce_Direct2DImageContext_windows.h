@@ -47,7 +47,7 @@ namespace juce
         struct ImagePimpl;
         std::unique_ptr<ImagePimpl> pimpl;
 
-        Pimpl* const getPimpl() const noexcept override;
+        Pimpl* getPimpl() const noexcept override;
         void clearTargetBuffer() override;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Direct2ImageContext)

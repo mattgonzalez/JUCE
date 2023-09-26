@@ -243,7 +243,7 @@ protected:
     SavedState* currentState = nullptr;
 
     struct Pimpl;
-    virtual Pimpl* const getPimpl() const noexcept = 0;
+    virtual Pimpl* getPimpl() const noexcept = 0;
 
     virtual void clearTargetBuffer() = 0;
     void drawGlyphCommon (int numGlyphs, Font const& font, const AffineTransform& transform, Rectangle<float> underlineArea);

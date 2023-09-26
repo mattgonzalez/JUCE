@@ -101,10 +101,8 @@ namespace juce
                 return physicalArea;
             }
 
-            template <class valueType>
             valueType getDeviceIndependentWidth() const noexcept { return deviceIndependentArea.getWidth(); };
 
-            template <class valueType>
             valueType getDeviceIndependentHeight() const noexcept { return deviceIndependentArea.getHeight(); };
 
             void clipToPhysicalArea(Rectangle<valueType> clipArea)

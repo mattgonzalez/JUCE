@@ -80,12 +80,12 @@ namespace juce
             return pixelData;
         }
 
-        ~Direct2DPixelData() override {}
+        ~Direct2DPixelData() override = default;
 
         std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
         {
             sendDataChangeMessage();
-            
+
             auto context = std::make_unique<Direct2ImageContext>(this, deviceIndependentClipArea.getPosition(), RectangleList<int> { deviceIndependentClipArea }, clearImage);
             context->clipToRectangle(deviceIndependentClipArea);
             context->setOrigin(deviceIndependentClipArea.getPosition());

@@ -233,7 +233,7 @@ namespace juce
 
         void pushTransparencyLayer(float opacity)
         {
-            pushLayer({ D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), opacity });
+            pushLayer({ D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), opacity, {} });
         }
 
         void popLayers()
@@ -472,7 +472,7 @@ namespace juce
         }
 
         virtual Rectangle<int> getFrameSize() = 0;
-        virtual ID2D1Image* const getDeviceContextTarget() = 0;
+        virtual ID2D1Image* getDeviceContextTarget() = 0;
 
         virtual void adjustPaintAreas(RectangleList<int>& paintAreas) = 0;
 
@@ -634,7 +634,7 @@ namespace juce
             }
         }
 
-        inline ID2D1DeviceContext1* const getDeviceContext() const noexcept
+        inline ID2D1DeviceContext1* getDeviceContext() const noexcept
         {
             return deviceResources.deviceContext.context;
         }

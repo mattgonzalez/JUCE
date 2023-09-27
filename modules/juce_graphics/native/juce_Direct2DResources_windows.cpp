@@ -232,7 +232,7 @@ public:
                     hr = chain2->SetMaximumFrameLatency (2);
                     if (SUCCEEDED (hr))
                     {
-                        state = chainAllocated;
+                        state = State::chainAllocated;
 
                         TRACE_LOG_D2D_RESOURCE (etw::createSwapChain);
                     }
@@ -274,7 +274,7 @@ public:
                 {
                     TRACE_LOG_D2D_RESOURCE (etw::createSwapChainBuffer);
 
-                    state = bufferAllocated;
+                    state = State::bufferAllocated;
                 }
             }
 
@@ -294,12 +294,12 @@ public:
         buffer         = nullptr;
         swapChainEvent = nullptr;
         chain          = nullptr;
-        state          = idle;
+        state          = State::idle;
     }
 
     bool canPaint()
     {
-        return chain != nullptr && buffer != nullptr && state >= bufferAllocated;
+        return chain != nullptr && buffer != nullptr && state >= State::bufferAllocated;
     }
 
     HRESULT resize (Rectangle<int> newSize, float dpiScalingFactor, ID2D1DeviceContext* const deviceContext)
@@ -312,7 +312,7 @@ public:
                     .getIntersection ({ Direct2DGraphicsContext::maxFrameSize, Direct2DGraphicsContext::maxFrameSize });
 
             buffer = nullptr;
-            state  = chainAllocated;
+            state  = State::chainAllocated;
 
             auto dpi = USER_DEFAULT_SCREEN_DPI * dpiScalingFactor;
             deviceContext->SetDpi (dpi, dpi);
@@ -355,13 +355,14 @@ public:
     std::unique_ptr<direct2d::ScopedEvent>     swapChainEvent;
     int                                        dispatcherBitNumber = -1;
     SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;
-    enum State
+    enum class State
     {
         idle,
         chainAllocated,
         bufferAllocated,
         bufferFilled
-    } state = idle;
+    };
+    State state = State::idle;
 };
 
 //==============================================================================

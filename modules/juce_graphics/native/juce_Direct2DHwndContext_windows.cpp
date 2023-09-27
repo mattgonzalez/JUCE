@@ -114,7 +114,7 @@ namespace juce
             //
             // Does the entire buffer need to be filled?
             //
-            if (swap.state == direct2d::SwapChain::bufferAllocated)
+            if (swap.state == direct2d::SwapChain::State::bufferAllocated)
             {
                 deferredRepaints = swap.getSize();
             }
@@ -318,7 +318,7 @@ namespace juce
             // Fill the array of dirty rectangles, intersecting deferredRepaints with the swap chain buffer
             //
             DXGI_PRESENT_PARAMETERS presentParameters{};
-            if (swap.state == direct2d::SwapChain::bufferFilled)
+            if (swap.state == direct2d::SwapChain::State::bufferFilled)
             {
                 RECT* dirtyRectangle = dirtyRectangles.getData();
                 auto const swapChainSize = swap.getSize();
@@ -366,7 +366,7 @@ namespace juce
             //
             // The buffer is now completely filled and ready for dirty rectangles
             //
-            swap.state = direct2d::SwapChain::bufferFilled;
+            swap.state = direct2d::SwapChain::State::bufferFilled;
 
             deferredRepaints.clear();
             swapChainReady = false;

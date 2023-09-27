@@ -673,9 +673,9 @@ namespace juce
     };
 
     //==============================================================================
-    Direct2DGraphicsContext::Direct2DGraphicsContext() {}
+    Direct2DGraphicsContext::Direct2DGraphicsContext() = default;
 
-    Direct2DGraphicsContext::~Direct2DGraphicsContext() {}
+    Direct2DGraphicsContext::~Direct2DGraphicsContext() = default;
 
     bool Direct2DGraphicsContext::startFrame()
     {

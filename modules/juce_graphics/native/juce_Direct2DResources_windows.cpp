@@ -164,7 +164,7 @@ public:
 class SwapChain
 {
 public:
-    SwapChain() {}
+    SwapChain() = default;
 
     ~SwapChain()
     {
@@ -354,6 +354,9 @@ public:
     ComSmartPtr<ID2D1Bitmap1>                  buffer;
     std::unique_ptr<direct2d::ScopedEvent>     swapChainEvent;
     int                                        dispatcherBitNumber = -1;
+
+    // TODO(reuk) why not one thread per chain? Might be a bit less performant, but presumably
+    // each thread will be sleeping most of the time, and we won't have an upper limit of 63 chains.
     SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;
     enum class State
     {

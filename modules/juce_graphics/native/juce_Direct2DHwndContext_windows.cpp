@@ -161,7 +161,7 @@ namespace juce
             adapter = factories->getAdapterForHwnd(hwnd_);
         }
 
-        ~HwndPimpl() override {}
+        ~HwndPimpl() override = default;
 
         void handleTargetVisible()
         {

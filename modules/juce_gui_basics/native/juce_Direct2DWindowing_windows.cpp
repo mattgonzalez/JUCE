@@ -216,8 +216,8 @@ private:
         // Use the ID2D1DeviceContext to paint a swap chain buffer, then tell the swap chain to present
         // the next buffer.
         //
-        // Direct2DLowLevelGraphicsContext::startFrame checks if if there are any areas to be painted and if the
-        // renderer is ready to go; if so, startFrame allocates any needed Direct2D resources,
+        // Direct2DLowLevelGraphicsContext::startFrame checks if there are any areas to be painted and if the
+        // renderer is ready to go; if so, startFrame allocates any needed Direct2D resources, 
         // and calls ID2D1DeviceContext::BeginDraw
         //
         // handlePaint() makes various calls into the Direct2DLowLevelGraphicsContext which in turn calls

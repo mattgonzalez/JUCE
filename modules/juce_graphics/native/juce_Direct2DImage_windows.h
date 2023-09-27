@@ -136,7 +136,7 @@ namespace juce
 
             Rectangle<valueType> deviceIndependentArea;
             Rectangle<valueType> physicalArea;
-            float dpiScalingFactor;
+            float dpiScalingFactor = 1.0f;
         };
 
     }

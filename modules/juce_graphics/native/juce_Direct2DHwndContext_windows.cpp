@@ -574,12 +574,12 @@ namespace juce
         pimpl->addInvalidWindowRegionToDeferredRepaints();
     }
 
-    juce::Image Direct2DHwndContext::createSnapshot(Rectangle<int> deviceIndependentArea)
+    Image Direct2DHwndContext::createSnapshot(Rectangle<int> deviceIndependentArea)
     {
         return pimpl->createSnapshot(direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(deviceIndependentArea, (float)pimpl->getScaleFactor()));
     }
 
-    juce::Image Direct2DHwndContext::createSnapshot()
+    Image Direct2DHwndContext::createSnapshot()
     {
         return pimpl->createSnapshot(direct2d::DPIScalableArea<int>::fromPhysicalArea(pimpl->getClientRect(), (float)pimpl->getScaleFactor()));
     }

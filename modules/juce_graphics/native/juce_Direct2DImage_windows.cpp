@@ -145,7 +145,7 @@ namespace juce
 
             bitmap.lineStride = mappedRect.pitch;
             bitmap.data = mappedRect.bits;
-            bitmap.size = mappedRect.pitch * height;
+            bitmap.size = (size_t)mappedRect.pitch * height;
 
             auto bitmapDataScaledArea = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, scaledArea.getDPIScalingFactor());
             bitmap.width = bitmapDataScaledArea.getPhysicalArea().getWidth();
@@ -236,7 +236,7 @@ namespace juce
         JUCE_LEAK_DETECTOR(Direct2DPixelData)
     };
 
-    juce::ImagePixelData::Ptr Direct2DImageType::create(Image::PixelFormat format, int width, int height, bool shouldClearImage) const
+    ImagePixelData::Ptr Direct2DImageType::create(Image::PixelFormat format, int width, int height, bool shouldClearImage) const
     {
         auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, dpiScalingFactor);
         return new Direct2DPixelData{ format, area, shouldClearImage };

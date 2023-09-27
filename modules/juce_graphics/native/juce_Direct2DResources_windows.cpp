@@ -306,7 +306,7 @@ public:
         return E_FAIL;
     }
 
-    juce::Rectangle<int> getSize() const
+    Rectangle<int> getSize() const
     {
         if (buffer)
         {

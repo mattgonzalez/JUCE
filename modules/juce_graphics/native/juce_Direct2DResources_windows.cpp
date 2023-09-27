@@ -211,6 +211,8 @@ public:
                                                              chain.resetAndGetPointerAddress());
             jassert (SUCCEEDED (hr));
 
+            std::optional<ScopedEvent> swapChainEvent;
+
             if (SUCCEEDED (hr))
             {
                 TRACE_LOG_D2D_CREATE_RESOURCE ("swapchain");
@@ -222,12 +224,9 @@ public:
                 chain.QueryInterface<IDXGISwapChain2> (chain2);
                 if (chain2)
                 {
-                    swapChainEvent = std::make_unique<direct2d::ScopedEvent> (chain2->GetFrameLatencyWaitableObject());
+                    swapChainEvent.emplace (chain2->GetFrameLatencyWaitableObject());
                     if (swapChainEvent->getHandle() == INVALID_HANDLE_VALUE)
-                    {
-                        swapChainEvent = nullptr;
                         return E_NOINTERFACE;
-                    }
 
                     hr = chain2->SetMaximumFrameLatency (2);
                     if (SUCCEEDED (hr))
@@ -243,10 +242,8 @@ public:
                 return E_NOINTERFACE;
             }
 
-            if (swapChainEvent && swapChainEvent->getHandle())
-            {
-                dispatcherBitNumber = swapChainDispatcher->addSwapChain (swapChainEvent->getHandle());
-            }
+            if (swapChainEvent.has_value() && swapChainEvent->getHandle() != nullptr)
+                swapChainDispatcher.emplace (std::move (*swapChainEvent));
 
             return hr;
         }
@@ -286,13 +283,8 @@ public:
 
     void release()
     {
-        if (swapChainEvent)
-        {
-            swapChainDispatcher->removeSwapChain (swapChainEvent->getHandle());
-        }
-
+        swapChainDispatcher.reset();
         buffer         = nullptr;
-        swapChainEvent = nullptr;
         chain          = nullptr;
         state          = State::idle;
     }
@@ -352,12 +344,9 @@ public:
     uint32 const                               presentFlags        = 0;
     ComSmartPtr<IDXGISwapChain1>               chain;
     ComSmartPtr<ID2D1Bitmap1>                  buffer;
-    std::unique_ptr<direct2d::ScopedEvent>     swapChainEvent;
-    int                                        dispatcherBitNumber = -1;
 
-    // TODO(reuk) why not one thread per chain? Might be a bit less performant, but presumably
-    // each thread will be sleeping most of the time, and we won't have an upper limit of 63 chains.
-    SharedResourcePointer<SwapChainDispatcher> swapChainDispatcher;
+    std::optional<SwapChainDispatcher> swapChainDispatcher;
+
     enum class State
     {
         idle,

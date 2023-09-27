@@ -489,7 +489,7 @@ public:
 class ScopedEvent
 {
 public:
-    ScopedEvent (HANDLE handle_)
+    explicit ScopedEvent (HANDLE handle_)
         : handle (handle_)
     {
     }
@@ -498,21 +498,23 @@ public:
         : handle (CreateEvent (nullptr, FALSE, FALSE, nullptr))
     {
     }
-    ~ScopedEvent()
-    {
-        if (handle)
-        {
-            CloseHandle (handle);
-        }
-    }
 
     HANDLE getHandle() const noexcept
     {
-        return handle;
+        return handle.get();
     }
 
 private:
-    HANDLE handle = nullptr;
+    struct Destructor
+    {
+        void operator() (HANDLE h) const
+        {
+            if (h != nullptr)
+                CloseHandle (h);
+        }
+    };
+
+    std::unique_ptr<std::remove_pointer_t<HANDLE>, Destructor> handle;
 };
 
 D2D1_RECT_U getPhysicalD2DRectU(direct2d::DPIScalableArea<int> area)

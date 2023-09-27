@@ -135,7 +135,7 @@ namespace juce
 
         bool checkPaintReady() override
         {
-            swapChainReady |= swap.swapChainDispatcher->isSwapChainReady(swap.dispatcherBitNumber);
+            swapChainReady |= swap.swapChainDispatcher->isSwapChainReady();
 
             //
             // Paint if:

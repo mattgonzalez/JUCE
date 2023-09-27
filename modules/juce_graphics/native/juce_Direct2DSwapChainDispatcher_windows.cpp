@@ -41,148 +41,61 @@ namespace direct2d
 // leaves a maximum of 63 swap chains that can be serviced.
 //
 
-class SwapChainDispatcher : protected Thread
+class SwapChainDispatcher
 {
-private:
-    direct2d::ScopedEvent wakeEvent;
-    CriticalSection       lock;
-    Array<HANDLE>         handles;
-    std::atomic<int64>    atomicReadyFlags;
-
 public:
-    SwapChainDispatcher()
-        : Thread ("SwapChainDispatcher")
+    explicit SwapChainDispatcher (ScopedEvent h)
+        : events { { std::move (h), {} } } {}
+
+    ~SwapChainDispatcher()
     {
+        states |= (1 << quitting);
+        SetEvent (events[quitting].getHandle());
+        thread.join();
     }
 
-    ~SwapChainDispatcher() override
+    bool isSwapChainReady()
     {
-        stop();
+        return states.fetch_and (~(1 << ready));
     }
 
-    int addSwapChain (HANDLE swapChainEvent)
+private:
+    enum States
     {
+        ready    = 0,
+        quitting = 1,
+    };
+
+    std::array<ScopedEvent, 2> events;
+    std::atomic<int> states { 0 };
+    std::thread thread
+    {
+        [&]
         {
-            ScopedLock locker { lock };
-
-            int index = handles.indexOf (swapChainEvent);
-            if (index >= 0)
+            while ((states & (1 << quitting)) == 0)
             {
-                return index + 1;
-            }
+                std::array<HANDLE, 2> handles;
+                std::transform (events.begin(), events.end(), handles.begin(), [] (const auto& s) { return s.getHandle(); });
 
-            handles.add ({ swapChainEvent });
-        }
+                const auto waitResult = WaitForMultipleObjects ((DWORD) handles.size(), handles.data(), FALSE, INFINITE);
 
-        if (! isThreadRunning())
-        {
-            startThread (Thread::Priority::highest);
-        }
-        else
-        {
-            SetEvent (wakeEvent.getHandle());
-        }
-
-        return handles.size();
-    }
-
-    void removeSwapChain (HANDLE swapChainEvent)
-    {
-        {
-            ScopedLock locker { lock };
-
-            handles.removeAllInstancesOf (swapChainEvent);
-        }
-
-        if (handles.size() > 0)
-        {
-            SetEvent (wakeEvent.getHandle());
-        }
-        else
-        {
-            stop();
-        }
-    }
-
-    void stop()
-    {
-        jassert (MessageManager::getInstance()->isThisTheMessageThread());
-
-        signalThreadShouldExit();
-        SetEvent (wakeEvent.getHandle());
-        stopThread (1000);
-    }
-
-    bool isSwapChainReady (int bitNumber)
-    {
-        //
-        // See if the ready bit is set for a specific swap chain. 
-        // 
-        // Checking the bit also clears it
-        //
-        int64 mask       = 1LL << bitNumber;
-        auto  readyFlags = atomicReadyFlags.fetch_and (~mask);
-        return (readyFlags & mask) != 0;
-    }
-
-    void run() override
-    {
-        while (! threadShouldExit())
-        {
-            //
-            // Lock the array of event handles and copy event handles to local array
-            // 
-            HANDLE waitableObjects[MAXIMUM_WAIT_OBJECTS] = { wakeEvent.getHandle() };
-            DWORD  numWaitableObjects                    = 1;
-            {
-                ScopedLock locker { lock };
-
-                numWaitableObjects += jmin (MAXIMUM_WAIT_OBJECTS - 1, handles.size());
-                for (DWORD index = 0; index < numWaitableObjects - 1; ++index)
+                switch (waitResult)
                 {
-                    waitableObjects[index + 1] = handles[index];
-                }
-            }
+                    case WAIT_OBJECT_0 + ready:
+                        states |= (1 << ready);
+                        break;
 
-            //
-            // Wait for an event to fire
-            //
-            auto waitResult = WaitForMultipleObjects (numWaitableObjects, waitableObjects, FALSE, INFINITE);
+                    case WAIT_OBJECT_0 + quitting:
+                    case WAIT_FAILED:
+                        break;
 
-            //
-            // Swap chain event fired?
-            //
-            if (WAIT_OBJECT_0 < waitResult && waitResult < WAIT_OBJECT_0 + numWaitableObjects)
-            {
-                //
-                // Atomically set the bit number for this swap chain to indicate that this particular swap
-                // chain is ready to paint again.
-                //
-                int bitNumber = waitResult - WAIT_OBJECT_0;
-                TRACE_LOG_SWAP_CHAIN_EVENT (bitNumber);
-                atomicReadyFlags.fetch_or (1LL << bitNumber);
-                continue;
-            }
-
-            //
-            // Maybe the wake event or an error?
-            //
-            switch (waitResult)
-            {
-                case WAIT_OBJECT_0: // wake event fired
-                case WAIT_FAILED:
-                {
-                    break;
-                }
-
-                default:
-                {
-                    jassertfalse;
-                    break;
+                    default:
+                        jassertfalse;
+                        break;
                 }
             }
         }
-    }
+    };
 };
 
 } // namespace direct2d

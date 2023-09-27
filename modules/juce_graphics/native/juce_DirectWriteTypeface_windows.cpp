@@ -95,8 +95,8 @@ public:
 
     struct GraphicsAdapter : public ReferenceCountedObject
     {
-        GraphicsAdapter (DirectXFactories& directXFactories_, ComSmartPtr<IDXGIAdapter>& dxgiAdapter_)
-            : directXFactories(directXFactories_), dxgiAdapter (dxgiAdapter_)
+        GraphicsAdapter (DirectXFactories& directXFactories_, const ComSmartPtr<IDXGIAdapter>& dxgiAdapter_)
+            : directXFactories (directXFactories_), dxgiAdapter (dxgiAdapter_)
         {
             uint32                    i = 0;
             ComSmartPtr<IDXGIOutput> dxgiOutput;
@@ -211,35 +211,15 @@ public:
         }
 
 #if JUCE_DIRECT2D
-        if (dxgiDll.open("DXGI.dll"))
+        Adapters::getInstance().updateAdapters();
+        adapters.clear();
+
+        for (const auto& adapterPtr : Adapters::getInstance().getAdapters())
         {
-            JUCE_LOAD_WINAPI_FUNCTION (dxgiDll,
-                                       CreateDXGIFactory,
-                                       createDXGIFactory,
-                                       HRESULT,
-                                       (REFIID, void**))
+            const GraphicsAdapter::Ptr adapter { new GraphicsAdapter { *this, adapterPtr } };
 
-            if (createDXGIFactory != nullptr)
-            {
-                createDXGIFactory(__uuidof(IDXGIFactory2), (void**)dxgiFactory.resetAndGetPointerAddress());
-
-                if (dxgiFactory != nullptr)
-                {
-                    uint32 i = 0;
-                    ComSmartPtr<IDXGIAdapter> dxgiAdapter;
-
-                    while (dxgiFactory->EnumAdapters (i, dxgiAdapter.resetAndGetPointerAddress()) != DXGI_ERROR_NOT_FOUND)
-                    {
-                        GraphicsAdapter::Ptr adapter = new GraphicsAdapter{ *this, dxgiAdapter };
-                        if (adapter->outputs.size() > 0)
-                        {
-                            adapters.add(adapter);
-                        }
-
-                        ++i;
-                    }
-                }
-            }
+            if (! adapter->outputs.empty())
+                adapters.add (adapter);
         }
 #endif
 
@@ -265,7 +245,6 @@ public:
             customFontCollectionLoaders.clear();
         }
 
-        dxgiFactory = nullptr;
 #endif
         d2dSharedFactory = nullptr;  // (need to make sure these are released before deleting the DynamicLibrary objects)
         directWriteFactory = nullptr;
@@ -274,7 +253,7 @@ public:
     }
 
 #if JUCE_DIRECT2D
-    IDWriteFontFamily* const getFontFamilyForRawData(const void* data, size_t dataSize)
+    IDWriteFontFamily* getFontFamilyForRawData(const void* data, size_t dataSize)
     {
         //
         // Hopefully the raw data here is pointing to a TrueType font file in memory. 
@@ -319,20 +298,20 @@ public:
         return nullptr;
     }
 
-    IDXGIFactory2* const getDXGIFactory() const
+    IDXGIFactory2* getDXGIFactory() const
     {
         jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
-        return dxgiFactory;
+        return Adapters::getInstance().getFactory();
     }
 #endif
 
-    IDWriteFactory* const getDirectWriteFactory() const
+    IDWriteFactory* getDirectWriteFactory() const
     {
         jassert(MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
         return directWriteFactory;
     }
 
-    IDWriteFontCollection* const getSystemFonts() const
+    IDWriteFontCollection* getSystemFonts() const
     {
         jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
         return systemFonts;
@@ -379,11 +358,10 @@ public:
         return directWriteRenderTarget;
     }
 
-    ID2D1Factory2* const getDirect2DFactory() const
+    ID2D1Factory2* getDirect2DFactory() const
     {
         return d2dSharedFactory;
     }
-
 
 private:
     ComSmartPtr<ID2D1Factory2> d2dSharedFactory;
@@ -394,9 +372,7 @@ private:
     DynamicLibrary direct2dDll, directWriteDll;
 
 #if JUCE_DIRECT2D
-    DynamicLibrary                                    dxgiDll;
     OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
-    ComSmartPtr<IDXGIFactory2>                        dxgiFactory;
 
     ReferenceCountedArray<GraphicsAdapter> adapters;
 #endif

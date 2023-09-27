@@ -180,7 +180,7 @@ public:
         if (threadWithListener != threads.end())
             removeListener (threadWithListener, listener);
 
-        for (auto adapter : adapters)
+        for (const auto& adapter : Adapters::getInstance().getAdapters())
         {
             UINT i = 0;
             ComSmartPtr<IDXGIOutput> output;
@@ -207,21 +207,7 @@ public:
 
     void reconfigureDisplays()
     {
-        adapters.clear();
-
-        ComSmartPtr<IDXGIFactory2> factory;
-        JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wlanguage-extension-token")
-        CreateDXGIFactory (__uuidof (IDXGIFactory), (void**)factory.resetAndGetPointerAddress());
-        JUCE_END_IGNORE_WARNINGS_GCC_LIKE
-
-        UINT i = 0;
-        ComSmartPtr<IDXGIAdapter> adapter;
-
-        while (factory->EnumAdapters (i, adapter.resetAndGetPointerAddress()) != DXGI_ERROR_NOT_FOUND)
-        {
-            adapters.push_back (adapter);
-            ++i;
-        }
+        Adapters::getInstance().updateAdapters();
 
         for (auto& thread : threads)
             thread->updateMonitor();
@@ -265,7 +251,6 @@ private:
     }
 
     //==============================================================================
-    std::vector<ComSmartPtr<IDXGIAdapter>> adapters;
     Threads threads;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VBlankDispatcher)

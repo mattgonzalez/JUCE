@@ -578,16 +578,16 @@ public:
        #if JUCE_WIN_PER_MONITOR_DPI_AWARE
         if (const auto& functions = getFunctions(); functions.isLoaded())
         {
-            auto dpiAwareWindow = (functions.getAwarenessFromContext(functions.getWindowAwareness(nativeWindow))
-                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareWindow = (functions.getAwarenessFromContext (functions.getWindowAwareness (nativeWindow))
+                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            auto dpiAwareThread = (functions.getAwarenessFromContext(functions.getThreadAwareness())
-                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareThread = (functions.getAwarenessFromContext (functions.getThreadAwareness())
+                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            if (dpiAwareWindow && !dpiAwareThread)
-                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-            else if (!dpiAwareWindow && dpiAwareThread)
-                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_UNAWARE);
+            if (dpiAwareWindow && ! dpiAwareThread)
+                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+            else if (! dpiAwareWindow && dpiAwareThread)
+                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_UNAWARE);
         }
        #endif
     }
@@ -1463,10 +1463,7 @@ public:
     };
 
     //==============================================================================
-    HWNDComponentPeer (Component& comp, int windowStyleFlags,
-        HWND parent,
-        bool nonRepainting,
-        int currentRenderingEngine_ = softwareRenderingEngine)
+    HWNDComponentPeer (Component& comp, int windowStyleFlags, HWND parent, bool nonRepainting, int currentRenderingEngine_ = softwareRenderingEngine)
         : ComponentPeer (comp, windowStyleFlags),
           dontRepaint (nonRepainting),
           parentToAddTo (parent),
@@ -2199,7 +2196,6 @@ protected:
     struct TemporaryImage    : private Timer
     {
         TemporaryImage() {}
-        ~TemporaryImage() override = default;
 
         Image& getImage (bool transparent, int w, int h)
         {

@@ -433,8 +433,7 @@ namespace juce
 
     public:
         Pimpl(Direct2DGraphicsContext& owner_, bool opaque_)
-            : owner(owner_),
-            opaque(opaque_)
+            : owner(owner_), opaque(opaque_)
         {
             setTargetAlpha(1.0f);
 

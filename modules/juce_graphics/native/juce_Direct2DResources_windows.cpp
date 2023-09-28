@@ -368,41 +368,29 @@ public:
 // the swap chain
 //
 
+#define JUCE_EARLY_EXIT(expr) \
+    JUCE_BLOCK_WITH_FORCED_SEMICOLON ( if (const auto hr = (expr); ! SUCCEEDED (hr)) return hr; )
+
 class CompositionTree
 {
 public:
     HRESULT create (IDXGIDevice* const dxgiDevice, HWND hwnd, IDXGISwapChain1* const swapChain)
     {
-        HRESULT hr = S_OK;
+        if (compositionDevice != nullptr)
+            return S_OK;
 
-        if (dxgiDevice && ! compositionDevice)
-        {
-            hr = DCompositionCreateDevice (dxgiDevice,
-                                           __uuidof (IDCompositionDevice),
-                                           reinterpret_cast<void**> (compositionDevice.resetAndGetPointerAddress()));
-            if (SUCCEEDED (hr))
-            {
-                hr = compositionDevice->CreateTargetForHwnd (hwnd, FALSE, compositionTarget.resetAndGetPointerAddress());
-                if (SUCCEEDED (hr))
-                {
-                    hr = compositionDevice->CreateVisual (compositionVisual.resetAndGetPointerAddress());
-                    if (SUCCEEDED (hr))
-                    {
-                        hr = compositionTarget->SetRoot (compositionVisual);
-                        if (SUCCEEDED (hr))
-                        {
-                            hr = compositionVisual->SetContent (swapChain);
-                            if (SUCCEEDED (hr))
-                            {
-                                hr = compositionDevice->Commit();
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        if (dxgiDevice == nullptr)
+            return S_FALSE;
 
-        return hr;
+        JUCE_EARLY_EXIT (DCompositionCreateDevice (dxgiDevice,
+                                                   __uuidof (IDCompositionDevice),
+                                                   reinterpret_cast<void**> (compositionDevice.resetAndGetPointerAddress())));
+        JUCE_EARLY_EXIT (compositionDevice->CreateTargetForHwnd (hwnd, FALSE, compositionTarget.resetAndGetPointerAddress()));
+        JUCE_EARLY_EXIT (compositionDevice->CreateVisual (compositionVisual.resetAndGetPointerAddress()));
+        JUCE_EARLY_EXIT (compositionTarget->SetRoot (compositionVisual));
+        JUCE_EARLY_EXIT (compositionVisual->SetContent (swapChain));
+        JUCE_EARLY_EXIT (compositionDevice->Commit());
+        return S_OK;
     }
 
     void release()
@@ -412,7 +400,7 @@ public:
         compositionDevice = nullptr;
     }
 
-    bool canPaint()
+    bool canPaint() const
     {
         return compositionVisual != nullptr;
     }
@@ -422,6 +410,8 @@ private:
     ComSmartPtr<IDCompositionTarget> compositionTarget;
     ComSmartPtr<IDCompositionVisual> compositionVisual;
 };
+
+#undef JUCE_EARLY_EXIT
 
 } // namespace direct2d
 

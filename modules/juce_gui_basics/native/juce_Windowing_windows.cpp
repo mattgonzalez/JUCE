@@ -4519,8 +4519,8 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 }
 #endif
 
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const * const parentComponent);
-JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component const* const parentComponent)
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component* parentComponent);
+JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component* parentComponent)
 {
     if (auto parentPeer = parentComponent->getPeer())
     {

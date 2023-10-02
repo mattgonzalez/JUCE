@@ -75,7 +75,6 @@ public:
     {
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
-            exStyleFlags &= ~WS_EX_TRANSPARENT;
             exStyleFlags &= ~WS_EX_LAYERED;
             exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
         }

@@ -385,7 +385,7 @@ namespace juce
         {
             bool isAxisAligned() const noexcept
             {
-                return isOnlyTranslated || (complexTransform.mat01 == 0.0f && complexTransform.mat11 == 0.0f);
+                return isOnlyTranslated || (complexTransform.mat01 == 0.0f && complexTransform.mat10 == 0.0f);
             }
         } currentTransform;
         direct2d::DeviceContext& deviceContext;

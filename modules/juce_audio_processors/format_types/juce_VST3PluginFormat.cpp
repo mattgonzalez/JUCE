@@ -1622,19 +1622,32 @@ private:
 
         if (view->canResize() == kResultTrue)
         {
-            auto rect = componentToVST3Rect (getLocalBounds());
-            view->checkSizeConstraint (&rect);
-
+            //
+            // componentToVST3Rect will apply DPI scaling and round to the nearest integer; vst3ToComponentRect
+            // will invert the DPI scaling, but the logical size returned by vst3ToComponentRect may be
+            // different from the original size due to floating point rounding if the scale factor is > 100%.
+            // This can cause the window to unexpectedly grow while it's moving.
+            // 
+            auto scaledRect = componentToVST3Rect (getLocalBounds());
+            
+            auto constrainedRect = scaledRect;
+            view->checkSizeConstraint (&constrainedRect);
+            
+            // 
+            // Only update the size if the constrained size is actually different
+            //
+            if (constrainedRect.getWidth() != scaledRect.getWidth() ||
+                constrainedRect.getHeight() != scaledRect.getHeight())
             {
                 const ScopedValueSetter<bool> recursiveResizeSetter (recursiveResize, true);
 
-                const auto logicalSize = vst3ToComponentRect (rect);
+                const auto logicalSize = vst3ToComponentRect (constrainedRect);
                 setSize (logicalSize.getWidth(), logicalSize.getHeight());
             }
 
             embeddedComponent.setBounds (getLocalBounds());
 
-            view->onSize (&rect);
+            view->onSize (&constrainedRect);
         }
         else
         {

@@ -1066,7 +1066,7 @@ public:
         return im;
     }
 
-    void blitToWindow (HWND hwnd, HDC dc, bool transparent, int x, int y, uint8 updateLayeredWindowAlpha) noexcept
+    void blitToWindow (HWND hwnd, HDC dc, bool transparent, int x, int y, uint8 layeredWindowAlpha) noexcept
     {
         SetMapMode (dc, MM_TEXT);
 
@@ -1083,7 +1083,7 @@ public:
             bf.AlphaFormat = 1 /*AC_SRC_ALPHA*/;
             bf.BlendFlags = 0;
             bf.BlendOp = AC_SRC_OVER;
-            bf.SourceConstantAlpha = updateLayeredWindowAlpha;
+            bf.SourceConstantAlpha = layeredWindowAlpha;
 
             UpdateLayeredWindow (hwnd, nullptr, &pos, &size, hdc, &p, 0, &bf, 2 /*ULW_ALPHA*/);
         }
@@ -1800,7 +1800,7 @@ public:
 
     void repaintNowIfTransparent()
     {
-        if (isUsingUpdateLayeredWindow() && lastPaintTime > 0 && Time::getMillisecondCounter() > lastPaintTime + 30)
+        if (isNotOpaque() && lastPaintTime > 0 && Time::getMillisecondCounter() > lastPaintTime + 30)
             handlePaintMessage();
     }
 
@@ -1831,7 +1831,7 @@ public:
 
         auto newBounds = windowBorder.addedTo (bounds);
 
-        if (isUsingUpdateLayeredWindow())
+        if (isNotOpaque())
         {
             if (auto parentHwnd = GetParent (hwnd))
             {
@@ -1897,22 +1897,22 @@ public:
 
         auto intAlpha = (uint8) jlimit (0, 255, (int) (newAlpha * 255.0f));
 
-        if (component.isOpaque())
+        if (isOpaque())
         {
             if (newAlpha < 1.0f)
             {
-                SetWindowLong (hwnd, GWL_EXSTYLE, GetWindowLong (hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
-                SetLayeredWindowAttributes (hwnd, RGB (0, 0, 0), intAlpha, LWA_ALPHA);
+                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+                SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), intAlpha, LWA_ALPHA);
             }
             else
             {
-                SetWindowLong (hwnd, GWL_EXSTYLE, GetWindowLong (hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
-                RedrawWindow (hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+                RedrawWindow(hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
             }
         }
         else
         {
-            updateLayeredWindowAlpha = intAlpha;
+            layeredWindowAlpha = intAlpha;
             component.repaint();
         }
     }
@@ -2143,7 +2143,7 @@ public:
             WeakReference<Component> localRef (&component);
             MSG m;
 
-            if (isUsingUpdateLayeredWindow() || PeekMessage (&m, hwnd, WM_PAINT, WM_PAINT, PM_REMOVE))
+            if (isNotOpaque() || PeekMessage (&m, hwnd, WM_PAINT, WM_PAINT, PM_REMOVE))
                 if (localRef != nullptr) // (the PeekMessage call can dispatch messages, which may delete this comp)
                     handlePaintMessage();
         }
@@ -2419,7 +2419,7 @@ protected:
     BorderSize<int> windowBorder;
     IconConverters::IconPtr currentWindowIcon;
     FileDropTarget* dropTarget = nullptr;
-    uint8 updateLayeredWindowAlpha = 255;
+    uint8 layeredWindowAlpha = 255;
     UWPUIViewSettings uwpViewSettings;
    #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
     ModifierKeyProvider* modProvider = nullptr;
@@ -2761,7 +2761,12 @@ protected:
         return GetFocus();
     }
 
-    bool isUsingUpdateLayeredWindow() const
+    bool isOpaque() const
+    {
+        return component.isOpaque();
+    }
+
+    bool isNotOpaque() const
     {
         return ! component.isOpaque();
     }
@@ -2876,7 +2881,7 @@ protected:
         int w = paintStruct.rcPaint.right - x;
         int h = paintStruct.rcPaint.bottom - y;
 
-        const bool transparent = isUsingUpdateLayeredWindow();
+        const bool transparent = isNotOpaque();
 
         if (transparent)
         {
@@ -2964,7 +2969,7 @@ protected:
                 }
 
                 static_cast<WindowsBitmapImage*> (offscreenImage.getPixelData())
-                    ->blitToWindow (hwnd, dc, transparent, x, y, updateLayeredWindowAlpha);
+                    ->blitToWindow (hwnd, dc, transparent, x, y, layeredWindowAlpha);
             }
 
             if (childClipInfo.savedDC != 0)

@@ -27,14 +27,17 @@
 
     #define JUCE_CORE_INCLUDE_COM_SMART_PTR 1
     #define JUCE_WINDOWS                    1
+    #define JUCE_DIRECT2D 1
 
     #include <windows.h>
     #include <d2d1_2.h>
     #include <d3d11_1.h>
     #include <dcomp.h>
     #include <dwrite.h>
+#include <dwmapi.h>
     #include <juce_core/juce_core.h>
     #include <juce_graphics/juce_graphics.h>
+    #include <juce_gui_basics/juce_gui_basics.h>
     #include "juce_Windowing_windows.cpp"
 
 #endif
@@ -64,21 +67,6 @@ public:
     {
         HWNDComponentPeer::initialise();
         updateDirect2DContext();
-
-        //
-        // Negative margins have special meaning to DwmExtendFrameIntoClientArea.
-        // Negative margins create the "sheet of glass" effect, where the client area
-        // is rendered as a solid surface with no window border
-        //
-        // This removes the unwanted black rectangle that floats behind the Direct2D window when
-        // WS_EX_COMPOSITED is set
-        //
-        if (currentRenderingEngine == direct2DRenderingEngine && isNotOpaque())
-        {
-            MARGINS margins{ -1 };
-            [[maybe_unused]]auto hr = DwmExtendFrameIntoClientArea(hwnd, &margins);
-            jassert(SUCCEEDED(hr));
-        }
     }
 
     ~Direct2DComponentPeer() override
@@ -268,51 +256,71 @@ private:
 
     void updateDirect2DContext()
     {
-        if (currentRenderingEngine == direct2DRenderingEngine && ! direct2DContext)
+        MARGINS margins{};
+        auto windowStyleFlags = GetWindowLong(hwnd, GWL_EXSTYLE);
+
+        switch (currentRenderingEngine)
         {
-            direct2DContext = std::make_unique<Direct2DHwndContext> (hwnd, (float) scaleFactor, component.isOpaque());
-    #if JUCE_DIRECT2D_METRICS
-            direct2DContext->stats = paintStats;
-    #endif
-            direct2DContext->setPhysicalPixelScaleFactor ((float) getPlatformScaleFactor());
+        case softwareRenderingEngine:
+        {
+            direct2DContext = nullptr;
+
+            if ((styleFlags & windowIsSemiTransparent) != 0)
+            {
+                windowStyleFlags |= WS_EX_LAYERED;
+            }
+            windowStyleFlags &= ~WS_EX_COMPOSITED;
+
+            break;
         }
+
+        case direct2DRenderingEngine:
+        {
+            if (direct2DContext == nullptr)
+            {
+                direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
+#if JUCE_DIRECT2D_METRICS
+                direct2DContext->stats = paintStats;
+#endif
+                direct2DContext->setPhysicalPixelScaleFactor((float)getPlatformScaleFactor());
+            }
+
+            windowStyleFlags &= ~WS_EX_LAYERED;
+            windowStyleFlags |= WS_EX_COMPOSITED;
+
+            //
+            // Negative margins have special meaning to DwmExtendFrameIntoClientArea.
+            // Negative margins create the "sheet of glass" effect, where the client area
+            // is rendered as a solid surface with no window border
+            //
+            // This removes the unwanted black rectangle that floats behind the Direct2D window when
+            // WS_EX_COMPOSITED is set
+            //
+            if (currentRenderingEngine == direct2DRenderingEngine && isNotOpaque())
+            {
+                margins = { -1 };
+            }
+
+            break;
+        }
+        }
+
+        SetWindowLong(hwnd, GWL_EXSTYLE, windowStyleFlags);
+
+        [[maybe_unused]] auto hr = DwmExtendFrameIntoClientArea(hwnd, &margins);
+        jassert(SUCCEEDED(hr));
+
+        setAlpha(component.getAlpha());
+
+        component.repaint();
     }
 
     void setCurrentRenderingEngine ([[maybe_unused]] int index) override
     {
-        //
-        // The WS_EX_NOREDIRECTIONBITMAP flag is required for Direct2D and
-        // can only be configured when the window is created. Changing the renderer requires recreating the window.
-        //
-        // Recreate the window asynchronously to avoid an infinite recursive cycle of parentHierarchyChanged -> setCurrentRenderingEngine...
-        //
         if (index != currentRenderingEngine)
         {
-            currentRenderingEngine = jlimit (0, getAvailableRenderingEngines().size() - 1, index);
-            component.getProperties().set ("Direct2D", currentRenderingEngine == direct2DRenderingEngine);
-
-            Component::SafePointer<Component> safeComponent = &getComponent();
-            bool                              active        = GetActiveWindow() == hwnd;
-            MessageManager::callAsync (
-                [safeComponent, active]()
-                {
-                    if (safeComponent)
-                    {
-                        if (auto peer = safeComponent->getPeer())
-                        {
-                            auto componentStyleFlags = peer->getStyleFlags();
-                            safeComponent->removeFromDesktop();
-                            safeComponent->addToDesktop (componentStyleFlags);
-                            if (active)
-                            {
-                                if (auto newPeer = safeComponent->getPeer())
-                                {
-                                    SetActiveWindow ((HWND) newPeer->getNativeHandle());
-                                }
-                            }
-                        }
-                    }
-                });
+            currentRenderingEngine = jlimit(0, getAvailableRenderingEngines().size() - 1, index);
+            updateDirect2DContext();
         }
     }
 
@@ -432,30 +440,20 @@ Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
 {
     auto hwnd = (HWND)nativeWindowHandle;
 
-    if (auto flags = GetWindowLongPtr(hwnd, GWL_EXSTYLE); (flags & WS_EX_NOREDIRECTIONBITMAP) == 0)
-    {
-        return createGDISnapshotOfNativeWindow(nativeWindowHandle);
-    }
-
-    Direct2DComponentPeer* direct2DPeer = nullptr;
-
     int numDesktopComponents = Desktop::getInstance().getNumComponents();
     for (int index = 0; index < numDesktopComponents; ++index)
     {
         auto component = Desktop::getInstance().getComponent(index);
         if (auto peer = component->getPeer(); peer && peer->getNativeHandle() == nativeWindowHandle)
         {
-            direct2DPeer = dynamic_cast<Direct2DComponentPeer*>(peer);
-            break;
+            if (auto direct2DPeer = dynamic_cast<Direct2DComponentPeer*>(peer))
+            {
+                return direct2DPeer->createWindowSnapshot();
+            }
         }
     }
 
-    if (direct2DPeer)
-    {
-        return direct2DPeer->createWindowSnapshot();
-    }
-
-    return {};
+    return createGDISnapshotOfNativeWindow(nativeWindowHandle);
 }
 #endif
 

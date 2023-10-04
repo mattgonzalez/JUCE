@@ -223,15 +223,15 @@ namespace juce
         friend class Direct2DImageContext;
         friend struct Direct2ImageContext::ImagePimpl;
 
+        // keep a reference to the DirectXFactories to retain the DLLs & factories
+        SharedResourcePointer<DirectXFactories> factories;
+
         direct2d::DPIScalableArea<int> scaledArea;
         const int                 pixelStride, lineStride;
         bool const                clearImage;
         ComSmartPtr<ID2D1Bitmap1> targetBitmap;
         ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
         D2D1_MAPPED_RECT          mappedRect{};
-
-        // keep a reference to the DirectXFactories to retain the DLLs & factories
-        SharedResourcePointer<DirectXFactories> factories;
 
         JUCE_LEAK_DETECTOR(Direct2DPixelData)
     };

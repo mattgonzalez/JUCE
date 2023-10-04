@@ -64,6 +64,21 @@ public:
     {
         HWNDComponentPeer::initialise();
         updateDirect2DContext();
+
+        //
+        // Negative margins have special meaning to DwmExtendFrameIntoClientArea.
+        // Negative margins create the "sheet of glass" effect, where the client area
+        // is rendered as a solid surface with no window border
+        //
+        // This removes the unwanted black rectangle that floats behind the Direct2D window when
+        // WS_EX_COMPOSITED is set
+        //
+        if (currentRenderingEngine == direct2DRenderingEngine && isNotOpaque())
+        {
+            MARGINS margins{ -1 };
+            [[maybe_unused]]auto hr = DwmExtendFrameIntoClientArea(hwnd, &margins);
+            jassert(SUCCEEDED(hr));
+        }
     }
 
     ~Direct2DComponentPeer() override

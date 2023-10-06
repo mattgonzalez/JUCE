@@ -1595,8 +1595,16 @@ private:
                       bool) override
     {
         auto rect = componentToVST3Rect (bounds);
-        view->checkSizeConstraint (&rect);
-        bounds = vst3ToComponentRect (rect);
+        auto constrainedRect = rect;
+        view->checkSizeConstraint(&constrainedRect);
+
+        //
+        // Prevent inadvertent window growth while dragging; see componentMovedOrResized below
+        //
+        if (constrainedRect.getWidth() != rect.getWidth() || constrainedRect.getHeight() != rect.getHeight())
+        {
+            bounds = vst3ToComponentRect(constrainedRect);
+        }
     }
 
     //==============================================================================

@@ -1748,6 +1748,8 @@ public:
             monitorUpdateTimer.emplace (1000, [this] { updateCurrentMonitorAndRefreshVBlankDispatcher(); });
 
         suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
+
+        createOffscreenImageGenerator();
     }
 
     ~HWNDComponentPeer() override
@@ -2125,6 +2127,8 @@ public:
 
     void dispatchDeferredRepaints()
     {
+        if (isPaintReady())
+        {
         for (auto deferredRect : deferredRepaints)
         {
             auto r = RECTFromRectangle (deferredRect);
@@ -2132,6 +2136,12 @@ public:
         }
 
         deferredRepaints.clear();
+    }
+    }
+
+    virtual bool isPaintReady() const noexcept
+    {
+        return true;
     }
 
     void performAnyPendingRepaintsNow() override
@@ -2435,18 +2445,20 @@ protected:
     static MultiTouchMapper<DWORD> currentTouches;
 
     //==============================================================================
-    struct TemporaryImage    : private Timer
+
+    struct TemporaryImage : protected Timer
     {
         TemporaryImage() {}
+        ~TemporaryImage() override = default;
 
-        Image& getImage (bool transparent, int w, int h)
+        virtual Image& getImage(bool transparent, int w, int h)
         {
             auto format = transparent ? Image::ARGB : Image::RGB;
 
-            if ((! image.isValid()) || image.getWidth() < w || image.getHeight() < h || image.getFormat() != format)
-                image = Image (new WindowsBitmapImage (format, (w + 31) & ~31, (h + 31) & ~31, false));
+            if ((!image.isValid()) || image.getWidth() < w || image.getHeight() < h || image.getFormat() != format)
+                image = Image(new WindowsBitmapImage(format, (w + 31) & ~31, (h + 31) & ~31, false));
 
-            startTimer (3000);
+            startTimer(3000);
             return image;
         }
 
@@ -2456,13 +2468,13 @@ protected:
             image = {};
         }
 
-    private:
+    protected:
         Image image;
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TemporaryImage)
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TemporaryImage)
     };
 
-    TemporaryImage offscreenImageGenerator;
+    std::unique_ptr<TemporaryImage> offscreenImageGenerator;
 
     //==============================================================================
     class WindowClassHolder    : private DeletedAtShutdown
@@ -2842,39 +2854,44 @@ protected:
 
     //==============================================================================
     virtual void handlePaintMessage()
+    {
+        HRGN rgn = CreateRectRgn (0, 0, 0, 0);
+        const int regionType = GetUpdateRgn (hwnd, rgn, false);
+
+        PAINTSTRUCT paintStruct;
+        HDC dc = BeginPaint (hwnd, &paintStruct); // Note this can immediately generate a WM_NCPAINT
+                                                    // message and become re-entrant, but that's OK
+
+        // if something in a paint handler calls, e.g. a message box, this can become reentrant and
+        // corrupt the image it's using to paint into, so do a check here.
+        static bool reentrant = false;
+
+        if (! reentrant)
         {
-            HRGN rgn = CreateRectRgn (0, 0, 0, 0);
-            const int regionType = GetUpdateRgn (hwnd, rgn, false);
+            const ScopedValueSetter<bool> setter (reentrant, true, false);
 
-            PAINTSTRUCT paintStruct;
-            HDC dc = BeginPaint (hwnd, &paintStruct); // Note this can immediately generate a WM_NCPAINT
-                                                      // message and become re-entrant, but that's OK
+            if (dontRepaint)
+                component.handleCommandMessage (0); // (this triggers a repaint in the openGL context)
+            else
+                performPaint (dc, rgn, regionType, paintStruct);
+        }
 
-            // if something in a paint handler calls, e.g. a message box, this can become reentrant and
-            // corrupt the image it's using to paint into, so do a check here.
-            static bool reentrant = false;
+        DeleteObject (rgn);
+        EndPaint (hwnd, &paintStruct);
 
-            if (! reentrant)
-            {
-                const ScopedValueSetter<bool> setter (reentrant, true, false);
-
-                if (dontRepaint)
-                    component.handleCommandMessage (0); // (this triggers a repaint in the openGL context)
-                else
-                    performPaint (dc, rgn, regionType, paintStruct);
-            }
-
-            DeleteObject (rgn);
-            EndPaint (hwnd, &paintStruct);
-
-           #if JUCE_MSVC
-            _fpreset(); // because some graphics cards can unmask FP exceptions
-           #endif
+        #if JUCE_MSVC
+        _fpreset(); // because some graphics cards can unmask FP exceptions
+        #endif
 
         lastPaintTime = Time::getMillisecondCounter();
     }
 
-    void performPaint (HDC dc, HRGN rgn, int regionType, PAINTSTRUCT& paintStruct)
+    virtual void createOffscreenImageGenerator()
+    {
+        offscreenImageGenerator = std::make_unique< TemporaryImage>();
+    }
+
+    virtual void performPaint(HDC dc, HRGN rgn, int regionType, PAINTSTRUCT& paintStruct)
     {
         int x = paintStruct.rcPaint.left;
         int y = paintStruct.rcPaint.top;
@@ -2886,9 +2903,9 @@ protected:
         if (transparent)
         {
             // it's not possible to have a transparent window with a title bar at the moment!
-            jassert (! hasTitleBar());
+            jassert(!hasTitleBar());
 
-            auto r = getWindowScreenRect (hwnd);
+            auto r = getWindowScreenRect(hwnd);
             x = y = 0;
             w = r.right - r.left;
             h = r.bottom - r.top;
@@ -2896,42 +2913,42 @@ protected:
 
         if (w > 0 && h > 0)
         {
-            Image& offscreenImage = offscreenImageGenerator.getImage (transparent, w, h);
+            Image& offscreenImage = offscreenImageGenerator->getImage(transparent, w, h);
 
             RectangleList<int> contextClip;
-            const Rectangle<int> clipBounds (w, h);
+            const Rectangle<int> clipBounds(w, h);
 
             bool needToPaintAll = true;
 
-            if (regionType == COMPLEXREGION && ! transparent)
+            if (regionType == COMPLEXREGION && !transparent)
             {
-                HRGN clipRgn = CreateRectRgnIndirect (&paintStruct.rcPaint);
-                CombineRgn (rgn, rgn, clipRgn, RGN_AND);
-                DeleteObject (clipRgn);
+                HRGN clipRgn = CreateRectRgnIndirect(&paintStruct.rcPaint);
+                CombineRgn(rgn, rgn, clipRgn, RGN_AND);
+                DeleteObject(clipRgn);
 
                 std::aligned_storage_t<8192, alignof (RGNDATA)> rgnData;
-                const DWORD res = GetRegionData (rgn, sizeof (rgnData), (RGNDATA*) &rgnData);
+                const DWORD res = GetRegionData(rgn, sizeof(rgnData), (RGNDATA*)&rgnData);
 
-                if (res > 0 && res <= sizeof (rgnData))
+                if (res > 0 && res <= sizeof(rgnData))
                 {
-                    const RGNDATAHEADER* const hdr = &(((const RGNDATA*) &rgnData)->rdh);
+                    const RGNDATAHEADER* const hdr = &(((const RGNDATA*)&rgnData)->rdh);
 
                     if (hdr->iType == RDH_RECTANGLES
-                         && hdr->rcBound.right - hdr->rcBound.left >= w
-                         && hdr->rcBound.bottom - hdr->rcBound.top >= h)
+                        && hdr->rcBound.right - hdr->rcBound.left >= w
+                        && hdr->rcBound.bottom - hdr->rcBound.top >= h)
                     {
                         needToPaintAll = false;
 
-                        auto rects = unalignedPointerCast<const RECT*> ((char*) &rgnData + sizeof (RGNDATAHEADER));
+                        auto rects = unalignedPointerCast<const RECT*>((char*)&rgnData + sizeof(RGNDATAHEADER));
 
-                        for (int i = (int) ((RGNDATA*) &rgnData)->rdh.nCount; --i >= 0;)
+                        for (int i = (int)((RGNDATA*)&rgnData)->rdh.nCount; --i >= 0;)
                         {
                             if (rects->right <= x + w && rects->bottom <= y + h)
                             {
-                                const int cx = jmax (x, (int) rects->left);
-                                contextClip.addWithoutMerging (Rectangle<int> (cx - x, rects->top - y,
-                                                                               rects->right - cx, rects->bottom - rects->top)
-                                                                   .getIntersection (clipBounds));
+                                const int cx = jmax(x, (int)rects->left);
+                                contextClip.addWithoutMerging(Rectangle<int>(cx - x, rects->top - y,
+                                    rects->right - cx, rects->bottom - rects->top)
+                                    .getIntersection(clipBounds));
                             }
                             else
                             {
@@ -2948,32 +2965,32 @@ protected:
             if (needToPaintAll)
             {
                 contextClip.clear();
-                contextClip.addWithoutMerging (Rectangle<int> (w, h));
+                contextClip.addWithoutMerging(Rectangle<int>(w, h));
             }
 
-            ChildWindowClippingInfo childClipInfo = { dc, this, &contextClip, Point<int> (x, y), 0 };
-            EnumChildWindows (hwnd, clipChildWindowCallback, (LPARAM) &childClipInfo);
+            ChildWindowClippingInfo childClipInfo = { dc, this, &contextClip, Point<int>(x, y), 0 };
+            EnumChildWindows(hwnd, clipChildWindowCallback, (LPARAM)&childClipInfo);
 
-            if (! contextClip.isEmpty())
+            if (!contextClip.isEmpty())
             {
                 if (transparent)
                     for (auto& i : contextClip)
-                        offscreenImage.clear (i);
+                        offscreenImage.clear(i);
 
                 {
                     auto context = component.getLookAndFeel()
-                                    .createGraphicsContext (offscreenImage, { -x, -y }, contextClip);
+                        .createGraphicsContext(offscreenImage, { -x, -y }, contextClip);
 
-                    context->addTransform (AffineTransform::scale ((float) getPlatformScaleFactor()));
-                    handlePaint (*context);
+                    context->addTransform(AffineTransform::scale((float)getPlatformScaleFactor()));
+                    handlePaint(*context);
                 }
 
                 static_cast<WindowsBitmapImage*> (offscreenImage.getPixelData())
-                    ->blitToWindow (hwnd, dc, transparent, x, y, layeredWindowAlpha);
+                    ->blitToWindow(hwnd, dc, transparent, x, y, layeredWindowAlpha);
             }
 
             if (childClipInfo.savedDC != 0)
-                RestoreDC (dc, childClipInfo.savedDC);
+                RestoreDC(dc, childClipInfo.savedDC);
         }
     }
 

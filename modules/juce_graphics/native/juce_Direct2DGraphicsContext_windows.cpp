@@ -476,11 +476,6 @@ namespace juce
 
         virtual void adjustPaintAreas(RectangleList<int>& paintAreas) = 0;
 
-        virtual bool checkPaintReady()
-        {
-            return deviceResources.canPaint();
-        }
-
         JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
     public:
@@ -506,6 +501,11 @@ namespace juce
         {
             backgroundColor = direct2d::colourToD2D(Colours::black.withAlpha(opaque ? targetAlpha : 0.0f));
             targetAlpha = alpha;
+        }
+
+        virtual bool checkPaintReady()
+        {
+            return deviceResources.canPaint();
         }
 
         SavedState* startFrame(RectangleList<int>& paintAreas)

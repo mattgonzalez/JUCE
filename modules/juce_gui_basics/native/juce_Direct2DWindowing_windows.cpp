@@ -76,11 +76,8 @@ public:
 
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
-        if (currentRenderingEngine == direct2DRenderingEngine)
-        {
-            exStyleFlags &= ~WS_EX_LAYERED;
-            exStyleFlags |= WS_EX_COMPOSITED;
-        }
+        exStyleFlags &= ~WS_EX_LAYERED;
+        exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
 
         return exStyleFlags;
     }
@@ -94,12 +91,9 @@ public:
 
     void setAlpha (float newAlpha) override
     {
-        if (currentRenderingEngine == direct2DRenderingEngine)
+        if (direct2DContext)
         {
-            if (direct2DContext)
-            {
-                direct2DContext->setWindowAlpha (newAlpha);
-            }
+            direct2DContext->setWindowAlpha (newAlpha);
             component.repaint();
             return;
         }
@@ -109,7 +103,7 @@ public:
 
     void repaint (const Rectangle<int>& area) override
     {
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             direct2DContext->addDeferredRepaint (area);
             return;
@@ -120,7 +114,7 @@ public:
 
     void dispatchDeferredRepaints()
     {
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             return;
         }
@@ -130,7 +124,7 @@ public:
 
     void performAnyPendingRepaintsNow() override
     {
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             // repaint will happen on the next vblank
             return;
@@ -141,7 +135,7 @@ public:
 
     Image createWindowSnapshot()
     {
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             return direct2DContext->createSnapshot();
         }
@@ -149,15 +143,49 @@ public:
         return {};
     }
 
+    void blitImageToWindow(Image const & sourceImage, Point<int> origin, RectangleList<int> const& clipList)
+    {
+        if (offscreenDirect2DImage.getBounds() != sourceImage.getBounds())
+        {
+            Direct2DImageType imageType;
+            offscreenDirect2DImage = Image{ imageType.create(Image::ARGB, sourceImage.getWidth(), sourceImage.getHeight(), true) };
+        }
+
+        {
+            Graphics g{ offscreenDirect2DImage };
+            g.drawImageAt(sourceImage, 0, 0);
+        }
+
+        if (direct2DContext)
+        {
+            for (auto area : clipList)
+            {
+                area += origin;
+                direct2DContext->addDeferredRepaint(area);
+            }
+ 
+            if (direct2DContext->startFrame())
+            {
+                 for (auto const& area : clipList)
+                 {
+                     direct2DContext->drawImageSection (offscreenDirect2DImage, area, area.getTopLeft() + origin);
+                 }
+
+                direct2DContext->endFrame();
+            }
+        }
+    }
+
 private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
     #endif
     std::unique_ptr<Direct2DHwndContext> direct2DContext;
+    Image offscreenDirect2DImage;
 
     void handlePaintMessage() override
     {
-        if (direct2DContext != nullptr)
+        if (usingDirect2DRendering())
         {
             direct2DContext->addInvalidWindowRegionToDeferredRepaints();
             return;
@@ -183,9 +211,127 @@ private:
     {
         HWNDComponentPeer::onVBlank();
 
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             handleDirect2DPaint();
+        }
+    }
+
+    bool usingDirect2DRendering() const noexcept
+    {
+        return currentRenderingEngine == direct2DRenderingEngine && direct2DContext;
+    }
+
+    bool isPaintReady() const noexcept override
+    {
+        if (direct2DContext)
+        {
+            return direct2DContext->isReady();
+        }
+
+        return false;
+    }
+
+    void createOffscreenImageGenerator() override
+    {
+        offscreenImageGenerator = std::make_unique<D2DTemporaryImage>();
+    }
+
+    void performPaint(HDC dc, HRGN rgn, int regionType, PAINTSTRUCT& paintStruct) override
+    {
+        int x = paintStruct.rcPaint.left;
+        int y = paintStruct.rcPaint.top;
+        int w = paintStruct.rcPaint.right - x;
+        int h = paintStruct.rcPaint.bottom - y;
+
+        if (w <= 0 || h <= 0)
+        {
+            // it's not possible to have a transparent window with a title bar at the moment!
+            //jassert (! hasTitleBar());
+
+            auto r = getWindowScreenRect(hwnd);
+            x = y = 0;
+            w = r.right - r.left;
+            h = r.bottom - r.top;
+        }
+
+        {
+            Image& offscreenImage = offscreenImageGenerator->getImage(true, w, h);
+
+            RectangleList<int> contextClip;
+            const Rectangle<int> clipBounds(w, h);
+
+            bool needToPaintAll = true;
+
+            if (regionType == COMPLEXREGION || regionType == SIMPLEREGION)
+            {
+                HRGN clipRgn = CreateRectRgnIndirect(&paintStruct.rcPaint);
+                CombineRgn(rgn, rgn, clipRgn, RGN_AND);
+                DeleteObject(clipRgn);
+
+                std::aligned_storage_t<8192, alignof (RGNDATA)> rgnData;
+                const DWORD res = GetRegionData(rgn, sizeof(rgnData), (RGNDATA*)&rgnData);
+
+                if (res > 0 && res <= sizeof(rgnData))
+                {
+                    const RGNDATAHEADER* const hdr = &(((const RGNDATA*)&rgnData)->rdh);
+
+                    if (hdr->iType == RDH_RECTANGLES
+                        && hdr->rcBound.right - hdr->rcBound.left >= w
+                        && hdr->rcBound.bottom - hdr->rcBound.top >= h)
+                    {
+                        needToPaintAll = false;
+
+                        auto rects = unalignedPointerCast<const RECT*>((char*)&rgnData + sizeof(RGNDATAHEADER));
+
+                        for (int i = (int)((RGNDATA*)&rgnData)->rdh.nCount; --i >= 0;)
+                        {
+                            if (rects->right <= x + w && rects->bottom <= y + h)
+                            {
+                                const int cx = jmax(x, (int)rects->left);
+                                contextClip.addWithoutMerging(Rectangle<int>(cx - x, rects->top - y,
+                                    rects->right - cx, rects->bottom - rects->top)
+                                    .getIntersection(clipBounds));
+                            }
+                            else
+                            {
+                                needToPaintAll = true;
+                                break;
+                            }
+
+                            ++rects;
+                        }
+                    }
+                }
+            }
+
+            if (needToPaintAll)
+            {
+                contextClip.clear();
+                contextClip.addWithoutMerging(Rectangle<int>(w, h));
+            }
+
+            ChildWindowClippingInfo childClipInfo = { dc, this, &contextClip, Point<int>(x, y), 0 };
+            EnumChildWindows(hwnd, clipChildWindowCallback, (LPARAM)&childClipInfo);
+
+            if (!contextClip.isEmpty())
+            {
+                for (auto& i : contextClip)
+                    offscreenImage.clear(i);
+
+                {
+                    auto context = component.getLookAndFeel()
+                        .createGraphicsContext(offscreenImage, { -x, -y }, contextClip);
+
+                    context->addTransform(AffineTransform::scale((float)getPlatformScaleFactor()));
+                    handlePaint(*context);
+                }
+
+                blitImageToWindow(offscreenImage, { x, y }, contextClip);
+            }
+
+            if (childClipInfo.savedDC != 0)
+                RestoreDC(dc, childClipInfo.savedDC);
         }
     }
 
@@ -256,70 +402,20 @@ private:
 
     void updateDirect2DContext()
     {
-        MARGINS margins{};
-        auto windowStyleFlags = GetWindowLong(hwnd, GWL_EXSTYLE);
-
-        switch (currentRenderingEngine)
-        {
-        case softwareRenderingEngine:
-        {
-            direct2DContext = nullptr;
-
-            if ((styleFlags & windowIsSemiTransparent) != 0)
-            {
-                windowStyleFlags |= WS_EX_LAYERED;
-            }
-            windowStyleFlags &= ~WS_EX_COMPOSITED;
-
-            break;
-        }
-
-        case direct2DRenderingEngine:
-        {
-            if (direct2DContext == nullptr)
-            {
-                direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
+        direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS
-                direct2DContext->stats = paintStats;
+        direct2DContext->stats = paintStats;
 #endif
-                direct2DContext->setPhysicalPixelScaleFactor((float)getPlatformScaleFactor());
-            }
+        direct2DContext->setPhysicalPixelScaleFactor((float)getPlatformScaleFactor());
 
-            windowStyleFlags &= ~WS_EX_LAYERED;
-            windowStyleFlags |= WS_EX_COMPOSITED;
-
-            //
-            // Negative margins have special meaning to DwmExtendFrameIntoClientArea.
-            // Negative margins create the "sheet of glass" effect, where the client area
-            // is rendered as a solid surface with no window border
-            //
-            // This removes the unwanted black rectangle that floats behind the Direct2D window when
-            // WS_EX_COMPOSITED is set
-            //
-            if (currentRenderingEngine == direct2DRenderingEngine && isNotOpaque())
-            {
-                margins = { -1 };
-            }
-
-            break;
-        }
-        }
-
-        SetWindowLong(hwnd, GWL_EXSTYLE, windowStyleFlags);
-
-        [[maybe_unused]] auto hr = DwmExtendFrameIntoClientArea(hwnd, &margins);
-        jassert(SUCCEEDED(hr));
-
-        setAlpha(component.getAlpha());
-
-        component.repaint();
+        InvalidateRect(hwnd, nullptr, FALSE);
     }
 
     void setCurrentRenderingEngine ([[maybe_unused]] int index) override
     {
         if (index != currentRenderingEngine)
         {
-            currentRenderingEngine = jlimit(0, getAvailableRenderingEngines().size() - 1, index);
+            currentRenderingEngine = jlimit (0, getAvailableRenderingEngines().size() - 1, index);
             updateDirect2DContext();
         }
     }
@@ -356,7 +452,7 @@ private:
         {
             case WM_PAINT:
             {
-                if (direct2DContext)
+                if (usingDirect2DRendering())
                 {
                     direct2DContext->addInvalidWindowRegionToDeferredRepaints();
                     return 0;
@@ -421,15 +517,35 @@ private:
         return HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
     }
 
+    struct D2DTemporaryImage : public TemporaryImage
+    {
+        D2DTemporaryImage() {}
+        ~D2DTemporaryImage() override = default;
+
+        Image& getImage(bool /*transparent*/, int w, int h) override
+        {
+            auto format = Image::ARGB;
+
+            if ((!image.isValid()) || image.getWidth() < w || image.getHeight() < h || image.getFormat() != format)
+            {
+                SoftwareImageType imageType;
+                image = Image{ imageType.create(format, w, h, true) };
+            }
+
+            startTimer(3000);
+            return image;
+        }
+
+    private:
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(D2DTemporaryImage)
+    };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DComponentPeer)
 };
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto d2dFlag         = getProperties().getWithDefault ("Direct2D", true);
-    int  renderingEngine = d2dFlag ? Direct2DComponentPeer::direct2DRenderingEngine : HWNDComponentPeer::softwareRenderingEngine;
-
-    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderingEngine };
+    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, Direct2DComponentPeer::direct2DRenderingEngine };
     peer->initialise();
     return peer;
 }
@@ -438,8 +554,6 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 #if JUCE_DIRECT2D_SNAPSHOT
 Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
 {
-    auto hwnd = (HWND)nativeWindowHandle;
-
     int numDesktopComponents = Desktop::getInstance().getNumComponents();
     for (int index = 0; index < numDesktopComponents; ++index)
     {

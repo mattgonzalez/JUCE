@@ -44,6 +44,10 @@ public:
     Image createSnapshot(Rectangle<int> deviceIndependentArea) override;
     Image createSnapshot();
 
+    bool isReady() const noexcept;
+
+    void drawImageSection (Image const& image, Rectangle<int> sourceArea, Point<int> destination);
+
 private:
     struct HwndPimpl;
     std::unique_ptr<HwndPimpl> pimpl;

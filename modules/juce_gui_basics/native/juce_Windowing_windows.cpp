@@ -2641,7 +2641,10 @@ protected:
         }
         else if (parentToAddTo != nullptr)
         {
-            type |= WS_CHILD;
+            if ((styleFlags & windowIsOwned) == 0)
+            {
+                type |= WS_CHILD;
+            }
         }
         else
         {
@@ -4732,9 +4735,12 @@ JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& compo
         // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to 
         // embeddedWindowPeer->initialise() after creating the peer
         // 
-        parentPeer->setCurrentRenderingEngine(HWNDComponentPeer::softwareRenderingEngine);
+        int styleFlags = ComponentPeer::windowIgnoresMouseClicks;
+        #if JUCE_DIRECT2D
+        styleFlags |= ComponentPeer::windowIsOwned;
+        #endif
         auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
-                                                                       ComponentPeer::windowIgnoresMouseClicks,
+                                                                       styleFlags,
                                                                        (HWND) parentPeer->getNativeHandle(),
                                                                        true, /* nonRepainting*/
                                                                        HWNDComponentPeer::softwareRenderingEngine);

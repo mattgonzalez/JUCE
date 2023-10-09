@@ -29,7 +29,7 @@ namespace juce
 extern ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component&, Component const * const parent);
 
 //==============================================================================
-class OpenGLContext::NativeContext  : private ComponentPeer::ScaleFactorListener
+class OpenGLContext::NativeContext  : private ComponentPeer::ScaleFactorListener, public ComponentListener
 {
 public:
     NativeContext (Component& component,
@@ -88,8 +88,13 @@ public:
         dc.reset();
 
         if (safeComponent != nullptr)
+        {
             if (auto* peer = safeComponent->getTopLevelComponent()->getPeer())
-                peer->removeScaleFactorListener (this);
+            {
+                peer->removeScaleFactorListener(this);
+                peer->getComponent().removeComponentListener(this);
+            }
+        }
     }
 
     InitResult initialiseOnRenderThread (OpenGLContext& c)
@@ -127,10 +132,34 @@ public:
     {
         if (nativeWindow != nullptr)
         {
+            auto hwnd = (HWND)nativeWindow->getNativeHandle();
+
+            //
+            // Owned window?
+            //
+            if (auto ownerHwnd = getOwnerHandle())
+            {
+                if (safeComponent)
+                {
+                    auto screenBounds = safeComponent->getScreenBounds();
+                    SetWindowPos(hwnd, nullptr,
+                        screenBounds.getX(),
+                        screenBounds.getY(),
+                        screenBounds.getWidth(),
+                        screenBounds.getHeight(),
+                        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+                }
+
+                return;
+            }
+
+            //
+            // Child window
+            //
             if (! approximatelyEqual (nativeScaleFactor, 1.0))
                 bounds = (bounds.toDouble() * nativeScaleFactor).toNearestInt();
 
-            SetWindowPos ((HWND) nativeWindow->getNativeHandle(), nullptr,
+            SetWindowPos (hwnd, nullptr,
                           bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(),
                           SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
         }
@@ -156,6 +185,16 @@ public:
     {
         if (nativeWindow != nullptr)
             return (HWND) nativeWindow->getNativeHandle();
+
+        return nullptr;
+    }
+
+    HWND getOwnerHandle()
+    {
+        if (auto nativeHandle = getNativeHandle())
+        {
+            return GetWindow(nativeHandle, GW_OWNER);
+        }
 
         return nullptr;
     }
@@ -294,11 +333,21 @@ private:
             nativeScaleFactor = peer->getPlatformScaleFactor();
             updateWindowPosition (peer->getAreaCoveredBy (component));
             peer->addScaleFactorListener (this);
+
+            topComp->addComponentListener(this);
         }
 
         nativeWindow->setVisible (true);
         dc = std::unique_ptr<std::remove_pointer_t<HDC>, DeviceContextDeleter> { GetDC ((HWND) nativeWindow->getNativeHandle()),
                                                                                  DeviceContextDeleter { (HWND) nativeWindow->getNativeHandle() } };
+    }
+
+    void componentMovedOrResized(Component& component, bool, bool) override
+    {
+        if (getOwnerHandle())
+        {
+            updateWindowPosition(component.getScreenBounds());
+        }
     }
 
     int wglChoosePixelFormatExtension (const OpenGLPixelFormat& pixelFormat) const

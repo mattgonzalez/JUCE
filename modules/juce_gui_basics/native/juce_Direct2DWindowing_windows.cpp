@@ -77,7 +77,10 @@ public:
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
         exStyleFlags &= ~WS_EX_LAYERED;
-        exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+        if ((styleFlags & windowIsOwned) == 0)
+        {
+            exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+        }
 
         return exStyleFlags;
     }

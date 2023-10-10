@@ -26,78 +26,27 @@
 namespace juce
 {
 
-class HWNDComponent::Pimpl  : public ComponentMovementWatcher
+class HWNDComponent::Pimpl
 {
 public:
-    Pimpl (HWND h, Component& comp)
-        : ComponentMovementWatcher (&comp),
-          hwnd (h),
-          owner (comp)
+    Pimpl (HWND h, HWNDComponent& comp)
+        : hwnd(h),
+        hwndComponent(comp),
+        hwndComponentWatcher(*this)
     {
-        if (owner.isShowing())
-            componentPeerChanged();
+        if (hwndComponent.isShowing())
+            hwndComponentWatcher.componentPeerChanged();
     }
 
-    ~Pimpl() override
+    ~Pimpl()
     {
         removeFromParent();
         DestroyWindow (hwnd);
     }
 
-    void componentMovedOrResized (bool wasMoved, bool wasResized) override
-    {
-        if (auto* peer = owner.getTopLevelComponent()->getPeer())
-        {
-            auto area = (peer->getAreaCoveredBy (owner).toFloat() * peer->getPlatformScaleFactor()).getSmallestIntegerContainer();
-
-            UINT flagsToSend =  SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER;
-
-            if (! wasMoved)   flagsToSend |= SWP_NOMOVE;
-            if (! wasResized) flagsToSend |= SWP_NOSIZE;
-
-            ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter { hwnd };
-
-            SetWindowPos (hwnd, nullptr, area.getX(), area.getY(), area.getWidth(), area.getHeight(), flagsToSend);
-        }
-    }
-
-    using ComponentMovementWatcher::componentMovedOrResized;
-
-    void componentPeerChanged() override
-    {
-        auto* peer = owner.getPeer();
-
-        if (currentPeer != peer)
-        {
-            removeFromParent();
-            currentPeer = peer;
-
-            addToParent();
-        }
-
-        auto isShowing = owner.isShowing();
-
-        ShowWindow (hwnd, isShowing ? SW_SHOWNA : SW_HIDE);
-
-        if (isShowing)
-            InvalidateRect (hwnd, nullptr, 0);
-     }
-
-    void componentVisibilityChanged() override
-    {
-        componentPeerChanged();
-    }
-
-    using ComponentMovementWatcher::componentVisibilityChanged;
-
-    void componentBroughtToFront (Component& comp) override
-    {
-        ComponentMovementWatcher::componentBroughtToFront (comp);
-    }
-
     Rectangle<int> getHWNDBounds() const
     {
-        if (auto* peer = owner.getPeer())
+        if (auto* peer = hwndComponent.getPeer())
         {
             ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter { hwnd };
 
@@ -111,24 +60,37 @@ public:
         return {};
     }
 
+    void updateHWNDBounds()
+    {
+        hwndComponentWatcher.componentMovedOrResized(true, true);
+    }
+
     HWND hwnd;
 
 private:
     void addToParent()
     {
-        if (currentPeer != nullptr)
+        if (hwndComponentPeer != nullptr)
         {
             auto windowFlags = GetWindowLongPtr (hwnd, -16);
 
             using FlagType = decltype (windowFlags);
 
             windowFlags &= ~(FlagType) WS_POPUP;
-            windowFlags |= (FlagType) WS_CHILD;
 
-            SetWindowLongPtr (hwnd, -16, windowFlags);
-            SetParent (hwnd, (HWND) currentPeer->getNativeHandle());
+            if (ancestorWatcher)
+            {
+                windowFlags &= ~(FlagType)WS_CHILD;
+                SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)hwndComponentPeer->getNativeHandle());
+            }
+            else 
+            {
+                windowFlags |= (FlagType)WS_CHILD;
+                SetWindowLongPtr(hwnd, -16, windowFlags);
+                SetParent(hwnd, (HWND)hwndComponentPeer->getNativeHandle());
+            }
 
-            componentMovedOrResized (true, true);
+            hwndComponentWatcher.componentMovedOrResized (true, true);
         }
     }
 
@@ -138,8 +100,111 @@ private:
         SetParent (hwnd, nullptr);
     }
 
-    Component& owner;
-    ComponentPeer* currentPeer = nullptr;
+    ComponentPeer* findPeerForHWND() const noexcept
+    {
+        int numPeers = ComponentPeer::getNumPeers();
+        for (int index = 0; index < numPeers; ++index)
+        {
+            if (auto peer = ComponentPeer::getPeer(index); peer->getNativeHandle() == (void*)hwnd)
+            {
+                return peer;
+            }
+        }
+
+        return nullptr;
+    }
+
+    HWNDComponent& hwndComponent;
+    ComponentPeer* hwndComponentPeer = nullptr;
+
+    struct HWNDComponentWatcher : public ComponentMovementWatcher
+    {
+        HWNDComponentWatcher(Pimpl& pimpl_) : 
+            ComponentMovementWatcher(&pimpl_.hwndComponent),
+            pimpl(pimpl_)
+        {
+        }
+        ~HWNDComponentWatcher() override = default;
+
+        void componentMovedOrResized(bool wasMoved, bool wasResized) override
+        {
+            if (auto* peer = pimpl.hwndComponent.getTopLevelComponent()->getPeer())
+            {
+                auto area = peer->getAreaCoveredBy(pimpl.hwndComponent);
+                if (pimpl.ancestorWatcher)
+                {
+                    auto pos = area.getPosition();
+                    pos = peer->localToGlobal(pos);
+                    area.setPosition(pos);
+                }
+                area = (area.toFloat() * peer->getPlatformScaleFactor()).getSmallestIntegerContainer();
+
+                UINT flagsToSend = SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER;
+
+                if (!wasMoved)   flagsToSend |= SWP_NOMOVE;
+                if (!wasResized) flagsToSend |= SWP_NOSIZE;
+
+                ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter{ pimpl.hwnd };
+
+                SetWindowPos(pimpl.hwnd, nullptr, area.getX(), area.getY(), area.getWidth(), area.getHeight(), flagsToSend);
+            }
+        }
+
+        void componentPeerChanged() override
+        {
+            auto* newHwndComponentPeer = pimpl.hwndComponent.getPeer();
+
+            if (pimpl.hwndComponentPeer != newHwndComponentPeer)
+            {
+                pimpl.removeFromParent();
+                pimpl.hwndComponentPeer = newHwndComponentPeer;
+
+                if (auto hwndPeer = pimpl.findPeerForHWND())
+                {
+                    if (hwndPeer->getStyleFlags() & ComponentPeer::windowIsOwned)
+                    {
+                        pimpl.ancestorWatcher = std::make_unique<AncestorWatcher>(pimpl, newHwndComponentPeer->getComponent());
+                    }
+                }
+
+                pimpl.addToParent();
+            }
+
+            auto isShowing = pimpl.hwndComponent.isShowing();
+            ShowWindow(pimpl.hwnd, isShowing ? SW_SHOWNA : SW_HIDE);
+
+            if (isShowing)
+                InvalidateRect(pimpl.hwnd, nullptr, 0);
+        }
+
+        void componentVisibilityChanged() override
+        {
+            componentPeerChanged();
+        }
+
+        Pimpl& pimpl;
+    } hwndComponentWatcher;
+
+    struct AncestorWatcher : public ComponentMovementWatcher
+    {
+        AncestorWatcher(Pimpl& pimpl_, Component& ancestor_) : 
+            ComponentMovementWatcher(&ancestor_),
+            pimpl(pimpl_)
+        {
+        }
+        ~AncestorWatcher() override = default;
+
+        void componentMovedOrResized(bool wasMoved, bool wasResized) override
+        {
+            pimpl.hwndComponentWatcher.componentMovedOrResized(wasMoved, wasResized);
+        }
+
+        void componentPeerChanged() override {}
+        void componentVisibilityChanged() override {}
+
+        Pimpl& pimpl;
+    };
+    std::unique_ptr<AncestorWatcher> ancestorWatcher;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Pimpl)
 };
@@ -175,7 +240,7 @@ void HWNDComponent::resizeToFit()
 void HWNDComponent::updateHWNDBounds()
 {
     if (pimpl != nullptr)
-        pimpl->componentMovedOrResized (true, true);
+        pimpl->updateHWNDBounds();
 }
 
 } // namespace juce

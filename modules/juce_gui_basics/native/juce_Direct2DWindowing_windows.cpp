@@ -63,9 +63,9 @@ public:
     {
     }
 
-    void initialise() override
+    void createWindow() override
     {
-        HWNDComponentPeer::initialise();
+        HWNDComponentPeer::createWindow();
         updateDirect2DContext();
     }
 

@@ -1737,12 +1737,12 @@ public:
             return ModifierKeys::currentModifiers;
         };
 
-        callFunctionIfNotLocked (&createWindowCallback, this);
+        createWindow();
     }
 
     ~HWNDComponentPeer() override
     {
-        callFunctionIfNotLocked(&destroyWindowCallback, this);
+        destroyWindow();
     }
 
     //==============================================================================
@@ -2565,9 +2565,34 @@ protected:
     };
 
     //==============================================================================
-    static void* createWindowCallback (void* userData)
+
+    virtual void createWindow()
     {
-        static_cast<HWNDComponentPeer*> (userData)->createWindow();
+        //
+        // CreateWindowEx needs to be called from the message thread
+        //
+        callFunctionIfNotLocked(&createWindowCallback, this);
+
+        //
+        // Complete the window initialisation on the calling thread
+        //
+        setTitle(component.getName());
+        updateShadower();
+
+        updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
+
+        if (parentToAddTo != nullptr)
+            monitorUpdateTimer.emplace(1000, [this]
+                {
+                    updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
+                });
+
+        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration{ hwnd };
+    }
+
+    static void* createWindowCallback(void* userData)
+    {
+        static_cast<HWNDComponentPeer*> (userData)->createWindowOnMessageThread();
         return nullptr;
     }
 
@@ -2576,7 +2601,7 @@ protected:
         return exstyle;
     }
 
-    void createWindow()
+    void createWindowOnMessageThread()
     {
         DWORD exstyle = 0;
         DWORD type = WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
@@ -2681,19 +2706,6 @@ protected:
             auto alpha = component.getAlpha();
             if (alpha < 1.0f)
                 setAlpha (alpha);
-
-            setTitle(component.getName());
-            updateShadower();
-
-            updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
-
-            if (parentToAddTo != nullptr)
-                monitorUpdateTimer.emplace(1000, [this] 
-                    { 
-                        updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes); 
-                    });
-
-            suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration{ hwnd };
         }
         else
         {
@@ -2708,16 +2720,11 @@ protected:
         }
     }
 
-    static BOOL CALLBACK revokeChildDragDropCallback (HWND hwnd, LPARAM)    { RevokeDragDrop (hwnd); return TRUE; }
-
-    static void* destroyWindowCallback(void* userData)
+    virtual void destroyWindow()
     {
-        static_cast<HWNDComponentPeer*> (userData)->destroyWindow();
-        return nullptr;
-    }
-
-    virtual void destroyWindow() noexcept
-    {
+        //
+        // Clean up that needs to happen on the calling thread
+        //
         suspendResumeRegistration = {};
 
         VBlankDispatcher::getInstance()->removeListener(*this);
@@ -2731,6 +2738,32 @@ protected:
         shadower = nullptr;
         currentTouches.deleteAllTouchesForPeer(this);
 
+        //
+        // Destroy the window from the message thread
+        //
+        callFunctionIfNotLocked(&destroyWindowCallback, this);
+
+        //
+        // And one last little bit of cleanup
+        //
+        if (dropTarget != nullptr)
+        {
+            dropTarget->peerIsDeleted = true;
+            dropTarget->Release();
+            dropTarget = nullptr;
+        }
+    }
+
+    static BOOL CALLBACK revokeChildDragDropCallback (HWND hwnd, LPARAM)    { RevokeDragDrop (hwnd); return TRUE; }
+
+    static void* destroyWindowCallback(void* userData)
+    {
+        static_cast<HWNDComponentPeer*> (userData)->destroyWindowOnMessageThread();
+        return nullptr;
+    }
+
+    virtual void destroyWindowOnMessageThread() noexcept
+    {
         if (IsWindow (hwnd))
         {
             RevokeDragDrop (hwnd);
@@ -2739,13 +2772,6 @@ protected:
             EnumChildWindows (hwnd, revokeChildDragDropCallback, 0);
 
             DestroyWindow (hwnd);
-        }
-
-        if (dropTarget != nullptr)
-        {
-            dropTarget->peerIsDeleted = true;
-            dropTarget->Release();
-            dropTarget = nullptr;
         }
     }
 
@@ -2757,8 +2783,8 @@ protected:
         auto keyboardFocusFlag = isFocused();
         auto renderingEngine = getCurrentRenderingEngine();
 
-        callFunctionIfNotLocked(&destroyWindowCallback, this);
-        callFunctionIfNotLocked(&createWindowCallback, this);
+        destroyWindow();
+        createWindow();
 
         setBounds(bounds, fullscreenFlag);
         setCurrentRenderingEngine(renderingEngine);

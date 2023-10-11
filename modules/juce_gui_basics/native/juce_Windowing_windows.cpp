@@ -1723,11 +1723,6 @@ public:
 
     virtual void initialise()
     {
-        callFunctionIfNotLocked (&createWindowCallback, this);
-
-        setTitle (component.getName());
-        updateShadower();
-
         getNativeRealtimeModifiers = []
         {
             HWNDComponentPeer::updateKeyModifiers();
@@ -1742,37 +1737,12 @@ public:
             return ModifierKeys::currentModifiers;
         };
 
-        updateCurrentMonitorAndRefreshVBlankDispatcher();
-
-        if (parentToAddTo != nullptr)
-            monitorUpdateTimer.emplace (1000, [this] { updateCurrentMonitorAndRefreshVBlankDispatcher(); });
-
-        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
+        callFunctionIfNotLocked (&createWindowCallback, this);
     }
 
     ~HWNDComponentPeer() override
     {
-        suspendResumeRegistration = {};
-
-        VBlankDispatcher::getInstance()->removeListener (*this);
-
-        // do this first to avoid messages arriving for this window before it's destroyed
-        JuceWindowIdentifier::setAsJUCEWindow (hwnd, false);
-
-        if (isAccessibilityActive)
-            WindowsAccessibility::revokeUIAMapEntriesForWindow (hwnd);
-
-        shadower = nullptr;
-        currentTouches.deleteAllTouchesForPeer (this);
-
-        callFunctionIfNotLocked (&destroyWindowCallback, (void*) hwnd);
-
-        if (dropTarget != nullptr)
-        {
-            dropTarget->peerIsDeleted = true;
-            dropTarget->Release();
-            dropTarget = nullptr;
-        }
+        callFunctionIfNotLocked(&destroyWindowCallback, this);
     }
 
     //==============================================================================
@@ -2438,6 +2408,7 @@ protected:
     struct TemporaryImage    : private Timer
     {
         TemporaryImage() {}
+        ~TemporaryImage() override = default;
 
         Image& getImage (bool transparent, int w, int h)
         {
@@ -2629,7 +2600,10 @@ protected:
         }
         else if (parentToAddTo != nullptr)
         {
+            if ((styleFlags & windowIsOwned) == 0)
+            {
             type |= WS_CHILD;
+        }
         }
         else
         {
@@ -2705,6 +2679,19 @@ protected:
             auto alpha = component.getAlpha();
             if (alpha < 1.0f)
                 setAlpha (alpha);
+
+            setTitle(component.getName());
+            updateShadower();
+
+            updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
+
+            if (parentToAddTo != nullptr)
+                monitorUpdateTimer.emplace(1000, [this] 
+                    { 
+                        updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes); 
+                    });
+
+            suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration{ hwnd };
         }
         else
         {
@@ -2721,9 +2708,26 @@ protected:
 
     static BOOL CALLBACK revokeChildDragDropCallback (HWND hwnd, LPARAM)    { RevokeDragDrop (hwnd); return TRUE; }
 
-    static void* destroyWindowCallback (void* handle)
+    static void* destroyWindowCallback(void* userData)
     {
-        auto hwnd = reinterpret_cast<HWND> (handle);
+        static_cast<HWNDComponentPeer*> (userData)->destroyWindow();
+        return nullptr;
+    }
+
+    virtual void destroyWindow() noexcept
+    {
+        suspendResumeRegistration = {};
+
+        VBlankDispatcher::getInstance()->removeListener(*this);
+
+        // do this first to avoid messages arriving for this window before it's destroyed
+        JuceWindowIdentifier::setAsJUCEWindow(hwnd, false);
+
+        if (isAccessibilityActive)
+            WindowsAccessibility::revokeUIAMapEntriesForWindow(hwnd);
+
+        shadower = nullptr;
+        currentTouches.deleteAllTouchesForPeer(this);
 
         if (IsWindow (hwnd))
         {
@@ -2735,7 +2739,30 @@ protected:
             DestroyWindow (hwnd);
         }
 
-        return nullptr;
+        if (dropTarget != nullptr)
+        {
+            dropTarget->peerIsDeleted = true;
+            dropTarget->Release();
+            dropTarget = nullptr;
+        }
+    }
+
+    void recreateWindow()
+    {
+        auto bounds = getBounds();
+        auto fullscreenFlag = isFullScreen();
+        auto visible = component.isVisible();
+        auto keyboardFocusFlag = isFocused();
+        auto renderingEngine = getCurrentRenderingEngine();
+
+        callFunctionIfNotLocked(&destroyWindowCallback, this);
+        callFunctionIfNotLocked(&createWindowCallback, this);
+
+        setBounds(bounds, fullscreenFlag);
+        setCurrentRenderingEngine(renderingEngine);
+        setVisible(visible);
+        component.toFront(keyboardFocusFlag);
+        component.repaint();
     }
 
     static void* toFrontCallback1 (void* h)
@@ -4715,9 +4742,12 @@ JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& compo
         // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to 
         // embeddedWindowPeer->initialise() after creating the peer
         // 
-        parentPeer->setCurrentRenderingEngine(HWNDComponentPeer::softwareRenderingEngine);
+        int styleFlags = ComponentPeer::windowIgnoresMouseClicks;
+        #if JUCE_DIRECT2D
+        styleFlags |= ComponentPeer::windowIsOwned;
+        #endif
         auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
-                                                                       ComponentPeer::windowIgnoresMouseClicks,
+                                                                       styleFlags,
                                                                        (HWND) parentPeer->getNativeHandle(),
                                                                        true, /* nonRepainting*/
                                                                        HWNDComponentPeer::softwareRenderingEngine);

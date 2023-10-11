@@ -32,6 +32,7 @@ public:
     Direct2DHwndContext (HWND, float dpiScalingFactor, bool opaque);
     ~Direct2DHwndContext() override;
 
+    HWND getHwnd() const noexcept;
     void handleShowWindow();
     void setWindowAlpha (float alpha);
 

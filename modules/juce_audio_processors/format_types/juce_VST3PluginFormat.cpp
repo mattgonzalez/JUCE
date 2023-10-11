@@ -1635,13 +1635,13 @@ private:
             // will invert the DPI scaling, but the logical size returned by vst3ToComponentRect may be
             // different from the original size due to floating point rounding if the scale factor is > 100%.
             // This can cause the window to unexpectedly grow while it's moving.
-            // 
+            //
             auto scaledRect = componentToVST3Rect (getLocalBounds());
-            
+
             auto constrainedRect = scaledRect;
             view->checkSizeConstraint (&constrainedRect);
-            
-            // 
+
+            //
             // Only update the size if the constrained size is actually different
             //
             if (constrainedRect.getWidth() != scaledRect.getWidth() ||
@@ -1809,10 +1809,12 @@ private:
         ViewComponent()
         {
             setOpaque (true);
-            inner.addToDesktop (0);
+            inner.addToDesktop(ComponentPeer::windowIsOwned);
 
-            if (auto* peer = inner.getPeer())
-                setHWND (peer->getNativeHandle());
+            if (auto* innerPeer = inner.getPeer())
+            {
+                setHWND(innerPeer->getNativeHandle());
+}
         }
 
         void paint (Graphics& g) override { g.fillAll (Colours::black); }
@@ -1820,7 +1822,8 @@ private:
     private:
         struct Inner : public Component
         {
-            Inner() { setOpaque (true); }
+            Inner() { setOpaque(true); }
+
             void paint (Graphics& g) override { g.fillAll (Colours::black); }
         };
 

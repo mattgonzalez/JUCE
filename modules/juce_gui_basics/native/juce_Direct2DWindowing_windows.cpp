@@ -82,8 +82,7 @@ public:
 
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
-        exStyleFlags &= ~WS_EX_LAYERED;
-        if ((styleFlags & windowIsOwned) == 0)
+        if (currentRenderingEngine == direct2DRenderingEngine)
         {
             exStyleFlags &= ~WS_EX_LAYERED;
             if ((styleFlags & windowIsOwned) == 0)
@@ -106,7 +105,10 @@ public:
     {
         if (usingDirect2DRendering())
         {
-            direct2DContext->setWindowAlpha (newAlpha);
+            if (direct2DContext)
+            {
+                direct2DContext->setWindowAlpha (newAlpha);
+            }
             component.repaint();
             return;
         }
@@ -156,45 +158,11 @@ public:
         return {};
     }
 
-    void blitImageToWindow(Image const & sourceImage, Point<int> origin, RectangleList<int> const& clipList)
-    {
-        if (offscreenDirect2DImage.getBounds() != sourceImage.getBounds())
-        {
-            Direct2DImageType imageType;
-            offscreenDirect2DImage = Image{ imageType.create(Image::ARGB, sourceImage.getWidth(), sourceImage.getHeight(), true) };
-        }
-
-        {
-            Graphics g{ offscreenDirect2DImage };
-            g.drawImageAt(sourceImage, 0, 0);
-        }
-
-        if (direct2DContext)
-        {
-            for (auto area : clipList)
-            {
-                area += origin;
-                direct2DContext->addDeferredRepaint(area);
-            }
-
-            if (direct2DContext->startFrame())
-            {
-                 for (auto const& area : clipList)
-                 {
-                     direct2DContext->drawImageSection (offscreenDirect2DImage, area, area.getTopLeft() + origin);
-                 }
-
-                direct2DContext->endFrame();
-            }
-        }
-    }
-
 private:
     #if JUCE_ETW_TRACELOGGING
     SharedResourcePointer<ETWEventProvider> etwEventProvider;
     #endif
     std::unique_ptr<Direct2DHwndContext> direct2DContext;
-    Image offscreenDirect2DImage;
 
     void handlePaintMessage() override
     {
@@ -322,7 +290,7 @@ private:
             {
                 direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS
-        direct2DContext->stats = paintStats;
+                direct2DContext->stats = paintStats;
 #endif
             }
             break;
@@ -440,29 +408,6 @@ private:
 
         return HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
     }
-
-    struct D2DTemporaryImage : public TemporaryImage
-    {
-        D2DTemporaryImage() {}
-        ~D2DTemporaryImage() override = default;
-
-        Image& getImage(bool /*transparent*/, int w, int h) override
-        {
-            auto format = Image::ARGB;
-
-            if ((!image.isValid()) || image.getWidth() < w || image.getHeight() < h || image.getFormat() != format)
-            {
-                SoftwareImageType imageType;
-                image = Image{ imageType.create(format, w, h, true) };
-            }
-
-            startTimer(3000);
-            return image;
-        }
-
-    private:
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(D2DTemporaryImage)
-    };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DComponentPeer)
 };

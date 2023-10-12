@@ -1823,6 +1823,7 @@ private:
         struct Inner : public Component
         {
             Inner() { setOpaque(true); }
+
             void paint (Graphics& g) override { g.fillAll (Colours::black); }
         };
 

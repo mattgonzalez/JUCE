@@ -133,6 +133,24 @@ namespace juce
             }
         }
 
+        bool checkPaintReady() override
+        {
+            swapChainReady |= swap.swapChainDispatcher->isSwapChainReady(swap.dispatcherBitNumber);
+
+            //
+            // Paint if:
+            //      resources are allocated
+            //      deferredRepaints has areas to be painted
+            //      the swap chain is ready
+            //
+            bool ready = Pimpl::checkPaintReady();
+            ready &= swap.canPaint();
+            ready &= compositionTree.canPaint();
+            ready &= deferredRepaints.getNumRectangles() > 0;
+            ready &= swapChainReady;
+            return ready;
+        }
+
         JUCE_DECLARE_WEAK_REFERENCEABLE(HwndPimpl)
 
     public:
@@ -240,23 +258,6 @@ namespace juce
             updateRegion.getRECTAndValidate(hwnd);
             updateRegion.addToRectangleList(deferredRepaints);
             updateRegion.clear();
-        }
-
-        bool checkPaintReady() override
-        {
-            swapChainReady |= swap.swapChainDispatcher->isSwapChainReady(swap.dispatcherBitNumber);
-
-            //
-            // Paint if:
-            //      resources are allocated
-            //      deferredRepaints has areas to be painted
-            //      the swap chain is ready
-            //
-            bool ready = Pimpl::checkPaintReady();
-            ready &= swap.canPaint();
-            ready &= compositionTree.canPaint();
-            ready &= swapChainReady;
-            return ready;
         }
 
         HRESULT finishFrame() override
@@ -586,24 +587,6 @@ namespace juce
     Image Direct2DHwndContext::createSnapshot()
     {
         return pimpl->createSnapshot(direct2d::DPIScalableArea<int>::fromPhysicalArea(pimpl->getClientRect(), (float)pimpl->getScaleFactor()));
-    }
-
-    void Direct2DHwndContext::drawImageSection (Image const& image, Rectangle<int> sourceArea, Point<int> destination)
-    {
-        if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (image.getPixelData()))
-        {
-            pimpl->getDeviceContext()->DrawBitmap(direct2DPixelData->targetBitmap,
-                direct2d::rectangleToRectF(sourceArea.withPosition(destination)),
-                currentState->fillType.getOpacity(),
-                currentState->interpolationMode,
-                direct2d::rectangleToRectF(sourceArea),
-                {});
-        }
-    }
-
-    bool Direct2DHwndContext::isReady() const noexcept
-    {
-        return pimpl->checkPaintReady();
     }
 
     void Direct2DHwndContext::clearTargetBuffer()

@@ -29,7 +29,7 @@ namespace juce
 extern ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component&, Component const * const parent);
 
 //==============================================================================
-class OpenGLContext::NativeContext  : private ComponentPeer::ScaleFactorListener, public ComponentListener
+class OpenGLContext::NativeContext  : private ComponentPeer::ScaleFactorListener
 {
 public:
     NativeContext (Component& component,
@@ -333,8 +333,6 @@ private:
             nativeScaleFactor = peer->getPlatformScaleFactor();
             updateWindowPosition (peer->getAreaCoveredBy (component));
             peer->addScaleFactorListener (this);
-
-            topComp->addComponentListener(this);
         }
 
         if (auto ownerHandle = getOwnerHandle())
@@ -350,14 +348,6 @@ private:
         nativeWindow->setVisible (true);
         dc = std::unique_ptr<std::remove_pointer_t<HDC>, DeviceContextDeleter> { GetDC ((HWND) nativeWindow->getNativeHandle()),
                                                                                  DeviceContextDeleter { (HWND) nativeWindow->getNativeHandle() } };
-    }
-
-    void componentMovedOrResized(Component& component, bool, bool) override
-    {
-        if (getOwnerHandle())
-        {
-            updateWindowPosition(component.getScreenBounds());
-        }
     }
 
     int wglChoosePixelFormatExtension (const OpenGLPixelFormat& pixelFormat) const

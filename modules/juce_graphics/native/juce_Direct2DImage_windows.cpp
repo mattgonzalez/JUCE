@@ -220,7 +220,6 @@ namespace juce
 
     private:
         friend class Direct2DGraphicsContext;
-        friend class Direct2DHwndContext;
         friend class Direct2DImageContext;
         friend struct Direct2ImageContext::ImagePimpl;
 

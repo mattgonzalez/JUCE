@@ -68,20 +68,6 @@ namespace juce
         HWND hwnd;
 
     private:
-        static HWND getAncestorHWND(HWND hwnd) noexcept
-        {
-            if (auto ancestor = GetAncestor(hwnd, GA_ROOTOWNER))
-            {
-                return ancestor;
-            }
-
-            if (auto ancestor = GetAncestor(hwnd, GA_ROOT))
-            {
-                return ancestor;
-            }
-
-            return hwnd;
-        }
 
         void addToParent()
         {
@@ -95,14 +81,17 @@ namespace juce
 
                 if (ownedWindowFlag)
                 {
-                    if (auto ancestorHwnd = getAncestorHWND((HWND)ancestorPeer->getNativeHandle()))
-                    {
-                        windowFlags &= ~(FlagType)WS_CHILD;
-                        SetWindowLongPtr(hwnd, GWL_STYLE, windowFlags);
-                        SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)ancestorHwnd);
+                    windowFlags &= ~(FlagType)WS_CHILD;
+                    SetWindowLongPtr(hwnd, GWL_STYLE, windowFlags);
 
-                        ancestorSubclasser = std::make_unique<AncestorSubclasser>(*this, ancestorHwnd);
-                    }
+                    auto ownerHwnd = (HWND)ancestorPeer->getNativeHandle();
+                    SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)ownerHwnd);
+
+                    ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(detail::HWNDAncestorSubclasser::findAncestorHWND(ownerHwnd),
+                        [this]()
+                        {
+                            hwndComponentWatcher.componentMovedOrResized(true, true);
+                        });
                 }
                 else
                 {
@@ -139,46 +128,7 @@ namespace juce
 
         HWNDComponent& hwndComponent;
         ComponentPeer* ancestorPeer = nullptr;
-
-        //==============================================================================
-
-        class AncestorSubclasser
-        {
-        public:
-            AncestorSubclasser(Pimpl& pimpl_, HWND ancestorHwnd_) :
-                pimpl(pimpl_),
-                ancestorHwnd(ancestorHwnd_)
-            {
-                [[maybe_unused]] auto ok = SetWindowSubclass(ancestorHwnd_, subclassProc, windowSubclassID, (DWORD_PTR)this);
-                jassert(ok);
-            }
-
-            ~AncestorSubclasser()
-            {
-                [[maybe_unused]] auto ok = RemoveWindowSubclass(ancestorHwnd, subclassProc, windowSubclassID);
-                jassert(ok);
-            }
-
-        private:
-            static LRESULT subclassProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam, UINT_PTR /*uIdSubclass*/, DWORD_PTR dwRefData)
-            {
-                auto that = reinterpret_cast<AncestorSubclasser*>(static_cast<LONG_PTR>(dwRefData));
-
-                switch (umsg)
-                {
-                case WM_WINDOWPOSCHANGED:
-                    that->pimpl.hwndComponentWatcher.componentMovedOrResized(true, true);
-                    break;
-                }
-
-                return DefSubclassProc(hwnd, umsg, wParam, lParam);
-            }
-
-            Pimpl& pimpl;
-            HWND const ancestorHwnd;
-            uint64 const windowSubclassID = Time::getHighResolutionTicks();
-        };
-        std::unique_ptr<AncestorSubclasser> ancestorSubclasser;
+        std::unique_ptr<detail::HWNDAncestorSubclasser> ancestorSubclasser;
 
         //==============================================================================
 

@@ -337,7 +337,12 @@ private:
 
         if (auto ownerHandle = getOwnerHandle())
         {
-            ancestorSubclasser = std::make_unique<AncestorSubclasser>(*this, (HWND)ownerHandle);
+            auto ancestorHandle = detail::HWNDAncestorSubclasser::findAncestorHWND(ownerHandle);
+            ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(ancestorHandle,
+                [this]()
+                {
+                    attachedComponentWatcher.componentMovedOrResized(true, true);
+                });
         }
 
         nativeWindow->setVisible (true);
@@ -427,47 +432,7 @@ private:
 
     //==============================================================================
 
-    class AncestorSubclasser
-    {
-    public:
-        AncestorSubclasser(NativeContext& nativeContext_, HWND ancestorHwnd_) :
-            ancestorHwnd(ancestorHwnd_),
-            nativeContext(nativeContext_)
-        {
-            [[maybe_unused]] auto ok = SetWindowSubclass(ancestorHwnd_, subclassProc, windowSubclassID, (DWORD_PTR)this);
-            jassert(ok);
-        }
-
-        ~AncestorSubclasser()
-        {
-            [[maybe_unused]] auto ok = RemoveWindowSubclass(ancestorHwnd, subclassProc, windowSubclassID);
-            jassert(ok);
-        }
-
-        HWND const ancestorHwnd;
-
-    private:
-        static LRESULT subclassProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam, UINT_PTR /*uIdSubclass*/, DWORD_PTR dwRefData)
-        {
-            auto that = reinterpret_cast<AncestorSubclasser*>(static_cast<LONG_PTR>(dwRefData));
-
-            switch (umsg)
-            {
-            case WM_DESTROY:
-                break;
-
-            case WM_WINDOWPOSCHANGED:
-                that->nativeContext.attachedComponentWatcher.componentMovedOrResized(true, true);
-                break;
-            }
-
-            return DefSubclassProc(hwnd, umsg, wParam, lParam);
-        }
-
-        NativeContext& nativeContext;
-        uint64 const windowSubclassID = Time::getHighResolutionTicks();
-    };
-    std::unique_ptr<AncestorSubclasser> ancestorSubclasser;
+    std::unique_ptr<detail::HWNDAncestorSubclasser> ancestorSubclasser;
 
     struct AttachedComponentWatcher : public ComponentMovementWatcher
     {
@@ -496,12 +461,11 @@ private:
             {
                 if (auto ownerHwnd = nativeContext.getOwnerHandle())
                 {
-                    if (nativeContext.ancestorSubclasser && nativeContext.ancestorSubclasser->ancestorHwnd == ownerHwnd)
-                    {
-                        return;
-                    }
-
-                    nativeContext.ancestorSubclasser = std::make_unique<AncestorSubclasser>(nativeContext, ownerHwnd);
+                    nativeContext.ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(ownerHwnd, 
+                        [this]()
+                        {
+                            componentMovedOrResized(true, true);
+                        });
                 }
             }
             else

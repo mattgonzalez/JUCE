@@ -187,6 +187,7 @@
  #include "native/juce_WindowUtils_windows.cpp"
  #include "native/juce_Windowing_windows.cpp"
  #include "native/juce_WindowsHooks_windows.cpp"
+#include "native/juce_WindowSubclasser_windows.cpp"
  #include "native/juce_NativeMessageBox_windows.cpp"
  #include "native/juce_DragAndDrop_windows.cpp"
  #include "native/juce_FileChooser_windows.cpp"

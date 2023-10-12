@@ -418,9 +418,10 @@ static bool supportsSampleRateConversion (WASAPIDeviceMode deviceMode) noexcept
 class WASAPIDeviceBase
 {
 public:
-    WASAPIDeviceBase (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
+    WASAPIDeviceBase (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode, bool outputLoopback_)
         : device (d),
-          deviceMode (mode)
+          deviceMode (mode),
+          outputLoopback(outputLoopback_)
     {
         clientEvent = CreateEvent (nullptr, false, false, nullptr);
 
@@ -555,6 +556,7 @@ public:
     UINT32 actualBufferSize = 0;
     int bytesPerSample = 0, bytesPerFrame = 0;
     std::atomic<bool> sampleRateHasChanged { false }, shouldShutdown { false }, isActive { true };
+    bool outputLoopback = false;
 
     virtual void updateFormat (bool isFloat) = 0;
 
@@ -841,6 +843,9 @@ private:
             streamFlags |= (0x80000000    /*AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM*/
                             | 0x8000000); /*AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY*/
 
+        if (outputLoopback)
+            streamFlags |= 0x00020000; /* AUDCLNT_STREAMFLAGS_LOOPBACK */
+
         return streamFlags;
     }
 
@@ -867,9 +872,10 @@ private:
         for (;;)
         {
             GUID session;
+            auto streamFlags = getStreamFlags();
             auto hr = client->Initialize (isExclusiveMode (deviceMode) ? AUDCLNT_SHAREMODE_EXCLUSIVE
                                                                        : AUDCLNT_SHAREMODE_SHARED,
-                                          getStreamFlags(),
+                                          streamFlags,
                                           defaultPeriod,
                                           isExclusiveMode (deviceMode) ? defaultPeriod : 0,
                                           (WAVEFORMATEX*) &format,
@@ -926,8 +932,8 @@ private:
 class WASAPIInputDevice  : public WASAPIDeviceBase
 {
 public:
-    WASAPIInputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
-        : WASAPIDeviceBase (d, mode)
+    WASAPIInputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode, bool outputLoopback_)
+        : WASAPIDeviceBase (d, mode, outputLoopback_)
     {
     }
 
@@ -1075,7 +1081,7 @@ class WASAPIOutputDevice  : public WASAPIDeviceBase
 {
 public:
     WASAPIOutputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
-        : WASAPIDeviceBase (d, mode)
+        : WASAPIDeviceBase (d, mode, false)
     {
     }
 
@@ -1661,9 +1667,17 @@ private:
             auto flow = getDataFlow (device);
 
             if (deviceId == inputDeviceId && flow == eCapture)
-                inputDevice.reset (new WASAPIInputDevice (device, deviceMode));
+            {
+                inputDevice.reset(new WASAPIInputDevice(device, deviceMode, false));
+            }
+            else if (deviceId == inputDeviceId && flow == eRender)
+            {
+                inputDevice.reset(new WASAPIInputDevice(device, deviceMode, true));
+            }
             else if (deviceId == outputDeviceId && flow == eRender)
-                outputDevice.reset (new WASAPIOutputDevice (device, deviceMode));
+            {
+                outputDevice.reset(new WASAPIOutputDevice(device, deviceMode));
+            }
         }
 
         return (outputDeviceId.isEmpty() || (outputDevice != nullptr && outputDevice->isOk()))
@@ -1930,6 +1944,9 @@ private:
                 const int index = (deviceId == defaultRenderer) ? 0 : -1;
                 result.outputDeviceIds.insert (index, deviceId);
                 result.outputDeviceNames.insert (index, name);
+
+                result.inputDeviceIds.add(deviceId);
+                result.inputDeviceNames.add(name);
             }
             else if (flow == eCapture)
             {

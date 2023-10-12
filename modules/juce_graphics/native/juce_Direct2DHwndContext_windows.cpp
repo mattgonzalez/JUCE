@@ -538,6 +538,11 @@ namespace juce
 
     Direct2DHwndContext::~Direct2DHwndContext() {}
 
+    HWND Direct2DHwndContext::getHwnd() const noexcept
+    {
+        return pimpl->hwnd;
+    }
+
     Direct2DGraphicsContext::Pimpl* const Direct2DHwndContext::getPimpl() const noexcept
     {
         return pimpl.get();

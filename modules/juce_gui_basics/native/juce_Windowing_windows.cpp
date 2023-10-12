@@ -578,16 +578,16 @@ public:
        #if JUCE_WIN_PER_MONITOR_DPI_AWARE
         if (const auto& functions = getFunctions(); functions.isLoaded())
         {
-            auto dpiAwareWindow = (functions.getAwarenessFromContext (functions.getWindowAwareness (nativeWindow))
-                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareWindow = (functions.getAwarenessFromContext(functions.getWindowAwareness(nativeWindow))
+                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            auto dpiAwareThread = (functions.getAwarenessFromContext (functions.getThreadAwareness())
-                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareThread = (functions.getAwarenessFromContext(functions.getThreadAwareness())
+                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            if (dpiAwareWindow && ! dpiAwareThread)
-                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-            else if (! dpiAwareWindow && dpiAwareThread)
-                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_UNAWARE);
+            if (dpiAwareWindow && !dpiAwareThread)
+                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+            else if (!dpiAwareWindow && dpiAwareThread)
+                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_UNAWARE);
         }
        #endif
     }
@@ -1710,9 +1710,9 @@ public:
     };
 
     //==============================================================================
-    HWNDComponentPeer (Component& comp, int windowStyleFlags, 
-        HWND parent, 
-        bool nonRepainting, 
+    HWNDComponentPeer (Component& comp, int windowStyleFlags,
+        HWND parent,
+        bool nonRepainting,
         int currentRenderingEngine_ = softwareRenderingEngine)
         : ComponentPeer (comp, windowStyleFlags),
           dontRepaint (nonRepainting),
@@ -1723,11 +1723,6 @@ public:
 
     virtual void initialise()
     {
-        callFunctionIfNotLocked (&createWindowCallback, this);
-
-        setTitle (component.getName());
-        updateShadower();
-
         getNativeRealtimeModifiers = []
         {
             HWNDComponentPeer::updateKeyModifiers();
@@ -1742,39 +1737,12 @@ public:
             return ModifierKeys::currentModifiers;
         };
 
-        updateCurrentMonitorAndRefreshVBlankDispatcher();
-
-        if (parentToAddTo != nullptr)
-            monitorUpdateTimer.emplace (1000, [this] { updateCurrentMonitorAndRefreshVBlankDispatcher(); });
-
-        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
-
-        createOffscreenImageGenerator();
+        createWindow();
     }
 
     ~HWNDComponentPeer() override
     {
-        suspendResumeRegistration = {};
-
-        VBlankDispatcher::getInstance()->removeListener (*this);
-
-        // do this first to avoid messages arriving for this window before it's destroyed
-        JuceWindowIdentifier::setAsJUCEWindow (hwnd, false);
-
-        if (isAccessibilityActive)
-            WindowsAccessibility::revokeUIAMapEntriesForWindow (hwnd);
-
-        shadower = nullptr;
-        currentTouches.deleteAllTouchesForPeer (this);
-
-        callFunctionIfNotLocked (&destroyWindowCallback, (void*) hwnd);
-
-        if (dropTarget != nullptr)
-        {
-            dropTarget->peerIsDeleted = true;
-            dropTarget->Release();
-            dropTarget = nullptr;
-        }
+        destroyWindow();
     }
 
     //==============================================================================
@@ -2606,9 +2574,34 @@ protected:
     };
 
     //==============================================================================
-    static void* createWindowCallback (void* userData)
+
+    virtual void createWindow()
     {
-        static_cast<HWNDComponentPeer*> (userData)->createWindow();
+        //
+        // CreateWindowEx needs to be called from the message thread
+        //
+        callFunctionIfNotLocked(&createWindowCallback, this);
+
+        //
+        // Complete the window initialisation on the calling thread
+        //
+        setTitle(component.getName());
+        updateShadower();
+
+        updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
+
+        if (parentToAddTo != nullptr)
+            monitorUpdateTimer.emplace(1000, [this]
+                {
+                    updateCurrentMonitorAndRefreshVBlankDispatcher(ForceRefreshDispatcher::yes);
+                });
+
+        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration{ hwnd };
+    }
+
+    static void* createWindowCallback(void* userData)
+    {
+        static_cast<HWNDComponentPeer*> (userData)->createWindowOnMessageThread();
         return nullptr;
     }
 
@@ -2617,7 +2610,7 @@ protected:
         return exstyle;
     }
 
-    void createWindow()
+    void createWindowOnMessageThread()
     {
         DWORD exstyle = 0;
         DWORD type = WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
@@ -2639,6 +2632,10 @@ protected:
             if ((styleFlags & windowIsResizable) != 0)
                 type |= WS_THICKFRAME;
         }
+        else if (styleFlags & windowIsOwned)
+        {
+            type |= WS_POPUP;
+        }
         else if (parentToAddTo != nullptr)
         {
             if ((styleFlags & windowIsOwned) == 0)
@@ -2658,6 +2655,7 @@ protected:
 
         if ((styleFlags & windowHasMinimiseButton) != 0)    type |= WS_MINIMIZEBOX;
         if ((styleFlags & windowHasMaximiseButton) != 0)    type |= WS_MAXIMIZEBOX;
+        if (styleFlags & windowIsOwned)                     type &= ~WS_CHILD;
         if ((styleFlags & windowIgnoresMouseClicks) != 0)   exstyle |= WS_EX_TRANSPARENT;
         if ((styleFlags & windowIsSemiTransparent) != 0)    exstyle |= WS_EX_LAYERED;
 
@@ -2671,6 +2669,9 @@ protected:
         // The DPI-awareness context of this window and JUCE's hidden message window are different.
         // You normally want these to match otherwise timer events and async messages will happen
         // in a different context to normal HWND messages which can cause issues with UI scaling.
+
+        //DBG("hwnd " << String::toHexString((pointer_sized_int)hwnd) << " " << String::toHexString((pointer_sized_int)parentToAddTo));
+
         jassert (isPerMonitorDPIAwareWindow (hwnd) == isPerMonitorDPIAwareWindow (juce_messageWindowHandle)
                    || isInScopedDPIAwarenessDisabler());
        #endif
@@ -2734,12 +2735,50 @@ protected:
         }
     }
 
+    virtual void destroyWindow()
+    {
+        //
+        // Clean up that needs to happen on the calling thread
+        //
+        suspendResumeRegistration = {};
+
+        VBlankDispatcher::getInstance()->removeListener(*this);
+
+        // do this first to avoid messages arriving for this window before it's destroyed
+        JuceWindowIdentifier::setAsJUCEWindow(hwnd, false);
+
+        if (isAccessibilityActive)
+            WindowsAccessibility::revokeUIAMapEntriesForWindow(hwnd);
+
+        shadower = nullptr;
+        currentTouches.deleteAllTouchesForPeer(this);
+
+        //
+        // Destroy the window from the message thread
+        //
+        callFunctionIfNotLocked(&destroyWindowCallback, this);
+
+        //
+        // And one last little bit of cleanup
+        //
+        if (dropTarget != nullptr)
+        {
+            dropTarget->peerIsDeleted = true;
+            dropTarget->Release();
+            dropTarget = nullptr;
+        }
+    }
+
     static BOOL CALLBACK revokeChildDragDropCallback (HWND hwnd, LPARAM)    { RevokeDragDrop (hwnd); return TRUE; }
 
-    static void* destroyWindowCallback (void* handle)
+    static void* destroyWindowCallback(void* userData)
     {
-        auto hwnd = reinterpret_cast<HWND> (handle);
+        static_cast<HWNDComponentPeer*> (userData)->destroyWindowOnMessageThread();
+        return nullptr;
+    }
 
+    virtual void destroyWindowOnMessageThread() noexcept
+    {
         if (IsWindow (hwnd))
         {
             RevokeDragDrop (hwnd);
@@ -2749,8 +2788,24 @@ protected:
 
             DestroyWindow (hwnd);
         }
+    }
 
-        return nullptr;
+    void recreateWindow()
+    {
+        auto bounds = getBounds();
+        auto fullscreenFlag = isFullScreen();
+        auto visible = component.isVisible();
+        auto keyboardFocusFlag = isFocused();
+        auto renderingEngine = getCurrentRenderingEngine();
+
+        destroyWindow();
+        createWindow();
+
+        setBounds(bounds, fullscreenFlag);
+        setCurrentRenderingEngine(renderingEngine);
+        setVisible(visible);
+        component.toFront(keyboardFocusFlag);
+        component.repaint();
     }
 
     static void* toFrontCallback1 (void* h)
@@ -4731,10 +4786,10 @@ JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& compo
         //
         // Explicitly set the top-level window to software renderer mode in case
         // this is switching from Direct2D to OpenGL
-        // 
-        // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to 
+        //
+        // HWNDComponentPeer and Direct2DComponentPeer rely on virtual methods for initialization; hence the call to
         // embeddedWindowPeer->initialise() after creating the peer
-        // 
+        //
         int styleFlags = ComponentPeer::windowIgnoresMouseClicks;
         #if JUCE_DIRECT2D
         styleFlags |= ComponentPeer::windowIsOwned;

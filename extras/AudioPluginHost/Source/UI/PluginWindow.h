@@ -146,7 +146,7 @@ private:
 /**
     A desktop window containing a plugin's GUI.
 */
-class PluginWindow  : public DocumentWindow
+class PluginWindow  : public DocumentWindow, public LookAndFeel_V4
 {
 public:
     enum class Type
@@ -167,6 +167,8 @@ public:
           activeWindowList (windowList),
           node (n), type (t)
     {
+        setOpaque(false);
+        DocumentWindow::setColour(ResizableWindow::backgroundColourId, Colours::transparentBlack);
         setSize (400, 300);
 
         if (auto* ui = createProcessorEditor (*node->getProcessor(), type))
@@ -196,12 +198,14 @@ public:
 
         node->properties.set (getOpenProp (type), true);
 
+        setLookAndFeel(this);
         setVisible (true);
     }
 
     ~PluginWindow() override
     {
         clearContentComponent();
+        setLookAndFeel(nullptr);
     }
 
     void moved() override
@@ -230,8 +234,20 @@ public:
         const int border = 10;
         return { border, border, border, border };
        #else
-        return DocumentWindow::getBorderThickness();
+        auto border = DocumentWindow::getBorderThickness();
+        border.setLeft(50);
+        border.setRight(50);
+        border.setBottom(50);
+        return border;
        #endif
+    }
+
+    void drawResizableWindowBorder(Graphics& g, int w, int h, const BorderSize<int>& /*border*/, ResizableWindow&) override
+    {
+        g.fillCheckerBoard({ 0.0f, 0.0f, (float)w, (float)h },
+            50.0f, 50.0f,
+            Colours::lightgrey.withAlpha(0.75f),
+            Colours::transparentBlack);
     }
 
 private:

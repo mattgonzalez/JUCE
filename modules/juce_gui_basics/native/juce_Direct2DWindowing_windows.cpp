@@ -63,10 +63,16 @@ public:
     {
     }
 
-    void initialise() override
+    void createWindow() override
     {
-        HWNDComponentPeer::initialise();
+        HWNDComponentPeer::createWindow();
         updateDirect2DContext();
+    }
+
+    void destroyWindow() noexcept override
+    {
+        direct2DContext = nullptr;
+        HWNDComponentPeer::destroyWindow();
     }
 
     ~Direct2DComponentPeer() override
@@ -79,7 +85,11 @@ public:
         exStyleFlags &= ~WS_EX_LAYERED;
         if ((styleFlags & windowIsOwned) == 0)
         {
-            exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+            exStyleFlags &= ~WS_EX_LAYERED;
+            if ((styleFlags & windowIsOwned) == 0)
+            {
+                exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+            }
         }
 
         return exStyleFlags;
@@ -94,7 +104,7 @@ public:
 
     void setAlpha (float newAlpha) override
     {
-        if (direct2DContext)
+        if (usingDirect2DRendering())
         {
             direct2DContext->setWindowAlpha (newAlpha);
             component.repaint();
@@ -166,7 +176,7 @@ public:
                 area += origin;
                 direct2DContext->addDeferredRepaint(area);
             }
- 
+
             if (direct2DContext->startFrame())
             {
                  for (auto const& area : clipList)
@@ -222,120 +232,8 @@ private:
 
     bool usingDirect2DRendering() const noexcept
     {
+        jassert((currentRenderingEngine == direct2DRenderingEngine && direct2DContext) || (currentRenderingEngine == softwareRenderingEngine));
         return currentRenderingEngine == direct2DRenderingEngine && direct2DContext;
-    }
-
-    bool isPaintReady() const noexcept override
-    {
-        if (direct2DContext)
-        {
-            return direct2DContext->isReady();
-        }
-
-        return false;
-    }
-
-    void createOffscreenImageGenerator() override
-    {
-        offscreenImageGenerator = std::make_unique<D2DTemporaryImage>();
-    }
-
-    void performPaint(HDC dc, HRGN rgn, int regionType, PAINTSTRUCT& paintStruct) override
-    {
-        int x = paintStruct.rcPaint.left;
-        int y = paintStruct.rcPaint.top;
-        int w = paintStruct.rcPaint.right - x;
-        int h = paintStruct.rcPaint.bottom - y;
-
-        if (w <= 0 || h <= 0)
-        {
-            // it's not possible to have a transparent window with a title bar at the moment!
-            //jassert (! hasTitleBar());
-
-            auto r = getWindowScreenRect(hwnd);
-            x = y = 0;
-            w = r.right - r.left;
-            h = r.bottom - r.top;
-        }
-
-        {
-            Image& offscreenImage = offscreenImageGenerator->getImage(true, w, h);
-
-            RectangleList<int> contextClip;
-            const Rectangle<int> clipBounds(w, h);
-
-            bool needToPaintAll = true;
-
-            if (regionType == COMPLEXREGION || regionType == SIMPLEREGION)
-            {
-                HRGN clipRgn = CreateRectRgnIndirect(&paintStruct.rcPaint);
-                CombineRgn(rgn, rgn, clipRgn, RGN_AND);
-                DeleteObject(clipRgn);
-
-                std::aligned_storage_t<8192, alignof (RGNDATA)> rgnData;
-                const DWORD res = GetRegionData(rgn, sizeof(rgnData), (RGNDATA*)&rgnData);
-
-                if (res > 0 && res <= sizeof(rgnData))
-                {
-                    const RGNDATAHEADER* const hdr = &(((const RGNDATA*)&rgnData)->rdh);
-
-                    if (hdr->iType == RDH_RECTANGLES
-                        && hdr->rcBound.right - hdr->rcBound.left >= w
-                        && hdr->rcBound.bottom - hdr->rcBound.top >= h)
-                    {
-                        needToPaintAll = false;
-
-                        auto rects = unalignedPointerCast<const RECT*>((char*)&rgnData + sizeof(RGNDATAHEADER));
-
-                        for (int i = (int)((RGNDATA*)&rgnData)->rdh.nCount; --i >= 0;)
-                        {
-                            if (rects->right <= x + w && rects->bottom <= y + h)
-                            {
-                                const int cx = jmax(x, (int)rects->left);
-                                contextClip.addWithoutMerging(Rectangle<int>(cx - x, rects->top - y,
-                                    rects->right - cx, rects->bottom - rects->top)
-                                    .getIntersection(clipBounds));
-                            }
-                            else
-                            {
-                                needToPaintAll = true;
-                                break;
-                            }
-
-                            ++rects;
-                        }
-                    }
-                }
-            }
-
-            if (needToPaintAll)
-            {
-                contextClip.clear();
-                contextClip.addWithoutMerging(Rectangle<int>(w, h));
-            }
-
-            ChildWindowClippingInfo childClipInfo = { dc, this, &contextClip, Point<int>(x, y), 0 };
-            EnumChildWindows(hwnd, clipChildWindowCallback, (LPARAM)&childClipInfo);
-
-            if (!contextClip.isEmpty())
-            {
-                for (auto& i : contextClip)
-                    offscreenImage.clear(i);
-
-                {
-                    auto context = component.getLookAndFeel()
-                        .createGraphicsContext(offscreenImage, { -x, -y }, contextClip);
-
-                    context->addTransform(AffineTransform::scale((float)getPlatformScaleFactor()));
-                    handlePaint(*context);
-                }
-
-                blitImageToWindow(offscreenImage, { x, y }, contextClip);
-            }
-
-            if (childClipInfo.savedDC != 0)
-                RestoreDC(dc, childClipInfo.savedDC);
-        }
     }
 
     void handleDirect2DPaint()
@@ -349,15 +247,15 @@ private:
         //
         // Use the ID2D1DeviceContext to paint a swap chain buffer, then tell the swap chain to present
         // the next buffer.
-        // 
-        // Direct2DLowLevelGraphicsContext::startFrame checks if if there are any areas to be painted and if the 
-        // renderer is ready to go; if so, startFrame allocates any needed Direct2D resources, 
+        //
+        // Direct2DLowLevelGraphicsContext::startFrame checks if if there are any areas to be painted and if the
+        // renderer is ready to go; if so, startFrame allocates any needed Direct2D resources,
         // and calls ID2D1DeviceContext::BeginDraw
-        // 
+        //
         // handlePaint() makes various calls into the Direct2DLowLevelGraphicsContext which in turn calls
         // the appropriate ID2D1DeviceContext functions to draw rectangles, clip, set the fill color, etc.
-        // 
-        // Direct2DLowLevelGraphicsContext::endFrame calls ID2D1DeviceContext::EndDraw to finish painting 
+        //
+        // Direct2DLowLevelGraphicsContext::endFrame calls ID2D1DeviceContext::EndDraw to finish painting
         // and then tells the swap chain to present the next swap chain back buffer.
         //
         if (direct2DContext->startFrame())
@@ -405,11 +303,31 @@ private:
 
     void updateDirect2DContext()
     {
-        direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
+        switch (currentRenderingEngine)
+        {
+        case HWNDComponentPeer::softwareRenderingEngine:
+        {
+            direct2DContext = nullptr;
+            break;
+        }
+
+        case Direct2DComponentPeer::direct2DRenderingEngine:
+        {
+            if (direct2DContext && direct2DContext->getHwnd() != hwnd)
+            {
+                direct2DContext = nullptr;
+            }
+
+            if (!direct2DContext)
+            {
+                direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
 #if JUCE_DIRECT2D_METRICS
         direct2DContext->stats = paintStats;
 #endif
-        direct2DContext->setPhysicalPixelScaleFactor((float)getPlatformScaleFactor());
+            }
+            break;
+        }
+        }
 
         InvalidateRect(hwnd, nullptr, FALSE);
     }
@@ -418,9 +336,12 @@ private:
     {
         if (index != currentRenderingEngine)
         {
-            currentRenderingEngine = jlimit (0, getAvailableRenderingEngines().size() - 1, index);
-            updateDirect2DContext();
+            currentRenderingEngine = jlimit(0, getAvailableRenderingEngines().size() - 1, index);
+
+            recreateWindow();
         }
+
+        updateDirect2DContext();
     }
 
     LRESULT handleSizeConstraining (RECT& r, const WPARAM wParam) override

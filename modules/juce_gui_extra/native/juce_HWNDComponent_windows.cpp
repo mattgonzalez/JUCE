@@ -68,11 +68,26 @@ namespace juce
         HWND hwnd;
 
     private:
+        static HWND getAncestorHWND(HWND hwnd) noexcept
+        {
+            if (auto ancestor = GetAncestor(hwnd, GA_ROOTOWNER))
+            {
+                return ancestor;
+            }
+
+            if (auto ancestor = GetAncestor(hwnd, GA_ROOT))
+            {
+                return ancestor;
+            }
+
+            return hwnd;
+        }
+
         void addToParent()
         {
             if (ancestorPeer != nullptr)
             {
-                auto windowFlags = GetWindowLongPtr(hwnd, -16);
+                auto windowFlags = GetWindowLongPtr(hwnd, GWL_STYLE);
 
                 using FlagType = decltype (windowFlags);
 
@@ -80,15 +95,19 @@ namespace juce
 
                 if (ownedWindowFlag)
                 {
-                    windowFlags &= ~(FlagType)WS_CHILD;
-                    SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)ancestorPeer->getNativeHandle());
+                    if (auto ancestorHwnd = getAncestorHWND((HWND)ancestorPeer->getNativeHandle()))
+                    {
+                        windowFlags &= ~(FlagType)WS_CHILD;
+                        SetWindowLongPtr(hwnd, GWL_STYLE, windowFlags);
+                        SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)ancestorHwnd);
 
-                    ancestorSubclasser = std::make_unique<AncestorSubclasser>(*this, (HWND)ancestorPeer->getNativeHandle());
+                        ancestorSubclasser = std::make_unique<AncestorSubclasser>(*this, ancestorHwnd);
+                    }
                 }
                 else
                 {
                     windowFlags |= (FlagType)WS_CHILD;
-                    SetWindowLongPtr(hwnd, -16, windowFlags);
+                    SetWindowLongPtr(hwnd, GWL_STYLE, windowFlags);
                     SetParent(hwnd, (HWND)ancestorPeer->getNativeHandle());
                 }
 

@@ -387,10 +387,6 @@ namespace juce
  #include "native/juce_ScopedThreadDPIAwarenessSetter_windows.h"
 #endif
 
-#if JUCE_WINDOWS
-#include "native/juce_WindowSubclasser_windows.h"
-#endif
-
 #include "layout/juce_FlexItem.h"
 #include "layout/juce_FlexBox.h"
 

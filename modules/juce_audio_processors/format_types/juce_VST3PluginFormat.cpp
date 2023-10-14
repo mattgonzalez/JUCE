@@ -1809,12 +1809,10 @@ private:
         ViewComponent()
         {
             setOpaque (true);
-            inner.addToDesktop(ComponentPeer::windowIsOwned);
+            inner.addToDesktop (0);
 
-            if (auto* innerPeer = inner.getPeer())
-            {
-                setHWND(innerPeer->getNativeHandle());
-            }
+            if (auto* peer = inner.getPeer())
+                setHWND (peer->getNativeHandle());
         }
 
         void paint (Graphics& g) override { g.fillAll (Colours::black); }
@@ -1822,8 +1820,7 @@ private:
     private:
         struct Inner : public Component
         {
-            Inner() { setOpaque(true); }
-
+            Inner() { setOpaque (true); }
             void paint (Graphics& g) override { g.fillAll (Colours::black); }
         };
 

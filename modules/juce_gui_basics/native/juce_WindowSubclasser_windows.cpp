@@ -27,27 +27,27 @@
 
 namespace juce::detail
 {
-    class HWNDAncestorSubclasser::Pimpl
+    class HWNDSubclasser::Pimpl
     {
     public:
-        Pimpl(HWND ancestorHwnd_, std::function<void()> onWindowPosChanged_) :
-            ancestorHwnd(ancestorHwnd_),
+        Pimpl(HWND hwnd_, std::function<void()> onWindowPosChanged_) :
+            hwnd(hwnd_),
             onWindowPosChanged(onWindowPosChanged_)
         {
-            [[maybe_unused]] auto ok = SetWindowSubclass(ancestorHwnd_, subclassProc, windowSubclassID, (DWORD_PTR)this);
+            [[maybe_unused]] auto ok = SetWindowSubclass(hwnd_, subclassProc, windowSubclassID, (DWORD_PTR)this);
             jassert(ok);
         }
 
         ~Pimpl()
         {
-            [[maybe_unused]] auto ok = RemoveWindowSubclass(ancestorHwnd, subclassProc, windowSubclassID);
+            [[maybe_unused]] auto ok = RemoveWindowSubclass(hwnd, subclassProc, windowSubclassID);
             jassert(ok);
         }
 
     private:
         static LRESULT subclassProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam, UINT_PTR /*uIdSubclass*/, DWORD_PTR dwRefData)
         {
-            auto that = reinterpret_cast<HWNDAncestorSubclasser::Pimpl*>(static_cast<LONG_PTR>(dwRefData));
+            auto that = reinterpret_cast<HWNDSubclasser::Pimpl*>(static_cast<LONG_PTR>(dwRefData));
 
             switch (umsg)
             {
@@ -62,19 +62,19 @@ namespace juce::detail
             return DefSubclassProc(hwnd, umsg, wParam, lParam);
         }
 
-        HWND ancestorHwnd;
+        HWND hwnd;
         std::function<void()> onWindowPosChanged;
         uint64 const windowSubclassID = Time::getHighResolutionTicks();
     };
 
-    HWNDAncestorSubclasser::HWNDAncestorSubclasser(void* ancestorHwnd, std::function<void()> onWindowPosChanged_) :
-        pimpl(new Pimpl{ (HWND)ancestorHwnd, onWindowPosChanged_ })
+    HWNDSubclasser::HWNDSubclasser(void* hwnd, std::function<void()> onWindowPosChanged_) :
+        pimpl(new Pimpl{ (HWND)hwnd, onWindowPosChanged_ })
     {
     }
 
-    HWNDAncestorSubclasser::~HWNDAncestorSubclasser() {}
+    HWNDSubclasser::~HWNDSubclasser() {}
 
-    void* HWNDAncestorSubclasser::findAncestorHWND(void* hwnd) noexcept
+    void* HWNDSubclasser::findAncestorHWND(void* hwnd) noexcept
     {
         if (auto ancestor = GetAncestor((HWND)hwnd, GA_ROOTOWNER))
         {

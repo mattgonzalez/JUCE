@@ -337,8 +337,8 @@ private:
 
         if (auto ownerHandle = getOwnerHandle())
         {
-            auto ancestorHandle = detail::HWNDAncestorSubclasser::findAncestorHWND(ownerHandle);
-            ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(ancestorHandle,
+            auto ancestorHandle = detail::HWNDSubclasser::findAncestorHWND(ownerHandle);
+            ancestorSubclasser = std::make_unique<detail::HWNDSubclasser>(ancestorHandle,
                 [this]()
                 {
                     attachedComponentWatcher.componentMovedOrResized(true, true);
@@ -432,7 +432,7 @@ private:
 
     //==============================================================================
 
-    std::unique_ptr<detail::HWNDAncestorSubclasser> ancestorSubclasser;
+    std::unique_ptr<detail::HWNDSubclasser> ancestorSubclasser;
 
     struct AttachedComponentWatcher : public ComponentMovementWatcher
     {
@@ -461,7 +461,7 @@ private:
             {
                 if (auto ownerHwnd = nativeContext.getOwnerHandle())
                 {
-                    nativeContext.ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(ownerHwnd,
+                    nativeContext.ancestorSubclasser = std::make_unique<detail::HWNDSubclasser>(ownerHwnd,
                         [this]()
                         {
                             componentMovedOrResized(true, true);

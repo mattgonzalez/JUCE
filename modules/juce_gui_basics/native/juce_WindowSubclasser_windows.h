@@ -28,11 +28,11 @@
 namespace juce::detail
 {
 
-class HWNDAncestorSubclasser
+class HWNDSubclasser
 {
 public:
-    HWNDAncestorSubclasser(void* ancestorHwnd, std::function<void()>);
-    ~HWNDAncestorSubclasser();
+    HWNDSubclasser(void* hwnd, std::function<void()>);
+    ~HWNDSubclasser();
 
     static void* findAncestorHWND(void* hwnd) noexcept;
 

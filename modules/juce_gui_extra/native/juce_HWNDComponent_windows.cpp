@@ -87,7 +87,7 @@ namespace juce
                     auto ownerHwnd = (HWND)ancestorPeer->getNativeHandle();
                     SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, (LONG_PTR)ownerHwnd);
 
-                    ancestorSubclasser = std::make_unique<detail::HWNDAncestorSubclasser>(detail::HWNDAncestorSubclasser::findAncestorHWND(ownerHwnd),
+                    ancestorSubclasser = std::make_unique<detail::HWNDSubclasser>(detail::HWNDSubclasser::findAncestorHWND(ownerHwnd),
                         [this]()
                         {
                             hwndComponentWatcher.componentMovedOrResized(true, true);
@@ -128,7 +128,7 @@ namespace juce
 
         HWNDComponent& hwndComponent;
         ComponentPeer* ancestorPeer = nullptr;
-        std::unique_ptr<detail::HWNDAncestorSubclasser> ancestorSubclasser;
+        std::unique_ptr<detail::HWNDSubclasser> ancestorSubclasser;
 
         //==============================================================================
 

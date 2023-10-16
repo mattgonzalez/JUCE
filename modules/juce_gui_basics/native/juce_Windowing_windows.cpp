@@ -578,16 +578,16 @@ public:
        #if JUCE_WIN_PER_MONITOR_DPI_AWARE
         if (const auto& functions = getFunctions(); functions.isLoaded())
         {
-            auto dpiAwareWindow = (functions.getAwarenessFromContext (functions.getWindowAwareness (nativeWindow))
-                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareWindow = (functions.getAwarenessFromContext(functions.getWindowAwareness(nativeWindow))
+                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            auto dpiAwareThread = (functions.getAwarenessFromContext (functions.getThreadAwareness())
-                                   == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
+            auto dpiAwareThread = (functions.getAwarenessFromContext(functions.getThreadAwareness())
+                == DPI_Awareness::DPI_Awareness_Per_Monitor_Aware);
 
-            if (dpiAwareWindow && ! dpiAwareThread)
-                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-            else if (! dpiAwareWindow && dpiAwareThread)
-                oldContext = functions.setThreadAwareness (DPI_AWARENESS_CONTEXT_UNAWARE);
+            if (dpiAwareWindow && !dpiAwareThread)
+                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+            else if (!dpiAwareWindow && dpiAwareThread)
+                oldContext = functions.setThreadAwareness(DPI_AWARENESS_CONTEXT_UNAWARE);
         }
        #endif
     }
@@ -2623,6 +2623,10 @@ protected:
             if ((styleFlags & windowIsResizable) != 0)
                 type |= WS_THICKFRAME;
         }
+        else if (styleFlags & windowIsOwned)
+        {
+            type |= WS_POPUP;
+        }
         else if (parentToAddTo != nullptr)
         {
             type |= WS_CHILD;
@@ -2639,6 +2643,7 @@ protected:
 
         if ((styleFlags & windowHasMinimiseButton) != 0)    type |= WS_MINIMIZEBOX;
         if ((styleFlags & windowHasMaximiseButton) != 0)    type |= WS_MAXIMIZEBOX;
+        if (styleFlags & windowIsOwned)                     type &= ~WS_CHILD;
         if ((styleFlags & windowIgnoresMouseClicks) != 0)   exstyle |= WS_EX_TRANSPARENT;
         if ((styleFlags & windowIsSemiTransparent) != 0)    exstyle |= WS_EX_LAYERED;
 
@@ -4769,6 +4774,9 @@ JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& compo
         // embeddedWindowPeer->initialise() after creating the peer
         //
         int styleFlags = ComponentPeer::windowIgnoresMouseClicks;
+        #if JUCE_DIRECT2D
+        styleFlags |= ComponentPeer::windowIsOwned;
+        #endif
         auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
                                                                        styleFlags,
                                                                        (HWND) parentPeer->getNativeHandle(),

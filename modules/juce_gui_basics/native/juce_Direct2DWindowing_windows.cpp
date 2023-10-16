@@ -34,8 +34,10 @@
     #include <d3d11_1.h>
     #include <dcomp.h>
     #include <dwrite.h>
+#include <dwmapi.h>
     #include <juce_core/juce_core.h>
     #include <juce_graphics/juce_graphics.h>
+    #include <juce_gui_basics/juce_gui_basics.h>
     #include "juce_Windowing_windows.cpp"
 
 #endif
@@ -83,7 +85,10 @@ public:
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
             exStyleFlags &= ~WS_EX_LAYERED;
-            exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+            if ((styleFlags & windowIsOwned) == 0)
+            {
+                exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
+            }
         }
 
         return exStyleFlags;

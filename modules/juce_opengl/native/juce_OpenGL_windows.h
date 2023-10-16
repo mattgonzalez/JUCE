@@ -36,7 +36,8 @@ public:
                    const OpenGLPixelFormat& pixelFormat,
                    void* contextToShareWithIn,
                    bool /*useMultisampling*/,
-                   OpenGLVersion version)
+                   OpenGLVersion version) :
+        attachedComponentWatcher(*this, component)
     {
         dummyComponent.reset (new DummyComponent (*this));
         createNativeWindow (component);
@@ -88,8 +89,12 @@ public:
         dc.reset();
 
         if (safeComponent != nullptr)
+        {
             if (auto* peer = safeComponent->getTopLevelComponent()->getPeer())
+            {
                 peer->removeScaleFactorListener (this);
+            }
+        }
     }
 
     InitResult initialiseOnRenderThread (OpenGLContext& c)
@@ -127,10 +132,34 @@ public:
     {
         if (nativeWindow != nullptr)
         {
+            auto hwnd = (HWND)nativeWindow->getNativeHandle();
+
+            //
+            // Owned window?
+            //
+            if (auto ownerHwnd = getOwnerHandle())
+            {
+                if (safeComponent)
+                {
+                    auto screenBounds = safeComponent->getScreenBounds();
+                    SetWindowPos(hwnd, nullptr,
+                        screenBounds.getX(),
+                        screenBounds.getY(),
+                        screenBounds.getWidth(),
+                        screenBounds.getHeight(),
+                        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+                }
+
+                return;
+            }
+
+            //
+            // Child window
+            //
             if (! approximatelyEqual (nativeScaleFactor, 1.0))
                 bounds = (bounds.toDouble() * nativeScaleFactor).toNearestInt();
 
-            SetWindowPos ((HWND) nativeWindow->getNativeHandle(), nullptr,
+            SetWindowPos (hwnd, nullptr,
                           bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(),
                           SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
         }
@@ -156,6 +185,16 @@ public:
     {
         if (nativeWindow != nullptr)
             return (HWND) nativeWindow->getNativeHandle();
+
+        return nullptr;
+    }
+
+    HWND getOwnerHandle()
+    {
+        if (auto nativeHandle = getNativeHandle())
+        {
+            return GetWindow(nativeHandle, GW_OWNER);
+        }
 
         return nullptr;
     }
@@ -296,6 +335,16 @@ private:
             peer->addScaleFactorListener (this);
         }
 
+        if (auto ownerHandle = getOwnerHandle())
+        {
+            auto ancestorHandle = detail::HWNDSubclasser::findAncestorHWND(ownerHandle);
+            ancestorSubclasser = std::make_unique<detail::HWNDSubclasser>(ancestorHandle,
+                [this]()
+                {
+                    attachedComponentWatcher.componentMovedOrResized(true, true);
+                });
+        }
+
         nativeWindow->setVisible (true);
         dc = std::unique_ptr<std::remove_pointer_t<HDC>, DeviceContextDeleter> { GetDC ((HWND) nativeWindow->getNativeHandle()),
                                                                                  DeviceContextDeleter { (HWND) nativeWindow->getNativeHandle() } };
@@ -380,6 +429,53 @@ private:
     std::unique_ptr<std::remove_pointer_t<HDC>, DeviceContextDeleter> dc;
     OpenGLContext* context = nullptr;
     double nativeScaleFactor = 1.0;
+
+    //==============================================================================
+
+    std::unique_ptr<detail::HWNDSubclasser> ancestorSubclasser;
+
+    struct AttachedComponentWatcher : public ComponentMovementWatcher
+    {
+        AttachedComponentWatcher(NativeContext& nativeContext_, Component& component_) :
+            ComponentMovementWatcher(&component_),
+            nativeContext(nativeContext_)
+        {
+            componentPeerChanged();
+        }
+
+        ~AttachedComponentWatcher() override = default;
+
+        NativeContext& nativeContext;
+
+        void componentMovedOrResized(bool, bool) override
+        {
+            if (auto peer = getComponent()->getPeer())
+            {
+                nativeContext.updateWindowPosition(peer->getAreaCoveredBy(*getComponent()));
+            }
+        }
+
+        void componentPeerChanged() override
+        {
+            if (auto peer = getComponent()->getPeer())
+            {
+                if (auto ownerHwnd = nativeContext.getOwnerHandle())
+                {
+                    nativeContext.ancestorSubclasser = std::make_unique<detail::HWNDSubclasser>(ownerHwnd,
+                        [this]()
+                        {
+                            componentMovedOrResized(true, true);
+                        });
+                }
+            }
+            else
+            {
+                nativeContext.ancestorSubclasser = nullptr;
+            }
+        }
+
+        void componentVisibilityChanged() override {}
+    } attachedComponentWatcher;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext)

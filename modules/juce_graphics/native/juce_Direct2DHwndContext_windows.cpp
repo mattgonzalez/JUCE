@@ -217,6 +217,7 @@ namespace juce
             //
             frameSize = size;
             deferredRepaints = size;
+            InvalidateRect(hwnd, nullptr, TRUE);
 
             //
             // Resize/scale the swap chain

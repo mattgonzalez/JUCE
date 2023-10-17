@@ -2458,6 +2458,7 @@ protected:
             wcex.lpszClassName  = windowClassName.toWideCharPointer();
             wcex.cbWndExtra     = 32;
             wcex.hInstance      = moduleHandle;
+            //wcex.hbrBackground = CreateSolidBrush(RGB(255, 0, 0));
 
             for (const auto& [index, field, ptr] : { std::tuple { 0, &wcex.hIcon,   &iconBig },
                                                      std::tuple { 1, &wcex.hIconSm, &iconSmall } })
@@ -2623,10 +2624,10 @@ protected:
             if ((styleFlags & windowIsResizable) != 0)
                 type |= WS_THICKFRAME;
         }
-        else if (styleFlags & windowIsOwned)
-        {
-            type |= WS_POPUP;
-        }
+//         else if (styleFlags & windowIsOwned)
+//         {
+//             type |= WS_POPUP;
+//         }
         else if (parentToAddTo != nullptr)
         {
             type |= WS_CHILD;
@@ -2643,7 +2644,6 @@ protected:
 
         if ((styleFlags & windowHasMinimiseButton) != 0)    type |= WS_MINIMIZEBOX;
         if ((styleFlags & windowHasMaximiseButton) != 0)    type |= WS_MAXIMIZEBOX;
-        if (styleFlags & windowIsOwned)                     type &= ~WS_CHILD;
         if ((styleFlags & windowIgnoresMouseClicks) != 0)   exstyle |= WS_EX_TRANSPARENT;
         if ((styleFlags & windowIsSemiTransparent) != 0)    exstyle |= WS_EX_LAYERED;
 
@@ -2706,9 +2706,7 @@ protected:
             // correctly enable the menu items that we specify in the wm_initmenu message.
             GetSystemMenu (hwnd, false);
 
-            auto alpha = component.getAlpha();
-            if (alpha < 1.0f)
-                setAlpha (alpha);
+            setAlpha (component.getAlpha());
         }
         else
         {
@@ -4774,9 +4772,6 @@ JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& compo
         // embeddedWindowPeer->initialise() after creating the peer
         //
         int styleFlags = ComponentPeer::windowIgnoresMouseClicks;
-        #if JUCE_DIRECT2D
-        styleFlags |= ComponentPeer::windowIsOwned;
-        #endif
         auto embeddedWindowPeer = std::make_unique<HWNDComponentPeer> (component,
                                                                        styleFlags,
                                                                        (HWND) parentPeer->getNativeHandle(),

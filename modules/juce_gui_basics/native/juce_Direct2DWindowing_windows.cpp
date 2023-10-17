@@ -84,11 +84,7 @@ public:
     {
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
-            exStyleFlags &= ~WS_EX_LAYERED;
-            if ((styleFlags & windowIsOwned) == 0)
-            {
-                exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
-            }
+            exStyleFlags |= WS_EX_LAYERED;
         }
 
         return exStyleFlags;
@@ -103,12 +99,17 @@ public:
 
     void setAlpha (float newAlpha) override
     {
-        if (usingDirect2DRendering())
+        if (currentRenderingEngine == direct2DRenderingEngine)
         {
+            const ScopedValueSetter<bool> scope(shouldIgnoreModalDismiss, true);
+
+            SetLayeredWindowAttributes(hwnd, RGB(255, 0, 0), 255, LWA_COLORKEY);
+
             if (direct2DContext)
             {
                 direct2DContext->setWindowAlpha (newAlpha);
             }
+
             component.repaint();
             return;
         }
@@ -200,7 +201,7 @@ private:
 
     bool usingDirect2DRendering() const noexcept
     {
-        jassert((currentRenderingEngine == direct2DRenderingEngine && direct2DContext) || (currentRenderingEngine == softwareRenderingEngine));
+        //jassert((currentRenderingEngine == direct2DRenderingEngine && direct2DContext) || (currentRenderingEngine == softwareRenderingEngine));
         return currentRenderingEngine == direct2DRenderingEngine && direct2DContext;
     }
 
@@ -297,7 +298,7 @@ private:
         }
         }
 
-        InvalidateRect(hwnd, nullptr, FALSE);
+        InvalidateRect(hwnd, nullptr, TRUE);
     }
 
     void setCurrentRenderingEngine ([[maybe_unused]] int index) override
@@ -342,6 +343,22 @@ private:
 
         switch (message)
         {
+            case WM_ERASEBKGND:
+            {
+                if (usingDirect2DRendering())
+                {
+                    RECT clientRect;
+                    GetClientRect(messageHwnd, &clientRect);
+
+                    auto brush = CreateSolidBrush(RGB(255, 0, 0));
+                    FillRect((HDC)wParam, &clientRect, brush);
+                    DeleteObject(brush);
+                    return 1;
+                }
+
+                break;
+            }
+
             case WM_PAINT:
             {
                 if (usingDirect2DRendering())
@@ -351,6 +368,9 @@ private:
                 }
                 break;
             }
+
+            case WM_NCHITTEST:
+                return HTCLIENT;
 
             case WM_NCCALCSIZE:
             {

@@ -103,7 +103,7 @@
     <VS2022 targetFolder="Builds/VisualStudio2022" smallIcon="c97aUr" bigIcon="c97aUr"
             extraCompilerFlags="/w44265 /w45038 /w44062">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" isDebug="1" targetName="AudioPluginHost"/>
+        <CONFIGURATION name="Debug" isDebug="1" targetName="AudioPluginHost" defines="JUCE_DIRECT2D=1"/>
         <CONFIGURATION name="Release" isDebug="0" targetName="AudioPluginHost" debugInformationFormat="ProgramDatabase"/>
       </CONFIGURATIONS>
       <MODULEPATHS>

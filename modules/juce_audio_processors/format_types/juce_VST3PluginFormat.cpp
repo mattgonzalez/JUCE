@@ -1645,7 +1645,7 @@ private:
             // Only update the size if the constrained size is actually different
             //
             if (constrainedRect.getWidth() != scaledRect.getWidth() ||
-                constrainedRect.getHeight() != scaledRect.getHeight())
+                 constrainedRect.getHeight() != scaledRect.getHeight())
             {
                 const ScopedValueSetter<bool> recursiveResizeSetter (recursiveResize, true);
 
@@ -1809,7 +1809,7 @@ private:
         ViewComponent()
         {
             setOpaque (true);
-            inner.addToDesktop(ComponentPeer::windowIsOwned);
+            inner.addToDesktop(0);
 
             if (auto* innerPeer = inner.getPeer())
             {

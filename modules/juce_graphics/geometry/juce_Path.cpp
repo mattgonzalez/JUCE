@@ -68,27 +68,27 @@ static bool isMarker (float value, float marker) noexcept
 }
 
 //==============================================================================
-Path::PathBounds::PathBounds() noexcept
+PathData::PathBounds::PathBounds() noexcept
 {
 }
 
-Rectangle<float> Path::PathBounds::getRectangle() const noexcept
+Rectangle<float> PathData::PathBounds::getRectangle() const noexcept
 {
     return { pathXMin, pathYMin, pathXMax - pathXMin, pathYMax - pathYMin };
 }
 
-void Path::PathBounds::reset() noexcept
+void PathData::PathBounds::reset() noexcept
 {
     pathXMin = pathYMin = pathYMax = pathXMax = 0;
 }
 
-void Path::PathBounds::reset (float x, float y) noexcept
+void PathData::PathBounds::reset (float x, float y) noexcept
 {
     pathXMin = pathXMax = x;
     pathYMin = pathYMax = y;
 }
 
-void Path::PathBounds::extend (float x, float y) noexcept
+void PathData::PathBounds::extend (float x, float y) noexcept
 {
     if (x < pathXMin)      pathXMin = x;
     else if (x > pathXMax) pathXMax = x;
@@ -98,7 +98,8 @@ void Path::PathBounds::extend (float x, float y) noexcept
 }
 
 //==============================================================================
-Path::Path()
+Path::Path() :
+    internal(new PathData)
 {
 }
 
@@ -107,9 +108,7 @@ Path::~Path()
 }
 
 Path::Path (const Path& other)
-    : data (other.data),
-      bounds (other.bounds),
-      useNonZeroWinding (other.useNonZeroWinding)
+    : internal (other.internal)
 {
 }
 
@@ -117,52 +116,45 @@ Path& Path::operator= (const Path& other)
 {
     if (this != &other)
     {
-        data = other.data;
-        bounds = other.bounds;
-        useNonZeroWinding = other.useNonZeroWinding;
+        internal = other.internal;
     }
 
     return *this;
 }
 
 Path::Path (Path&& other) noexcept
-    : data (std::move (other.data)),
-      bounds (other.bounds),
-      useNonZeroWinding (other.useNonZeroWinding)
+    : internal(std::move (other.internal))
 {
 }
 
 Path& Path::operator= (Path&& other) noexcept
 {
-    data = std::move (other.data);
-    bounds = other.bounds;
-    useNonZeroWinding = other.useNonZeroWinding;
+    internal = std::move (other.internal);
     return *this;
 }
 
-bool Path::operator== (const Path& other) const noexcept    { return useNonZeroWinding == other.useNonZeroWinding && data == other.data; }
+bool Path::operator== (const Path& other) const noexcept    { return internal == other.internal; }
 bool Path::operator!= (const Path& other) const noexcept    { return ! operator== (other); }
 
 void Path::clear() noexcept
 {
-    data.clearQuick();
-    bounds.reset();
+    internal->clear();
 }
 
 void Path::swapWithPath (Path& other) noexcept
 {
-    data.swapWith (other.data);
-    std::swap (bounds.pathXMin, other.bounds.pathXMin);
-    std::swap (bounds.pathXMax, other.bounds.pathXMax);
-    std::swap (bounds.pathYMin, other.bounds.pathYMin);
-    std::swap (bounds.pathYMax, other.bounds.pathYMax);
-    std::swap (useNonZeroWinding, other.useNonZeroWinding);
+    std::swap(internal, other.internal);
 }
 
 //==============================================================================
 void Path::setUsingNonZeroWinding (const bool isNonZero) noexcept
 {
-    useNonZeroWinding = isNonZero;
+    internal->useNonZeroWinding = isNonZero;
+}
+
+bool Path::isUsingNonZeroWinding() const 
+{ 
+    return internal->useNonZeroWinding; 
 }
 
 void Path::scaleToFit (float x, float y, float w, float h, bool preserveProportions) noexcept
@@ -173,7 +165,7 @@ void Path::scaleToFit (float x, float y, float w, float h, bool preserveProporti
 //==============================================================================
 bool Path::isEmpty() const noexcept
 {
-    for (auto i = data.begin(), e = data.end(); i != e; ++i)
+    for (auto i = internal->data.begin(), e = internal->data.end(); i != e; ++i)
     {
         auto type = *i;
 
@@ -194,7 +186,7 @@ bool Path::isEmpty() const noexcept
 
 Rectangle<float> Path::getBounds() const noexcept
 {
-    return bounds.getRectangle();
+    return internal->bounds.getRectangle();
 }
 
 Rectangle<float> Path::getBoundsTransformed (const AffineTransform& transform) const noexcept
@@ -205,19 +197,19 @@ Rectangle<float> Path::getBoundsTransformed (const AffineTransform& transform) c
 //==============================================================================
 void Path::preallocateSpace (int numExtraCoordsToMakeSpaceFor)
 {
-    data.ensureStorageAllocated (data.size() + numExtraCoordsToMakeSpaceFor);
+    internal->data.ensureStorageAllocated (internal->data.size() + numExtraCoordsToMakeSpaceFor);
 }
 
 void Path::startNewSubPath (const float x, const float y)
 {
     JUCE_CHECK_COORDS_ARE_VALID (x, y)
 
-    if (data.isEmpty())
-        bounds.reset (x, y);
+    if (internal->data.isEmpty())
+        internal->bounds.reset (x, y);
     else
-        bounds.extend (x, y);
+        internal->bounds.extend (x, y);
 
-    data.add (moveMarker, x, y);
+    internal->data.add (moveMarker, x, y);
 }
 
 void Path::startNewSubPath (Point<float> start)
@@ -229,11 +221,11 @@ void Path::lineTo (const float x, const float y)
 {
     JUCE_CHECK_COORDS_ARE_VALID (x, y)
 
-    if (data.isEmpty())
+    if (internal->data.isEmpty())
         startNewSubPath (0, 0);
 
-    data.add (lineMarker, x, y);
-    bounds.extend (x, y);
+    internal->data.add (lineMarker, x, y);
+    internal->bounds.extend (x, y);
 }
 
 void Path::lineTo (Point<float> end)
@@ -247,11 +239,11 @@ void Path::quadraticTo (const float x1, const float y1,
     JUCE_CHECK_COORDS_ARE_VALID (x1, y1)
     JUCE_CHECK_COORDS_ARE_VALID (x2, y2)
 
-    if (data.isEmpty())
+    if (internal->data.isEmpty())
         startNewSubPath (0, 0);
 
-    data.add (quadMarker, x1, y1, x2, y2);
-    bounds.extend (x1, y1, x2, y2);
+    internal->data.add (quadMarker, x1, y1, x2, y2);
+    internal->bounds.extend (x1, y1, x2, y2);
 }
 
 void Path::quadraticTo (Point<float> controlPoint, Point<float> endPoint)
@@ -268,11 +260,11 @@ void Path::cubicTo (const float x1, const float y1,
     JUCE_CHECK_COORDS_ARE_VALID (x2, y2)
     JUCE_CHECK_COORDS_ARE_VALID (x3, y3)
 
-    if (data.isEmpty())
+    if (internal->data.isEmpty())
         startNewSubPath (0, 0);
 
-    data.add (cubicMarker, x1, y1, x2, y2, x3, y3);
-    bounds.extend (x1, y1, x2, y2, x3, y3);
+    internal->data.add (cubicMarker, x1, y1, x2, y2, x3, y3);
+    internal->bounds.extend (x1, y1, x2, y2, x3, y3);
 }
 
 void Path::cubicTo (Point<float> controlPoint1,
@@ -286,12 +278,14 @@ void Path::cubicTo (Point<float> controlPoint1,
 
 void Path::closeSubPath()
 {
-    if (! (data.isEmpty() || isMarker (data.getLast(), closeSubPathMarker)))
-        data.add (closeSubPathMarker);
+    if (! (internal->data.isEmpty() || isMarker (internal->data.getLast(), closeSubPathMarker)))
+        internal->data.add (closeSubPathMarker);
 }
 
 Point<float> Path::getCurrentPosition() const
 {
+    auto& data = internal->data;
+
     if (data.isEmpty())
         return {};
 
@@ -317,12 +311,14 @@ Point<float> Path::getCurrentPosition() const
 
 void Path::addRectangle (float x, float y, float w, float h)
 {
+    auto& bounds = internal->bounds;
+
     auto x1 = x, y1 = y, x2 = x + w, y2 = y + h;
 
     if (w < 0) std::swap (x1, x2);
     if (h < 0) std::swap (y1, y2);
 
-    if (data.isEmpty())
+    if (internal->data.isEmpty())
     {
         bounds.pathXMin = x1;
         bounds.pathXMax = x2;
@@ -337,7 +333,7 @@ void Path::addRectangle (float x, float y, float w, float h)
         bounds.pathYMax = jmax (bounds.pathYMax, y2);
     }
 
-    data.add (moveMarker, x1, y2,
+    internal->data.add (moveMarker, x1, y2,
               lineMarker, x1, y1,
               lineMarker, x2, y1,
               lineMarker, x2, y2,
@@ -720,8 +716,8 @@ void Path::addBubble (Rectangle<float> bodyArea,
 
 void Path::addPath (const Path& other)
 {
-    const auto* d = other.data.begin();
-    const auto size = other.data.size();
+    const auto* d = other.internal->data.begin();
+    const auto size = other.internal->data.size();
 
     for (int i = 0; i < size;)
     {
@@ -762,8 +758,8 @@ void Path::addPath (const Path& other)
 void Path::addPath (const Path& other,
                     const AffineTransform& transformToApply)
 {
-    const auto* d = other.data.begin();
-    const auto size = other.data.size();
+    const auto* d = other.internal->data.begin();
+    const auto size = other.internal->data.size();
 
     for (int i = 0; i < size;)
     {
@@ -817,6 +813,9 @@ void Path::addPath (const Path& other,
 //==============================================================================
 void Path::applyTransform (const AffineTransform& transform) noexcept
 {
+    auto& data = internal->data;
+    auto& bounds = internal->bounds;
+
     bounds.reset();
     bool firstPoint = true;
     float* d = data.begin();
@@ -933,6 +932,8 @@ AffineTransform Path::getTransformToScaleToFit (float x, float y, float w, float
 //==============================================================================
 bool Path::contains (float x, float y, float tolerance) const
 {
+    auto& bounds = internal->bounds;
+
     if (x <= bounds.pathXMin || x >= bounds.pathXMax
          || y <= bounds.pathYMin || y >= bounds.pathYMax)
         return false;
@@ -958,7 +959,7 @@ bool Path::contains (float x, float y, float tolerance) const
         }
     }
 
-    return useNonZeroWinding ? (negativeCrossings != positiveCrossings)
+    return internal->useNonZeroWinding ? (negativeCrossings != positiveCrossings)
                              : ((negativeCrossings + positiveCrossings) & 1) != 0;
 }
 
@@ -1076,16 +1077,16 @@ Path Path::createPathWithRoundedCorners (const float cornerRadius) const
 
     Path p;
     int n = 0, indexOfPathStart = 0, indexOfPathStartThis = 0;
-    auto* elements = data.begin();
+    auto* elements = internal->data.begin();
     bool lastWasLine = false, firstWasLine = false;
 
-    while (n < data.size())
+    while (n < internal->data.size())
     {
         auto type = elements[n++];
 
         if (isMarker (type, moveMarker))
         {
-            indexOfPathStart = p.data.size();
+            indexOfPathStart = p.internal->data.size();
             indexOfPathStartThis = n - 1;
             auto x = elements[n++];
             auto y = elements[n++];
@@ -1132,8 +1133,8 @@ Path Path::createPathWithRoundedCorners (const float cornerRadius) const
                 {
                     auto propNeeded = jmin (0.5, cornerRadius / len1);
 
-                    *(p.data.end() - 2) = (float) (joinX - (joinX - startX) * propNeeded);
-                    *(p.data.end() - 1) = (float) (joinY - (joinY - startY) * propNeeded);
+                    *(p.internal->data.end() - 2) = (float) (joinX - (joinX - startX) * propNeeded);
+                    *(p.internal->data.end() - 1) = (float) (joinY - (joinY - startY) * propNeeded);
                 }
 
                 auto len2 = PathHelpers::lengthOf (endX, endY, joinX, joinY);
@@ -1172,8 +1173,8 @@ Path Path::createPathWithRoundedCorners (const float cornerRadius) const
                     {
                         auto propNeeded = jmin (0.5, cornerRadius / len1);
 
-                        *(p.data.end() - 2) = (float) (joinX - (joinX - startX) * propNeeded);
-                        *(p.data.end() - 1) = (float) (joinY - (joinY - startY) * propNeeded);
+                        *(p.internal->data.end() - 2) = (float) (joinX - (joinX - startX) * propNeeded);
+                        *(p.internal->data.end() - 1) = (float) (joinY - (joinY - startY) * propNeeded);
                     }
 
                     auto len2 = PathHelpers::lengthOf (endX, endY, joinX, joinY);
@@ -1187,8 +1188,8 @@ Path Path::createPathWithRoundedCorners (const float cornerRadius) const
 
                         p.quadraticTo (joinX, joinY, endX, endY);
 
-                        p.data.begin()[indexOfPathStart + 1] = endX;
-                        p.data.begin()[indexOfPathStart + 2] = endY;
+                        p.internal->data.begin()[indexOfPathStart + 1] = endX;
+                        p.internal->data.begin()[indexOfPathStart + 2] = endY;
                     }
                 }
 
@@ -1270,11 +1271,11 @@ void Path::loadPathFromStream (InputStream& source)
             break;
 
         case 'n':
-            useNonZeroWinding = true;
+            internal->useNonZeroWinding = true;
             break;
 
         case 'z':
-            useNonZeroWinding = false;
+            internal->useNonZeroWinding = false;
             break;
 
         case 'e':
@@ -1295,9 +1296,9 @@ void Path::loadPathFromData (const void* const pathData, const size_t numberOfBy
 
 void Path::writePathToStream (OutputStream& dest) const
 {
-    dest.writeByte (useNonZeroWinding ? 'n' : 'z');
+    dest.writeByte (internal->useNonZeroWinding ? 'n' : 'z');
 
-    for (auto* i = data.begin(); i != data.end();)
+    for (auto* i = internal->data.begin(); i != internal->data.end();)
     {
         auto type = *i++;
 
@@ -1342,8 +1343,10 @@ void Path::writePathToStream (OutputStream& dest) const
 
 String Path::toString() const
 {
+    auto& data = internal->data;
+
     MemoryOutputStream s (2048);
-    if (! useNonZeroWinding)
+    if (! internal->useNonZeroWinding)
         s << 'a';
 
     float lastMarker = 0.0f;
@@ -1389,7 +1392,7 @@ String Path::toString() const
             lastMarker = type;
         }
 
-        while (--numCoords >= 0 && i < data.size())
+        while (--numCoords >= 0 && i < internal->data.size())
         {
             String coord (data.begin()[i++], 3);
 
@@ -1476,7 +1479,7 @@ void Path::restoreFromString (StringRef stringVersion)
 
 //==============================================================================
 Path::Iterator::Iterator (const Path& p) noexcept
-    : elementType (startNewSubPath), path (p), index (path.data.begin())
+    : elementType (startNewSubPath), path (p), index (path.internal->data.begin())
 {
 }
 
@@ -1486,7 +1489,7 @@ Path::Iterator::~Iterator() noexcept
 
 bool Path::Iterator::next() noexcept
 {
-    if (index != path.data.end())
+    if (index != path.internal->data.end())
     {
         auto type = *index++;
 

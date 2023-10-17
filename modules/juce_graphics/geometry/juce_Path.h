@@ -26,6 +26,9 @@
 namespace juce
 {
 
+class PathType;
+class PathData;
+
 //==============================================================================
 /**
     A path is a sequence of lines and curves that may either form a closed shape
@@ -713,7 +716,7 @@ public:
 
         @see setUsingNonZeroWinding
     */
-    bool isUsingNonZeroWinding() const                  { return useNonZeroWinding; }
+    bool isUsingNonZeroWinding() const;
 
 
     //==============================================================================
@@ -804,28 +807,7 @@ private:
     friend class Path::Iterator;
     friend class EdgeTable;
 
-    Array<float> data;
-
-    struct PathBounds
-    {
-        PathBounds() noexcept;
-        Rectangle<float> getRectangle() const noexcept;
-        void reset() noexcept;
-        void reset (float, float) noexcept;
-        void extend (float, float) noexcept;
-
-        template <typename... Coords>
-        void extend (float x, float y, Coords... coords) noexcept
-        {
-            extend (x, y);
-            extend (coords...);
-        }
-
-        float pathXMin = 0, pathXMax = 0, pathYMin = 0, pathYMax = 0;
-    };
-
-    PathBounds bounds;
-    bool useNonZeroWinding = true;
+    ReferenceCountedObjectPtr<PathData> internal;
 
     static constexpr float lineMarker           = 100001.0f;
     static constexpr float moveMarker           = 100002.0f;
@@ -834,6 +816,56 @@ private:
     static constexpr float closeSubPathMarker   = 100005.0f;
 
     JUCE_LEAK_DETECTOR (Path)
+};
+
+class JUCE_API PathData : public ReferenceCountedObject
+{
+public:
+    PathData() = default;
+    ~PathData() override = default;
+
+    void clear()
+    {
+        data.clearQuick();
+        bounds.reset();
+
+        changed = true;
+    }
+
+    int getNumDataPoints() const noexcept
+    {
+        return data.size();
+    }
+
+    using Ptr = ReferenceCountedObjectPtr<PathData>;
+
+protected:
+    friend class Path;
+    friend class PathFlatteningIterator;
+
+    Array<float> data;
+
+    struct PathBounds
+    {
+        PathBounds() noexcept;
+        Rectangle<float> getRectangle() const noexcept;
+        void reset() noexcept;
+        void reset(float, float) noexcept;
+        void extend(float, float) noexcept;
+
+        template <typename... Coords>
+        void extend(float x, float y, Coords... coords) noexcept
+        {
+            extend(x, y);
+            extend(coords...);
+        }
+
+        float pathXMin = 0, pathXMax = 0, pathYMin = 0, pathYMax = 0;
+    };
+
+    PathBounds bounds;
+    bool useNonZeroWinding = true;
+    bool changed = false;
 };
 
 } // namespace juce

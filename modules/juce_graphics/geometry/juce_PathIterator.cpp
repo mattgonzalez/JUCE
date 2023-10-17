@@ -40,7 +40,7 @@ PathFlatteningIterator::PathFlatteningIterator (const Path& pathToUse,
       subPathIndex (-1),
       path (pathToUse),
       transform (t),
-      source (path.data.begin()),
+      source (path.internal->data.begin()),
       toleranceSquared (tolerance * tolerance),
       isIdentityTransform (t.isIdentity())
 {
@@ -54,7 +54,7 @@ PathFlatteningIterator::~PathFlatteningIterator()
 bool PathFlatteningIterator::isLastInSubpath() const noexcept
 {
     return stackPos == stackBase.get()
-             && (source == path.data.end() || isMarker (*source, Path::moveMarker));
+             && (source == path.internal->data.end() || isMarker (*source, Path::moveMarker));
 }
 
 bool PathFlatteningIterator::next()
@@ -73,7 +73,7 @@ bool PathFlatteningIterator::next()
 
         if (stackPos == stackBase.get())
         {
-            if (source == path.data.end())
+            if (source == path.internal->data.end())
                 return false;
 
             type = *source++;
@@ -137,7 +137,7 @@ bool PathFlatteningIterator::next()
             ++subPathIndex;
 
             closesSubPath = stackPos == stackBase.get()
-                             && source != path.data.end()
+                             && source != path.internal->data.end()
                              && isMarker (*source, Path::closeSubPathMarker)
                              && approximatelyEqual (x2, subPathCloseX)
                              && approximatelyEqual (y2, subPathCloseY);

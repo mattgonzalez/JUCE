@@ -99,7 +99,7 @@ void PathData::PathBounds::extend (float x, float y) noexcept
 
 //==============================================================================
 Path::Path() :
-    internal(new PathData)
+    internal(NativePathType{}.createData())
 {
 }
 
@@ -1535,5 +1535,16 @@ bool Path::Iterator::next() noexcept
 }
 
 #undef JUCE_CHECK_COORDS_ARE_VALID
+
+std::unique_ptr<juce::PathType> NativePathData::createType() const
+{
+    return std::make_unique<NativePathType>();
+}
+
+PathData::Ptr NativePathType::createData() const
+{
+    return new NativePathData;
+}
+
 
 } // namespace juce

@@ -70,6 +70,8 @@ public:
     //==============================================================================
     /** Creates an empty path. */
     Path();
+    Path(ReferenceCountedObjectPtr<PathData> pathData);
+    Path(const PathType& type);
 
     /** Creates a copy of another path. */
     Path (const Path&);
@@ -824,6 +826,8 @@ public:
     PathData() = default;
     ~PathData() override = default;
 
+    virtual std::unique_ptr<PathType> createType() const = 0;
+
     void clear()
     {
         data.clearQuick();
@@ -866,6 +870,48 @@ protected:
     PathBounds bounds;
     bool useNonZeroWinding = true;
     bool changed = false;
+};
+
+class JUCE_API  PathType
+{
+public:
+    PathType() = default;
+    virtual ~PathType() = default;
+
+    virtual PathData::Ptr createData() const = 0;
+    virtual int getTypeID() const = 0;
+};
+
+class JUCE_API  SoftwarePathType : public PathType
+{
+public:
+    SoftwarePathType();
+    ~SoftwarePathType() override;
+
+    PathData::Ptr createData() const override;
+    int getTypeID() const override;
+};
+
+class NativePathData : public PathData
+{
+public:
+    ~NativePathData() override = default;
+
+    std::unique_ptr<PathType> createType() const override;
+};
+
+class JUCE_API  NativePathType : public PathType
+{
+public:
+    NativePathType() = default;
+    ~NativePathType() override = default;
+
+    PathData::Ptr createData() const override;
+
+    int getTypeID() const override
+    {
+        return 1;
+    }
 };
 
 } // namespace juce

@@ -163,6 +163,11 @@ namespace juce
                     ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter{ pimpl.hwnd };
 
                     SetWindowPos(pimpl.hwnd, nullptr, area.getX(), area.getY(), area.getWidth(), area.getHeight(), flagsToSend);
+
+                    if (pimpl.dwmThumbnail)
+                    {
+                        pimpl.dwmThumbnail->update(peer->getAreaCoveredBy(pimpl.hwndComponent));
+                    }
                 }
             }
 
@@ -172,12 +177,18 @@ namespace juce
 
                 if (pimpl.ancestorPeer != newAncestorPeer)
                 {
+                    pimpl.dwmThumbnail = nullptr;
                     pimpl.removeFromParent();
                     pimpl.ancestorPeer = newAncestorPeer;
 
                     if (auto hwndPeer = pimpl.findPeerForHWND())
                     {
                         pimpl.ownedWindowFlag = (hwndPeer->getStyleFlags() & ComponentPeer::windowIsOwned) != 0;
+                    }
+
+                    if (pimpl.ownedWindowFlag)
+                    {
+                        pimpl.dwmThumbnail = std::make_unique<DwmThumbnail>((HWND)newAncestorPeer->getNativeHandle(), pimpl.hwnd);
                     }
 
                     pimpl.addToParent();
@@ -197,6 +208,52 @@ namespace juce
 
             Pimpl& pimpl;
         } hwndComponentWatcher;
+
+        //==============================================================================
+        
+        struct DwmThumbnail
+        {
+            DwmThumbnail(HWND destinationHwnd_, HWND sourceHwnd_) :
+                sourceHwnd(sourceHwnd_),
+                destinationHwnd(destinationHwnd_)
+            {
+                [[maybe_unused]]auto hr = DwmRegisterThumbnail(destinationHwnd_, sourceHwnd_, &thumbnailHandle);
+                jassert(SUCCEEDED(hr));
+            }
+
+            ~DwmThumbnail()
+            {
+                if (thumbnailHandle)
+                {
+                    DwmUnregisterThumbnail(thumbnailHandle);
+                }
+            }
+
+            void update(Rectangle<int> destinationArea)
+            {
+                if (thumbnailHandle)
+                {
+                    DWM_THUMBNAIL_PROPERTIES thumbnailProps{};
+                    thumbnailProps.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION;
+                    thumbnailProps.fVisible = TRUE;
+                    thumbnailProps.rcDestination.left = destinationArea.getX();
+                    thumbnailProps.rcDestination.top = destinationArea.getY();
+                    thumbnailProps.rcDestination.right = destinationArea.getRight();
+                    thumbnailProps.rcDestination.bottom = destinationArea.getBottom();
+
+                    auto hr = DwmUpdateThumbnailProperties(thumbnailHandle, &thumbnailProps);
+                    jassert(SUCCEEDED(hr));
+                }
+            }
+
+            HWND sourceHwnd = nullptr;
+            HWND destinationHwnd = nullptr;
+            HTHUMBNAIL thumbnailHandle = nullptr;
+        };
+
+        std::unique_ptr<DwmThumbnail> dwmThumbnail;
+
+        //==============================================================================
 
         bool ownedWindowFlag = false;
 

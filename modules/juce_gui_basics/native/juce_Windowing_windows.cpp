@@ -1866,30 +1866,25 @@ public:
         const ScopedValueSetter<bool> scope (shouldIgnoreModalDismiss, true);
 
         auto intAlpha = (uint8) jlimit (0, 255, (int) (newAlpha * 255.0f));
-        layeredWindowAlpha = intAlpha;
 
-        //if (isOpaque())
+        if (isOpaque())
         {
-            //if (newAlpha < 1.0f)
+            if (newAlpha < 1.0f)
             {
                 SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
-                SetLayeredWindowAttributes(hwnd, RGB(255, 0, 0), intAlpha, LWA_COLORKEY | LWA_ALPHA);
+                SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), intAlpha, LWA_ALPHA);
             }
-//             else
-//             {
-//                 SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
-//                 RedrawWindow(hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
-//             }
+            else
+            {
+                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+                RedrawWindow(hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+            }
         }
-#if 0
         else
         {
             layeredWindowAlpha = intAlpha;
             component.repaint();
         }
-#endif
-
-        //component.repaint();
     }
 
     void setMinimised (bool shouldBeMinimised) override
@@ -2463,7 +2458,6 @@ protected:
             wcex.lpszClassName  = windowClassName.toWideCharPointer();
             wcex.cbWndExtra     = 32;
             wcex.hInstance      = moduleHandle;
-            wcex.hbrBackground = CreateSolidBrush(RGB(255, 0, 0));
 
             for (const auto& [index, field, ptr] : { std::tuple { 0, &wcex.hIcon,   &iconBig },
                                                      std::tuple { 1, &wcex.hIconSm, &iconSmall } })
@@ -2655,8 +2649,6 @@ protected:
 
         exstyle = adjustWindowStyleFlags (exstyle);
 
-        exstyle |= WS_EX_LAYERED;
-
         hwnd = CreateWindowEx (exstyle, WindowClassHolder::getInstance()->getWindowClassName(),
                                L"", type, 0, 0, 0, 0, parentToAddTo, nullptr,
                                (HINSTANCE) Process::getCurrentModuleInstanceHandle(), nullptr);
@@ -2715,7 +2707,7 @@ protected:
             GetSystemMenu (hwnd, false);
 
             auto alpha = component.getAlpha();
-            //if (alpha < 1.0f)
+            if (alpha < 1.0f)
                 setAlpha (alpha);
         }
         else
@@ -4043,12 +4035,10 @@ protected:
         {
             //==============================================================================
             case WM_NCHITTEST:
-#if 0
                 if ((styleFlags & windowIgnoresMouseClicks) != 0)
                     return HTTRANSPARENT;
 
                 if (! hasTitleBar())
-#endif
                     return HTCLIENT;
 
                 break;
@@ -4067,11 +4057,6 @@ protected:
                 return 0;
 
             case WM_ERASEBKGND:
-            {
-
-                return 0;
-            }
-
             case WM_NCCALCSIZE:
                 if (hasTitleBar())
                     break;

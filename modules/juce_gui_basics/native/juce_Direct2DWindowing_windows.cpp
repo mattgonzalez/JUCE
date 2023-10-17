@@ -370,7 +370,11 @@ private:
             }
 
             case WM_NCHITTEST:
-                return HTCLIENT;
+                if (usingDirect2DRendering())
+                {
+                    return HTCLIENT;
+                }
+                break;
 
             case WM_NCCALCSIZE:
             {

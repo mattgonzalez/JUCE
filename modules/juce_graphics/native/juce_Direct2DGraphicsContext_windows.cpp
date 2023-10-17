@@ -508,7 +508,7 @@ namespace juce
             targetAlpha = alpha;
         }
 
-        SavedState* startFrame(RectangleList<int>& paintAreas)
+        virtual SavedState* startFrame(RectangleList<int>& paintAreas)
         {
             prepare();
 

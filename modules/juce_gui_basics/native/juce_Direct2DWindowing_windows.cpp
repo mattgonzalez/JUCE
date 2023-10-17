@@ -82,6 +82,7 @@ public:
 
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
+#if 0
         if (currentRenderingEngine == direct2DRenderingEngine)
         {
             exStyleFlags &= ~WS_EX_LAYERED;
@@ -90,6 +91,7 @@ public:
                 exStyleFlags |= WS_EX_NOREDIRECTIONBITMAP;
             }
         }
+#endif
 
         return exStyleFlags;
     }
@@ -103,6 +105,7 @@ public:
 
     void setAlpha (float newAlpha) override
     {
+#if 0
         if (usingDirect2DRendering())
         {
             if (direct2DContext)
@@ -112,6 +115,7 @@ public:
             component.repaint();
             return;
         }
+#endif
 
         HWNDComponentPeer::setAlpha (newAlpha);
     }
@@ -292,6 +296,7 @@ private:
 #if JUCE_DIRECT2D_METRICS
                 direct2DContext->stats = paintStats;
 #endif
+                //direct2DContext->setWindowAlpha(0.5f);
             }
             break;
         }

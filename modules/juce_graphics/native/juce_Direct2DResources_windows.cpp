@@ -56,10 +56,13 @@ struct DeviceContext
 
     void release()
     {
+        hwndRenderTarget = nullptr;
         context = nullptr;
     }
 
     ComSmartPtr<ID2D1DeviceContext1> context;
+    ComSmartPtr<ID2D1HwndRenderTarget> hwndRenderTarget;
+    D2D1_SIZE_U lastSize{};
     AffineTransform                 transform;
 };
 
@@ -361,7 +364,7 @@ public:
                                            reinterpret_cast<void**> (compositionDevice.resetAndGetPointerAddress()));
             if (SUCCEEDED (hr))
             {
-                hr = compositionDevice->CreateTargetForHwnd (hwnd, FALSE, compositionTarget.resetAndGetPointerAddress());
+                hr = compositionDevice->CreateTargetForHwnd (hwnd, TRUE, compositionTarget.resetAndGetPointerAddress());
                 if (SUCCEEDED (hr))
                 {
                     hr = compositionDevice->CreateVisual (compositionVisual.resetAndGetPointerAddress());

@@ -260,6 +260,42 @@ namespace juce
             updateRegion.clear();
         }
 
+        SavedState* startFrame(RectangleList<int>& paintAreas) override
+        {
+#if 0
+            auto clientRect = getClientRect();
+            D2D1_SIZE_U size{ (uint32)clientRect.getWidth(), (uint32)clientRect.getHeight() };
+
+            if (deviceResources.deviceContext.hwndRenderTarget == nullptr)
+            {
+                D2D1_RENDER_TARGET_PROPERTIES renderTargetProps{};
+                renderTargetProps.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+                renderTargetProps.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+                factories->getDirect2DFactory()->CreateHwndRenderTarget(renderTargetProps,
+                    D2D1::HwndRenderTargetProperties(hwnd, size),
+                    deviceResources.deviceContext.hwndRenderTarget.resetAndGetPointerAddress());
+            }
+
+            if (deviceResources.deviceContext.hwndRenderTarget)
+            {
+                if (deviceResources.deviceContext.lastSize.width != size.width ||
+                    deviceResources.deviceContext.lastSize.height != size.height)
+                {
+                    auto& hwndRenderTarget = deviceResources.deviceContext.hwndRenderTarget;
+
+                    hwndRenderTarget->Resize(size);
+                    hwndRenderTarget->BeginDraw();
+                    hwndRenderTarget->Clear({ 1.0f, 0.0f, 0.0f, 1.0f });
+                    hwndRenderTarget->EndDraw();
+
+                    deviceResources.deviceContext.lastSize = size;
+                }
+            }
+#endif
+
+            return Pimpl::startFrame(paintAreas);
+        }
+
         HRESULT finishFrame() override
         {
             if (auto hr = Pimpl::finishFrame(); FAILED(hr))

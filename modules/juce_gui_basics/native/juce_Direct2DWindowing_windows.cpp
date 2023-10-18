@@ -357,22 +357,6 @@ private:
 
         switch (message)
         {
-            case WM_ERASEBKGND:
-            {
-                if (usingDirect2DRendering())
-                {
-                    RECT clientRect;
-                    GetClientRect(messageHwnd, &clientRect);
-
-                    auto brush = CreateSolidBrush(redirectionBitmapColourKey);
-                    FillRect((HDC)wParam, &clientRect, brush);
-                    DeleteObject(brush);
-                    return 1;
-                }
-
-                break;
-            }
-
             case WM_PAINT:
             {
                 if (usingDirect2DRendering())

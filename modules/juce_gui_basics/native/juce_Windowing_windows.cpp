@@ -1710,9 +1710,9 @@ public:
     };
 
     //==============================================================================
-    HWNDComponentPeer (Component& comp, int windowStyleFlags, 
-        HWND parent, 
-        bool nonRepainting, 
+    HWNDComponentPeer (Component& comp, int windowStyleFlags,
+        HWND parent,
+        bool nonRepainting,
         int currentRenderingEngine_ = softwareRenderingEngine)
         : ComponentPeer (comp, windowStyleFlags),
           dontRepaint (nonRepainting),
@@ -2482,6 +2482,8 @@ protected:
 
         LPCTSTR getWindowClassName() const noexcept     { return (LPCTSTR) (pointer_sized_uint) atom; }
 
+        static constexpr auto backgroundBrushColour = RGB(0, 0, 1);
+
         JUCE_DECLARE_SINGLETON_SINGLETHREADED_MINIMAL (WindowClassHolder)
 
     private:
@@ -2623,10 +2625,6 @@ protected:
             if ((styleFlags & windowIsResizable) != 0)
                 type |= WS_THICKFRAME;
         }
-//         else if (styleFlags & windowIsOwned)
-//         {
-//             type |= WS_POPUP;
-//         }
         else if (parentToAddTo != nullptr)
         {
             type |= WS_CHILD;

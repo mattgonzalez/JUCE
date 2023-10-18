@@ -2453,12 +2453,11 @@ protected:
 
             WNDCLASSEX wcex = {};
             wcex.cbSize         = sizeof (wcex);
-            wcex.style          = CS_OWNDC;
             wcex.lpfnWndProc    = (WNDPROC) windowProc;
             wcex.lpszClassName  = windowClassName.toWideCharPointer();
             wcex.cbWndExtra     = 32;
             wcex.hInstance      = moduleHandle;
-            //wcex.hbrBackground = CreateSolidBrush(RGB(255, 0, 0));
+            wcex.hbrBackground = CreateSolidBrush(backgroundBrushColour);
 
             for (const auto& [index, field, ptr] : { std::tuple { 0, &wcex.hIcon,   &iconBig },
                                                      std::tuple { 1, &wcex.hIconSm, &iconSmall } })

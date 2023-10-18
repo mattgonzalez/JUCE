@@ -106,16 +106,24 @@ public:
             //
             // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
             // But - Direct2D doesn't fill the window back buffer so the hit tests pass through for transparent windows
-            // 
-            // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - in the window 
-            // class, set the background brush to that colour.
-            // 
-            // Then, call SetLayeredWindowAttributes with LWA_COLORKEY and pass the same key colour. The key colour will be
-            // made transparent.
-            // 
+            //
+            // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - choose an
+            // RGB color as the key and call SetLayeredWindowAttributes with LWA_COLORKEY and the key colour.
+            //
+            // Then, use an ID2D1HwndRenderTarget when resizing the window to flush the redirection bitmap to that same
+            // RGB color.
+            //
+            // Also tried using the window class background brush and handling WM_ERASEBKGND; this seems to work best.
+            //
             // Only certain colour values seem to work; RGB(0, 0, 1) seems OK
-            // 
-            SetLayeredWindowAttributes(hwnd, WindowClassHolder::backgroundBrushColour, 255, LWA_COLORKEY);
+            //
+            if (isNotOpaque())
+            {
+                jassert(GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_LAYERED);
+
+                auto backgroundKeyColour = Direct2DHwndContext::getBackgroundTransparencyKeyColour();
+                SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
+            }
 
             if (direct2DContext)
             {
@@ -428,9 +436,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DComponentPeer)
 };
 
-ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
+ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND, int renderingEngine)
 {
-    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, Direct2DComponentPeer::direct2DRenderingEngine };
+    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderingEngine };
     peer->initialise();
     return peer;
 }

@@ -96,10 +96,10 @@ public:
 
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
-        if (currentRenderingEngine == direct2DRenderingEngine)
-        {
-            exStyleFlags |= WS_EX_LAYERED;
-        }
+//         if (currentRenderingEngine == direct2DRenderingEngine)
+//         {
+//             //exStyleFlags |= WS_EX_LAYERED;
+//         }
 
         return exStyleFlags;
     }

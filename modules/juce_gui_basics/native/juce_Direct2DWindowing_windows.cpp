@@ -51,20 +51,6 @@ private:
     int64 lastPaintStartTicks = 0;
     #endif
 
-    //
-    // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
-    // But - Direct2D doesn't fill the window back buffer so the hit tests pass through for transparent windows
-    // 
-    // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - fill the
-    // window on WM_ERASEBKGND with the key colour. The key colour has a non-zero alpha, so hit testing works normally.
-    // 
-    // Then, call SetLayeredWindowAttributes with LWA_COLORKEY and pass the same key colour. The key colour will be
-    // made transparent.
-    // 
-    // This is Pantone 448C, the ugliest colour in the world.
-    //
-    static constexpr auto redirectionBitmapColourKey = RGB(74, 65, 42);
-
 public:
     enum
     {
@@ -117,7 +103,19 @@ public:
         {
             const ScopedValueSetter<bool> scope(shouldIgnoreModalDismiss, true);
 
-            SetLayeredWindowAttributes(hwnd, redirectionBitmapColourKey, 255, LWA_COLORKEY);
+            //
+            // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
+            // But - Direct2D doesn't fill the window back buffer so the hit tests pass through for transparent windows
+            // 
+            // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - in the window 
+            // class, set the background brush to that colour.
+            // 
+            // Then, call SetLayeredWindowAttributes with LWA_COLORKEY and pass the same key colour. The key colour will be
+            // made transparent.
+            // 
+            // Only certain colour values seem to work; RGB(0, 0, 1) seems OK
+            // 
+            SetLayeredWindowAttributes(hwnd, WindowClassHolder::backgroundBrushColour, 255, LWA_COLORKEY);
 
             if (direct2DContext)
             {

@@ -2457,7 +2457,6 @@ protected:
             wcex.lpszClassName  = windowClassName.toWideCharPointer();
             wcex.cbWndExtra     = 32;
             wcex.hInstance      = moduleHandle;
-            wcex.hbrBackground = CreateSolidBrush(backgroundBrushColour);
 
             for (const auto& [index, field, ptr] : { std::tuple { 0, &wcex.hIcon,   &iconBig },
                                                      std::tuple { 1, &wcex.hIconSm, &iconSmall } })
@@ -2481,8 +2480,6 @@ protected:
         }
 
         LPCTSTR getWindowClassName() const noexcept     { return (LPCTSTR) (pointer_sized_uint) atom; }
-
-        static constexpr auto backgroundBrushColour = RGB(0, 0, 1);
 
         JUCE_DECLARE_SINGLETON_SINGLETHREADED_MINIMAL (WindowClassHolder)
 

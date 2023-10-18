@@ -261,6 +261,29 @@ namespace juce
             updateRegion.clear();
         }
 
+        void clearBackground() override
+        {
+            if (! opaque && swap.state == direct2d::SwapChain::bufferAllocated)
+            {
+                deviceResources.deviceContext.createHwndRenderTarget(hwnd);
+
+                auto& hwndRenderTarget = deviceResources.deviceContext.hwndRenderTarget;
+                if (hwndRenderTarget)
+                {
+                    D2D1_COLOR_F colorF = direct2d::colourToD2D(getBackgroundTransparencyKeyColour());
+
+                    RECT clientRect;
+                    GetClientRect(hwnd, &clientRect);
+
+                    D2D1_SIZE_U size{ (uint32)(clientRect.right - clientRect.left), (uint32)(clientRect.bottom - clientRect.top) };
+                    hwndRenderTarget->Resize(size);
+                    hwndRenderTarget->BeginDraw();
+                    hwndRenderTarget->Clear(colorF);
+                    hwndRenderTarget->EndDraw();
+                }
+            }
+        }
+
         HRESULT finishFrame() override
         {
             if (auto hr = Pimpl::finishFrame(); FAILED(hr))

@@ -508,6 +508,10 @@ namespace juce
             targetAlpha = alpha;
         }
 
+        virtual void clearBackground()
+        {
+        }
+
         SavedState* startFrame(RectangleList<int>& paintAreas)
         {
             prepare();
@@ -529,6 +533,11 @@ namespace juce
             {
                 return nullptr;
             }
+
+            //
+            // Clear background
+            //
+            clearBackground();
 
             //
             // Init device context transform

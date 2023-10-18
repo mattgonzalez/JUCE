@@ -45,6 +45,11 @@ public:
     Image createSnapshot(Rectangle<int> deviceIndependentArea) override;
     Image createSnapshot();
 
+    static Colour getBackgroundTransparencyKeyColour() noexcept
+    {
+        return Colour { 0xff000001 };
+    }
+
 private:
     struct HwndPimpl;
     std::unique_ptr<HwndPimpl> pimpl;

@@ -2658,7 +2658,7 @@ protected:
         // You normally want these to match otherwise timer events and async messages will happen
         // in a different context to normal HWND messages which can cause issues with UI scaling.
 
-        //DBG("hwnd " << String::toHexString((pointer_sized_int)hwnd) << " " << String::toHexString((pointer_sized_int)parentToAddTo));
+        DBG("hwnd " << String::toHexString((pointer_sized_int)hwnd) << "  parent:" << String::toHexString((pointer_sized_int)parentToAddTo));
 
         jassert (isPerMonitorDPIAwareWindow (hwnd) == isPerMonitorDPIAwareWindow (juce_messageWindowHandle)
                    || isInScopedDPIAwarenessDisabler());

@@ -34,8 +34,6 @@ namespace juce
             hwnd(h),
             owner(comp)
         {
-            DBG("\npimpl HWND " << printHwnd(h));
-
             if (owner.isShowing())
                 componentPeerChanged();
         }
@@ -59,10 +57,9 @@ namespace juce
 
                 ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter{ hwnd };
 
-                DBG("SetWindowPos hwnd:" << printHwnd(hwnd) << "  area " << area.toString() << "   flags:" << String::toHexString(flagsToSend));
-                DBG("    wasMoved:" << (int)wasMoved << "   wasResized:" << (int)wasResized);
-
                 SetWindowPos(hwnd, nullptr, area.getX(), area.getY(), area.getWidth(), area.getHeight(), flagsToSend);
+
+                invalidateHWNDAndChildren();
             }
         }
 
@@ -82,7 +79,6 @@ namespace juce
 
             auto isShowing = owner.isShowing();
 
-            DBG("ShowWindow  hwnd:" << printHwnd(hwnd) << "  isShowing:" << (int)isShowing);
             ShowWindow(hwnd, isShowing ? SW_SHOWNA : SW_HIDE);
 
             if (isShowing)
@@ -117,6 +113,17 @@ namespace juce
             return {};
         }
 
+        void invalidateHWNDAndChildren()
+        {
+            EnumChildWindows(hwnd, invalidateHwndCallback, 0);
+        }
+
+        static BOOL invalidateHwndCallback(HWND hwnd, LPARAM)
+        {
+            InvalidateRect(hwnd, nullptr, TRUE);
+            return TRUE;
+        }
+
         HWND hwnd;
 
     private:
@@ -125,16 +132,12 @@ namespace juce
             if (currentPeer != nullptr)
             {
                 auto windowFlags = GetWindowLongPtr(hwnd, GWL_STYLE);
-
                 using FlagType = decltype (windowFlags);
-
                 windowFlags &= ~(FlagType)WS_POPUP;
                 windowFlags |= (FlagType)WS_CHILD;
-
                 SetWindowLongPtr(hwnd, GWL_STYLE, windowFlags);
-                SetParent(hwnd, (HWND)currentPeer->getNativeHandle());
 
-                DBG("\nadded child " << printHwnd(hwnd) << "  parent:" << printHwnd(currentPeer->getNativeHandle()));
+                SetParent(hwnd, (HWND)currentPeer->getNativeHandle());
 
                 componentMovedOrResized(true, true);
             }

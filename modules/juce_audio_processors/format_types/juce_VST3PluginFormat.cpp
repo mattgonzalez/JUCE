@@ -1762,6 +1762,14 @@ private:
                 attachedCalled = true;
 
             updatePluginScale();
+
+#if JUCE_WINDOWS
+            //
+            // Make sure the embedded component window is the right size
+            // and invalidate the embedded HWND and any child windows
+            //
+            embeddedComponent.updateHWNDBounds();
+#endif
         }
     }
 

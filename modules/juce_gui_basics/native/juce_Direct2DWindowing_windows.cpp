@@ -384,11 +384,7 @@ private:
             }
 
             case WM_NCHITTEST:
-                if (usingDirect2DRendering())
-                {
-                    return HTCLIENT;
-                }
-                break;
+                return DefWindowProc(messageHwnd, message, wParam, lParam);
 
             case WM_NCCALCSIZE:
             {

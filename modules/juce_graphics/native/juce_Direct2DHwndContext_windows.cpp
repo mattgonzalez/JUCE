@@ -263,7 +263,7 @@ namespace juce
 
         void clearBackground() override
         {
-            if (! opaque && swap.state == direct2d::SwapChain::bufferAllocated)
+            if (! opaque && swap.state == direct2d::SwapChain::State::bufferAllocated)
             {
                 deviceResources.deviceContext.createHwndRenderTarget(hwnd);
 

@@ -559,6 +559,7 @@ namespace juce
     Direct2DHwndContext::Direct2DHwndContext(HWND hwnd_, float dpiScalingFactor_, bool opaque)
     {
         pimpl = std::make_unique<HwndPimpl>(*this, hwnd_, dpiScalingFactor_, opaque);
+        updateSize();
     }
 
     Direct2DHwndContext::~Direct2DHwndContext() {}

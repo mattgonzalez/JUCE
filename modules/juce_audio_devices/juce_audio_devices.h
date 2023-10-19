@@ -174,8 +174,7 @@ namespace juce
     {
         shared,
         exclusive,
-        sharedLowLatency,
-        loopback
+        sharedLowLatency
     };
 }
 

@@ -409,11 +409,6 @@ static bool isLowLatencyMode (WASAPIDeviceMode deviceMode) noexcept
     return deviceMode == WASAPIDeviceMode::sharedLowLatency;
 }
 
-static bool isLoopbackMode(WASAPIDeviceMode deviceMode) noexcept
-{
-    return deviceMode == WASAPIDeviceMode::loopback;
-}
-
 static bool supportsSampleRateConversion (WASAPIDeviceMode deviceMode) noexcept
 {
     return deviceMode == WASAPIDeviceMode::shared;
@@ -423,9 +418,10 @@ static bool supportsSampleRateConversion (WASAPIDeviceMode deviceMode) noexcept
 class WASAPIDeviceBase
 {
 public:
-    WASAPIDeviceBase (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
+    WASAPIDeviceBase (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode, bool outputLoopback_)
         : device (d),
-          deviceMode (mode)
+          deviceMode (mode),
+          outputLoopback(outputLoopback_)
     {
         clientEvent = CreateEvent (nullptr, false, false, nullptr);
 
@@ -552,6 +548,7 @@ public:
     UINT32 actualBufferSize = 0;
     int bytesPerSample = 0, bytesPerFrame = 0;
     std::atomic<bool> sampleRateHasChanged { false }, shouldShutdown { false }, isActive { true };
+    bool outputLoopback = false;
 
     virtual void updateFormat (bool isFloat) = 0;
 
@@ -642,7 +639,7 @@ private:
         if (! check (client->GetMixFormat (&mixFormat)))
             return {};
 
-        WAVEFORMATEXTENSIBLE format;
+        WAVEFORMATEXTENSIBLE format{};
 
         copyWavFormat (format, mixFormat);
         CoTaskMemFree (mixFormat);
@@ -838,7 +835,7 @@ private:
             streamFlags |= (0x80000000    /*AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM*/
                             | 0x8000000); /*AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY*/
 
-        if (isLoopbackMode (deviceMode))
+        if (outputLoopback)
             streamFlags |= 0x00020000; /* AUDCLNT_STREAMFLAGS_LOOPBACK */
 
         return streamFlags;
@@ -927,8 +924,8 @@ private:
 class WASAPIInputDevice  : public WASAPIDeviceBase
 {
 public:
-    WASAPIInputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
-        : WASAPIDeviceBase (d, mode)
+    WASAPIInputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode, bool outputLoopback_)
+        : WASAPIDeviceBase (d, mode, outputLoopback_)
     {
     }
 
@@ -939,16 +936,9 @@ public:
 
     bool open (double newSampleRate, const BigInteger& newChannels, int bufferSizeSamples)
     {
-#if 0
-        return 
+        return openClient (newSampleRate, newChannels, bufferSizeSamples)
                 && (numChannels == 0 || check (client->GetService (__uuidof (IAudioCaptureClient),
                                                                    (void**) captureClient.resetAndGetPointerAddress())));
-#else
-        bool ok = openClient(newSampleRate, newChannels, bufferSizeSamples);
-        auto hr = client->GetService(__uuidof (IAudioCaptureClient),
-            (void**)captureClient.resetAndGetPointerAddress());
-        return ok && (numChannels == 0 || check(hr));
-#endif
     }
 
     void close()
@@ -1083,7 +1073,7 @@ class WASAPIOutputDevice  : public WASAPIDeviceBase
 {
 public:
     WASAPIOutputDevice (const ComSmartPtr<IMMDevice>& d, WASAPIDeviceMode mode)
-        : WASAPIDeviceBase (d, mode)
+        : WASAPIDeviceBase (d, mode, false)
     {
     }
 
@@ -1655,11 +1645,18 @@ private:
 
             auto flow = getDataFlow (device);
 
-            if ((deviceId == inputDeviceId && flow == eCapture) ||
-                (deviceId == inputDeviceId && flow == eRender))
-                inputDevice.reset (new WASAPIInputDevice (device, deviceMode));
+            if (deviceId == inputDeviceId && flow == eCapture)
+            {
+                inputDevice.reset(new WASAPIInputDevice(device, deviceMode, false));
+            }
+            else if (deviceId == inputDeviceId && flow == eRender)
+            {
+                inputDevice.reset(new WASAPIInputDevice(device, deviceMode, true));
+            }
             else if (deviceId == outputDeviceId && flow == eRender)
-                outputDevice.reset (new WASAPIOutputDevice (device, deviceMode));
+            {
+                outputDevice.reset(new WASAPIOutputDevice(device, deviceMode));
+            }
         }
 
         return (outputDeviceId.isEmpty() || (outputDevice != nullptr && outputDevice->isOk()))
@@ -1770,12 +1767,6 @@ public:
 
         auto outputIndex = devices.outputDeviceNames.indexOf (outputDeviceName);
         auto inputIndex  = devices.inputDeviceNames .indexOf (inputDeviceName);
-
-        auto mode = deviceMode;
-        if (devices.outputDeviceNames.contains(inputDeviceName))
-        {
-            mode = WASAPIDeviceMode::loopback;
-        }
 
         if (outputIndex >= 0 || inputIndex >= 0)
         {
@@ -1968,7 +1959,6 @@ private:
         if (mode == WASAPIDeviceMode::shared)            return "Windows Audio";
         if (mode == WASAPIDeviceMode::sharedLowLatency)  return "Windows Audio (Low Latency Mode)";
         if (mode == WASAPIDeviceMode::exclusive)         return "Windows Audio (Exclusive Mode)";
-        if (mode == WASAPIDeviceMode::loopback)         return "Windows Audio (Loopback Mode)";
 
         jassertfalse;
         return {};

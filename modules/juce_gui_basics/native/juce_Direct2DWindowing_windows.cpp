@@ -436,9 +436,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Direct2DComponentPeer)
 };
 
-ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND, int renderingEngine)
+ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderingEngine };
+    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, Direct2DComponentPeer::direct2DRenderingEngine };
     peer->initialise();
     return peer;
 }

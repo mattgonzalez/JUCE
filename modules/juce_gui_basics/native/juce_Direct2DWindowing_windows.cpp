@@ -275,8 +275,15 @@ private:
         {
         case HWNDComponentPeer::softwareRenderingEngine:
         {
+            setLayeredWindowStyle(false);
+
             direct2DContext = nullptr;
 
+            setAlpha(layeredWindowAlpha / 255.0f);
+            RedrawWindow(hwnd,
+                NULL,
+                NULL,
+                RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
             break;
         }
 
@@ -313,7 +320,8 @@ private:
                     setLayeredWindowStyle(true);
 
                     auto backgroundKeyColour = Direct2DHwndContext::getBackgroundTransparencyKeyColour();
-                    SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
+                    auto ok = SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
+                    jassert(ok);
                 }
             }
             break;
@@ -326,8 +334,6 @@ private:
         if (index != currentRenderingEngine)
         {
             currentRenderingEngine = jlimit(0, getAvailableRenderingEngines().size() - 1, index);
-
-            recreateWindow();
         }
 
         updateDirect2DContext();

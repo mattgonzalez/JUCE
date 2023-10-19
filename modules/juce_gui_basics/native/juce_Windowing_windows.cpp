@@ -1085,7 +1085,8 @@ public:
             bf.BlendOp = AC_SRC_OVER;
             bf.SourceConstantAlpha = layeredWindowAlpha;
 
-            UpdateLayeredWindow (hwnd, nullptr, &pos, &size, hdc, &p, 0, &bf, 2 /*ULW_ALPHA*/);
+            auto ok = UpdateLayeredWindow (hwnd, nullptr, &pos, &size, hdc, &p, 0, &bf, 2 /*ULW_ALPHA*/);
+            jassert(ok);
         }
         else
         {
@@ -1895,7 +1896,8 @@ public:
             if (newAlpha < 1.0f)
             {
                 setLayeredWindowStyle(true);
-                SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), intAlpha, LWA_ALPHA);
+                auto ok = SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), intAlpha, LWA_ALPHA);
+                jassert(ok);
             }
             else
             {
@@ -2794,24 +2796,6 @@ protected:
 
             DestroyWindow (hwnd);
         }
-    }
-
-    void recreateWindow()
-    {
-        auto bounds = getBounds();
-        auto fullscreenFlag = isFullScreen();
-        auto visible = component.isVisible();
-        auto keyboardFocusFlag = isFocused();
-        auto renderingEngine = getCurrentRenderingEngine();
-
-        destroyWindow();
-        createWindow();
-
-        setBounds(bounds, fullscreenFlag);
-        setCurrentRenderingEngine(renderingEngine);
-        setVisible(visible);
-        component.toFront(keyboardFocusFlag);
-        component.repaint();
     }
 
     static void* toFrontCallback1 (void* h)

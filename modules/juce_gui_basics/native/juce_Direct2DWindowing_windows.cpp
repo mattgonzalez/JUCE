@@ -82,6 +82,7 @@ public:
 
     DWORD adjustWindowStyleFlags (DWORD exStyleFlags) override
     {
+        // don't need this anymore?
 //         if (currentRenderingEngine == direct2DRenderingEngine)
 //         {
 //             //exStyleFlags |= WS_EX_LAYERED;
@@ -358,10 +359,12 @@ private:
     {
         //Logger::outputDebugString ("peerWindowProc d2d " + String::toHexString ((int) message));
 
-        TRACE_LOG_PARENT_WINDOW_MESSAGE (message);
-
-        switch (message)
+        if (usingDirect2DRendering())
         {
+            TRACE_LOG_PARENT_WINDOW_MESSAGE(message);
+
+            switch (message)
+            {
             case WM_PAINT:
             {
                 if (usingDirect2DRendering())
@@ -377,12 +380,12 @@ private:
 
             case WM_NCCALCSIZE:
             {
-                TRACE_LOG_D2D_RESIZE (WM_NCCALCSIZE);
+                TRACE_LOG_D2D_RESIZE(WM_NCCALCSIZE);
 
                 if (direct2DContext && component.isVisible())
                 {
-                    RECT* rect = (RECT*) lParam;
-                    direct2DContext->setSize (rect->right - rect->left, rect->bottom - rect->top);
+                    RECT* rect = (RECT*)lParam;
+                    direct2DContext->setSize(rect->right - rect->left, rect->bottom - rect->top);
                 }
                 break;
             }
@@ -391,22 +394,22 @@ private:
             {
                 switch (wParam & 0xfff0)
                 {
-                    case SC_MAXIMIZE:
-                    case SC_RESTORE:
+                case SC_MAXIMIZE:
+                case SC_RESTORE:
+                {
+                    if (messageHwnd == hwnd)
                     {
-                        if (messageHwnd == hwnd)
-                        {
-                            auto status = HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
+                        auto status = HWNDComponentPeer::peerWindowProc(messageHwnd, message, wParam, lParam);
 
-                            updateDirect2DSize();
+                        updateDirect2DSize();
 
-                            return status;
-                        }
-
-                        break;
+                        return status;
                     }
 
-                    case SC_MINIMIZE: break;
+                    break;
+                }
+
+                case SC_MINIMIZE: break;
                 }
 
                 break;
@@ -427,6 +430,7 @@ private:
             }
 
             default: break;
+            }
         }
 
         return HWNDComponentPeer::peerWindowProc (messageHwnd, message, wParam, lParam);
@@ -437,7 +441,7 @@ private:
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND) parentHWND, false, Direct2DComponentPeer::direct2DRenderingEngine };
+    auto peer = new Direct2DComponentPeer { *this, styleFlags, (HWND)parentHWND, false, Direct2DComponentPeer::direct2DRenderingEngine };
     peer->initialise();
     return peer;
 }

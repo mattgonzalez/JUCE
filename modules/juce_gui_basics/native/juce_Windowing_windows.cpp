@@ -1861,6 +1861,29 @@ public:
     using ComponentPeer::localToGlobal;
     using ComponentPeer::globalToLocal;
 
+    bool isLayeredWindowStyle() const noexcept
+    {
+        return (GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_LAYERED) != 0;
+    }
+
+    void setLayeredWindowStyle(bool layered) noexcept
+    {
+        auto exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+
+        if (layered)
+        {
+            exStyle |= WS_EX_LAYERED;
+        }
+        else
+        {
+            exStyle &= ~WS_EX_LAYERED;
+        }
+
+        DBG("setLayeredWindowStyle " << String::toHexString(exStyle));
+
+        SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
+    }
+
     void setAlpha (float newAlpha) override
     {
         const ScopedValueSetter<bool> scope (shouldIgnoreModalDismiss, true);
@@ -1871,17 +1894,19 @@ public:
         {
             if (newAlpha < 1.0f)
             {
-                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+                setLayeredWindowStyle(true);
                 SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), intAlpha, LWA_ALPHA);
             }
             else
             {
-                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+                setLayeredWindowStyle(false);
                 RedrawWindow(hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
             }
         }
         else
         {
+            setLayeredWindowStyle(true);
+
             layeredWindowAlpha = intAlpha;
             component.repaint();
         }
@@ -2652,7 +2677,8 @@ protected:
         // You normally want these to match otherwise timer events and async messages will happen
         // in a different context to normal HWND messages which can cause issues with UI scaling.
 
-        DBG("hwnd " << String::toHexString((pointer_sized_int)hwnd) << "  parent:" << String::toHexString((pointer_sized_int)parentToAddTo));
+        DBG("CreateWindowEx  hwnd:" << String::toHexString((pointer_sized_int)hwnd) << "  parent:" << String::toHexString((pointer_sized_int)parentToAddTo));
+        DBG("           style:" << String::toHexString(type) << "   exstyle:" << String::toHexString(exstyle));
 
         jassert (isPerMonitorDPIAwareWindow (hwnd) == isPerMonitorDPIAwareWindow (juce_messageWindowHandle)
                    || isInScopedDPIAwarenessDisabler());

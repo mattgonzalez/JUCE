@@ -114,47 +114,8 @@ namespace juce
         // PushedLayer, PushedAxisAlignedClipLayer, and LayerPopper all exist just to unwind the
         // layer stack accordingly.
         //
-        struct PushedLayer
-        {
-            PushedLayer() = default;
-            PushedLayer(PushedLayer&&) = default;
-
-            void pop(ID2D1DeviceContext* deviceContext)
-            {
-                deviceContext->PopLayer();
-            }
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PushedLayer)
-        };
-
-        struct PushedAxisAlignedClipLayer
-        {
-            PushedAxisAlignedClipLayer() = default;
-            PushedAxisAlignedClipLayer(PushedAxisAlignedClipLayer&&) = default;
-
-            void pop(ID2D1DeviceContext* deviceContext)
-            {
-                deviceContext->PopAxisAlignedClip();
-            }
-        };
-
-        struct LayerPopper
-        {
-            void operator() (PushedLayer& layer)
-            {
-                layer.pop(deviceContext);
-            }
-
-            void operator() (PushedAxisAlignedClipLayer& layer)
-            {
-                layer.pop(deviceContext);
-            }
-
-            ID2D1DeviceContext* deviceContext;
-        };
-
-        using PushedLayerVariant = std::variant<PushedLayer, PushedAxisAlignedClipLayer>;
-        std::stack<PushedLayerVariant> pushedLayers;
+        using PopLayer = void (*) (ID2D1DeviceContext*);
+        std::stack<PopLayer> pushedLayers;
 
     public:
         //
@@ -189,7 +150,7 @@ namespace juce
 
         ~SavedState()
         {
-            jassert(pushedLayers.size() == 0);
+            jassert(pushedLayers.empty());
             clearFill();
         }
 
@@ -204,7 +165,7 @@ namespace juce
             deviceContext.resetTransform();
             deviceContext.context->PushLayer(layerParameters, nullptr);
 
-            pushedLayers.push(PushedLayer{});
+            pushedLayers.push ([] (ID2D1DeviceContext* ctx) { ctx->PopLayer(); });
         }
 
         void pushGeometryClipLayer(ComSmartPtr<ID2D1Geometry> geometry)
@@ -228,38 +189,25 @@ namespace juce
             deviceContext.setTransform(currentTransform.getTransform());
             deviceContext.context->PushAxisAlignedClip(direct2d::rectangleToRectF(r), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
-            pushedLayers.push(PushedAxisAlignedClipLayer{});
+            pushedLayers.push ([] (ID2D1DeviceContext* ctx) { ctx->PopAxisAlignedClip(); });
         }
 
         void pushTransparencyLayer(float opacity)
         {
-            pushLayer({ D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), opacity, {} });
+            pushLayer({ D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), opacity, {}, {} });
         }
 
         void popLayers()
         {
-            LayerPopper layerPopper{ deviceContext.context };
-
-            while (pushedLayers.size() > 0)
-            {
-                auto& pushedLayer = pushedLayers.top();
-
-                std::visit(layerPopper, pushedLayer);
-
-                pushedLayers.pop();
-            }
+            while (! pushedLayers.empty())
+                popTopLayer();
         }
 
         void popTopLayer()
         {
-            LayerPopper layerPopper{ deviceContext.context };
-
-            if (pushedLayers.size() > 0)
+            if (! pushedLayers.empty())
             {
-                auto& pushedLayer = pushedLayers.top();
-
-                std::visit(layerPopper, pushedLayer);
-
+                pushedLayers.top() (deviceContext.context);
                 pushedLayers.pop();
             }
         }

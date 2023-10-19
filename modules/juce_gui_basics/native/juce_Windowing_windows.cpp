@@ -2405,6 +2405,18 @@ public:
        #endif
     }
 
+    static void getLastError()
+    {
+        TCHAR messageBuffer[256] = {};
+
+        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            messageBuffer, (DWORD)numElementsInArray(messageBuffer) - 1, nullptr);
+
+        DBG(messageBuffer);
+        jassertfalse;
+    }
+
 protected:
     HWND hwnd, parentToAddTo;
     std::unique_ptr<DropShadower> shadower;
@@ -2732,14 +2744,7 @@ protected:
         }
         else
         {
-            TCHAR messageBuffer[256] = {};
-
-            FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                           nullptr, GetLastError(), MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
-                           messageBuffer, (DWORD) numElementsInArray (messageBuffer) - 1, nullptr);
-
-            DBG (messageBuffer);
-            jassertfalse;
+            getLastError();
         }
     }
 

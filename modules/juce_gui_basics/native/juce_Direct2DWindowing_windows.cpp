@@ -103,28 +103,6 @@ public:
         {
             const ScopedValueSetter<bool> scope(shouldIgnoreModalDismiss, true);
 
-            //
-            // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
-            // But - Direct2D doesn't fill the window back buffer so the hit tests pass through for transparent windows
-            //
-            // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - choose an
-            // RGB color as the key and call SetLayeredWindowAttributes with LWA_COLORKEY and the key colour.
-            //
-            // Then, use an ID2D1HwndRenderTarget when resizing the window to flush the redirection bitmap to that same
-            // RGB color.
-            //
-            // Also tried using the window class background brush and handling WM_ERASEBKGND; this seems to work best.
-            //
-            // Only certain colour values seem to work; RGB(0, 0, 1) seems OK
-            //
-            if (isNotOpaque())
-            {
-                jassert(GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_LAYERED);
-
-                auto backgroundKeyColour = Direct2DHwndContext::getBackgroundTransparencyKeyColour();
-                SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
-            }
-
             if (direct2DContext)
             {
                 direct2DContext->setWindowAlpha (newAlpha);
@@ -297,6 +275,7 @@ private:
         case HWNDComponentPeer::softwareRenderingEngine:
         {
             direct2DContext = nullptr;
+
             break;
         }
 
@@ -313,12 +292,32 @@ private:
 #if JUCE_DIRECT2D_METRICS
                 direct2DContext->stats = paintStats;
 #endif
+
+                //
+                // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
+                // But - Direct2D doesn't fill the window back buffer so the hit tests pass through for transparent windows
+                //
+                // Layered windows can use a single RGB colour as a transparency key (like a green screen). So - choose an
+                // RGB color as the key and call SetLayeredWindowAttributes with LWA_COLORKEY and the key colour.
+                //
+                // Then, use an ID2D1HwndRenderTarget when resizing the window to flush the redirection bitmap to that same
+                // RGB color.
+                //
+                // Also tried using the window class background brush and handling WM_ERASEBKGND; this seems to work best.
+                //
+                // Only certain colour values seem to work; RGB(0, 0, 1) seems OK
+                //
+                if (isNotOpaque())
+                {
+                    setLayeredWindowStyle(true);
+
+                    auto backgroundKeyColour = Direct2DHwndContext::getBackgroundTransparencyKeyColour();
+                    SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
+                }
             }
             break;
         }
         }
-
-        InvalidateRect(hwnd, nullptr, TRUE);
     }
 
     void setCurrentRenderingEngine ([[maybe_unused]] int index) override

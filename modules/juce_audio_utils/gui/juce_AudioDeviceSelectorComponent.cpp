@@ -26,8 +26,8 @@
 namespace juce
 {
 
-struct SimpleDeviceManagerInputLevelMeter  : public Component,
-                                             public Timer
+struct SimpleDeviceManagerInputLevelMeter final : public Component,
+                                                  public Timer
 {
     SimpleDeviceManagerInputLevelMeter (AudioDeviceManager& m)  : manager (m)
     {
@@ -86,8 +86,8 @@ static void drawTextLayout (Graphics& g, Component& owner, StringRef text, const
 
 
 //==============================================================================
-class AudioDeviceSelectorComponent::MidiInputSelectorComponentListBox  : public ListBox,
-                                                                         private ListBoxModel
+class AudioDeviceSelectorComponent::MidiInputSelectorComponentListBox final : public ListBox,
+                                                                              private ListBoxModel
 {
 public:
     MidiInputSelectorComponentListBox (AudioDeviceManager& dm, const String& noItems)
@@ -213,8 +213,9 @@ class AudioDeviceSettingsPanel : public Component,
 {
 public:
     AudioDeviceSettingsPanel (AudioIODeviceType& t, AudioDeviceSetupDetails& setupDetails,
-                              const bool hideAdvancedOptionsWithButton)
-        : type (t), setup (setupDetails)
+                              const bool hideAdvancedOptionsWithButton,
+                              AudioDeviceSelectorComponent& p)
+        : type (t), setup (setupDetails), parent (p)
     {
         if (hideAdvancedOptionsWithButton)
         {
@@ -238,120 +239,113 @@ public:
 
     void resized() override
     {
-        if (auto* parent = findParentComponentOfClass<AudioDeviceSelectorComponent>())
+        Rectangle<int> r (proportionOfWidth (0.35f), 0, proportionOfWidth (0.6f), 3000);
+
+        const int maxListBoxHeight = 100;
+        const int h = parent.getItemHeight();
+        const int space = h / 4;
+
+        if (outputDeviceDropDown != nullptr)
         {
-            Rectangle<int> r (proportionOfWidth (0.35f), 0, proportionOfWidth (0.6f), 3000);
+            auto row = r.removeFromTop (h);
 
-            const int maxListBoxHeight = 100;
-            const int h = parent->getItemHeight();
-            const int space = h / 4;
-
-            if (outputDeviceDropDown != nullptr)
+            if (testButton != nullptr)
             {
-                auto row = r.removeFromTop (h);
-
-                if (testButton != nullptr)
-                {
-                    testButton->changeWidthToFitText (h);
-                    testButton->setBounds (row.removeFromRight (testButton->getWidth()));
-                    row.removeFromRight (space);
-                }
-
-                outputDeviceDropDown->setBounds (row);
-                r.removeFromTop (space);
-            }
-
-            if (inputDeviceDropDown != nullptr)
-            {
-                auto row = r.removeFromTop (h);
-
-                inputLevelMeter->setBounds (row.removeFromRight (testButton != nullptr ? testButton->getWidth() : row.getWidth() / 6));
+                testButton->changeWidthToFitText (h);
+                testButton->setBounds (row.removeFromRight (testButton->getWidth()));
                 row.removeFromRight (space);
-                inputDeviceDropDown->setBounds (row);
+            }
+
+            outputDeviceDropDown->setBounds (row);
+            r.removeFromTop (space);
+        }
+
+        if (inputDeviceDropDown != nullptr)
+        {
+            auto row = r.removeFromTop (h);
+
+            inputLevelMeter->setBounds (row.removeFromRight (testButton != nullptr ? testButton->getWidth() : row.getWidth() / 6));
+            row.removeFromRight (space);
+            inputDeviceDropDown->setBounds (row);
+            r.removeFromTop (space);
+        }
+
+        if (outputChanList != nullptr)
+        {
+            outputChanList->setRowHeight (jmin (22, h));
+            outputChanList->setBounds (r.removeFromTop (outputChanList->getBestHeight (maxListBoxHeight)));
+            outputChanLabel->setBounds (0, outputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
+            r.removeFromTop (space);
+        }
+
+        if (inputChanList != nullptr)
+        {
+            inputChanList->setRowHeight (jmin (22, h));
+            inputChanList->setBounds (r.removeFromTop (inputChanList->getBestHeight (maxListBoxHeight)));
+            inputChanLabel->setBounds (0, inputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
+            r.removeFromTop (space);
+        }
+
+        r.removeFromTop (space * 2);
+
+        if (showAdvancedSettingsButton != nullptr
+            && sampleRateDropDown != nullptr && bufferSizeDropDown != nullptr)
+        {
+            showAdvancedSettingsButton->setBounds (r.removeFromTop (h));
+            r.removeFromTop (space);
+            showAdvancedSettingsButton->changeWidthToFitText();
+        }
+
+        auto advancedSettingsVisible = showAdvancedSettingsButton == nullptr
+                                          || showAdvancedSettingsButton->getToggleState();
+
+        if (sampleRateDropDown != nullptr)
+        {
+            sampleRateDropDown->setVisible (advancedSettingsVisible);
+
+            if (advancedSettingsVisible)
+            {
+                sampleRateDropDown->setBounds (r.removeFromTop (h));
                 r.removeFromTop (space);
             }
+        }
 
-            if (outputChanList != nullptr)
+        if (bufferSizeDropDown != nullptr)
+        {
+            bufferSizeDropDown->setVisible (advancedSettingsVisible);
+
+            if (advancedSettingsVisible)
             {
-                outputChanList->setRowHeight (jmin (22, h));
-                outputChanList->setBounds (r.removeFromTop (outputChanList->getBestHeight (maxListBoxHeight)));
-                outputChanLabel->setBounds (0, outputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
+                bufferSizeDropDown->setBounds (r.removeFromTop (h));
                 r.removeFromTop (space);
             }
+        }
 
-            if (inputChanList != nullptr)
+        r.removeFromTop (space);
+
+        if (showUIButton != nullptr || resetDeviceButton != nullptr)
+        {
+            auto buttons = r.removeFromTop (h);
+
+            if (showUIButton != nullptr)
             {
-                inputChanList->setRowHeight (jmin (22, h));
-                inputChanList->setBounds (r.removeFromTop (inputChanList->getBestHeight (maxListBoxHeight)));
-                inputChanLabel->setBounds (0, inputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
-                r.removeFromTop (space);
+                showUIButton->setVisible (advancedSettingsVisible);
+                showUIButton->changeWidthToFitText (h);
+                showUIButton->setBounds (buttons.removeFromLeft (showUIButton->getWidth()));
+                buttons.removeFromLeft (space);
             }
 
-            r.removeFromTop (space * 2);
-
-            if (showAdvancedSettingsButton != nullptr
-                && sampleRateDropDown != nullptr && bufferSizeDropDown != nullptr)
+            if (resetDeviceButton != nullptr)
             {
-                showAdvancedSettingsButton->setBounds (r.removeFromTop (h));
-                r.removeFromTop (space);
-                showAdvancedSettingsButton->changeWidthToFitText();
-            }
-
-            auto advancedSettingsVisible = showAdvancedSettingsButton == nullptr
-                                              || showAdvancedSettingsButton->getToggleState();
-
-            if (sampleRateDropDown != nullptr)
-            {
-                sampleRateDropDown->setVisible (advancedSettingsVisible);
-
-                if (advancedSettingsVisible)
-                {
-                    sampleRateDropDown->setBounds (r.removeFromTop (h));
-                    r.removeFromTop (space);
-                }
-            }
-
-            if (bufferSizeDropDown != nullptr)
-            {
-                bufferSizeDropDown->setVisible (advancedSettingsVisible);
-
-                if (advancedSettingsVisible)
-                {
-                    bufferSizeDropDown->setBounds (r.removeFromTop (h));
-                    r.removeFromTop (space);
-                }
+                resetDeviceButton->setVisible (advancedSettingsVisible);
+                resetDeviceButton->changeWidthToFitText (h);
+                resetDeviceButton->setBounds (buttons.removeFromLeft (resetDeviceButton->getWidth()));
             }
 
             r.removeFromTop (space);
-
-            if (showUIButton != nullptr || resetDeviceButton != nullptr)
-            {
-                auto buttons = r.removeFromTop (h);
-
-                if (showUIButton != nullptr)
-                {
-                    showUIButton->setVisible (advancedSettingsVisible);
-                    showUIButton->changeWidthToFitText (h);
-                    showUIButton->setBounds (buttons.removeFromLeft (showUIButton->getWidth()));
-                    buttons.removeFromLeft (space);
-                }
-
-                if (resetDeviceButton != nullptr)
-                {
-                    resetDeviceButton->setVisible (advancedSettingsVisible);
-                    resetDeviceButton->changeWidthToFitText (h);
-                    resetDeviceButton->setBounds (buttons.removeFromLeft (resetDeviceButton->getWidth()));
-                }
-
-                r.removeFromTop (space);
-            }
-
-            setSize (getWidth(), r.getY());
         }
-        else
-        {
-            jassertfalse;
-        }
+
+        setSize (getWidth(), r.getY());
     }
 
     void updateConfig (bool updateOutputDevice, bool updateInputDevice, bool updateSampleRate, bool updateBufferSize)
@@ -542,6 +536,7 @@ public:
 private:
     AudioIODeviceType& type;
     const AudioDeviceSetupDetails setup;
+    AudioDeviceSelectorComponent& parent;
 
     std::unique_ptr<ComboBox> outputDeviceDropDown, inputDeviceDropDown, sampleRateDropDown, bufferSizeDropDown;
     std::unique_ptr<Label> outputDeviceLabel, inputDeviceLabel, sampleRateLabel, bufferSizeLabel, inputChanLabel, outputChanLabel;
@@ -736,8 +731,8 @@ private:
 
 public:
     //==============================================================================
-    class ChannelSelectorListBox  : public ListBox,
-                                    private ListBoxModel
+    class ChannelSelectorListBox final : public ListBox,
+                                         private ListBoxModel
     {
     public:
         enum BoxType
@@ -1005,7 +1000,7 @@ AudioDeviceSelectorComponent::AudioDeviceSelectorComponent (AudioDeviceManager& 
         deviceTypeDropDown = std::make_unique<ComboBox>();
 
         for (int i = 0; i < types.size(); ++i)
-            deviceTypeDropDown->addItem (types.getUnchecked(i)->getTypeName(), i + 1);
+            deviceTypeDropDown->addItem (types.getUnchecked (i)->getTypeName(), i + 1);
 
         addAndMakeVisible (deviceTypeDropDown.get());
         deviceTypeDropDown->onChange = [this] { updateDeviceType(); };
@@ -1156,7 +1151,7 @@ void AudioDeviceSelectorComponent::updateAllControls()
             details.maxNumOutputChannels = maxOutputChannels;
             details.useStereoPairs = showChannelsAsStereoPairs;
 
-            audioDeviceSettingsComp = std::make_unique<AudioDeviceSettingsPanel> (*type, details, hideAdvancedOptionsWithButton);
+            audioDeviceSettingsComp = std::make_unique<AudioDeviceSettingsPanel> (*type, details, hideAdvancedOptionsWithButton, *this);
             addAndMakeVisible (audioDeviceSettingsComp.get());
         }
     }

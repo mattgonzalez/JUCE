@@ -547,8 +547,8 @@ namespace AAXClasses
     //==============================================================================
     class JuceAAX_Processor;
 
-    class JuceAAX_GUI   : public AAX_CEffectGUI,
-                          public ModifierKeyProvider
+    class JuceAAX_GUI final : public AAX_CEffectGUI,
+                              public ModifierKeyProvider
     {
     public:
         JuceAAX_GUI() = default;
@@ -668,7 +668,7 @@ namespace AAXClasses
         }
 
         //==============================================================================
-        struct ContentWrapperComponent  : public Component
+        struct ContentWrapperComponent final : public Component
         {
             ContentWrapperComponent (JuceAAX_GUI& gui, AudioProcessor& plugin)
                 : owner (gui)
@@ -805,10 +805,10 @@ namespace AAXClasses
     static Array<JuceAAX_Processor*> activeProcessors;
 
     //==============================================================================
-    class JuceAAX_Processor   : public AAX_CEffectParameters,
-                                public juce::AudioPlayHead,
-                                public AudioProcessorListener,
-                                private AsyncUpdater
+    class JuceAAX_Processor final : public AAX_CEffectParameters,
+                                    public juce::AudioPlayHead,
+                                    public AudioProcessorListener,
+                                    private AsyncUpdater
     {
     public:
         JuceAAX_Processor()
@@ -2006,7 +2006,7 @@ namespace AAXClasses
 
                 i.pluginInstance->parameters.process (i.inputChannels, i.outputChannels, sideChainBufferIdx,
                                                       *(i.bufferSize), *(i.bypass) != 0,
-                                                      getMidiNodeIn(i), getMidiNodeOut(i),
+                                                      getMidiNodeIn (i), getMidiNodeOut (i),
                                                       meterTapBuffers);
             }
         }

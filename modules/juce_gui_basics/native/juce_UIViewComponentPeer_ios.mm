@@ -23,8 +23,6 @@
   ==============================================================================
 */
 
-#include "juce_CGMetalLayerRenderer_mac.h"
-
 #if TARGET_OS_SIMULATOR && JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
  #warning JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS uses parts of the Metal API that are currently unsupported in the simulator - falling back to JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS=0
  #undef JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
@@ -389,8 +387,8 @@ struct UIViewPeerControllerReceiver
 };
 
 //==============================================================================
-class UIViewComponentPeer  : public ComponentPeer,
-                             public UIViewPeerControllerReceiver
+class UIViewComponentPeer final : public ComponentPeer,
+                                  public UIViewPeerControllerReceiver
 {
 public:
     UIViewComponentPeer (Component&, int windowStyleFlags, UIView* viewToAttachTo);
@@ -545,7 +543,7 @@ private:
     }
 
     //==============================================================================
-    class AsyncRepaintMessage  : public CallbackMessage
+    class AsyncRepaintMessage final : public CallbackMessage
     {
     public:
         UIViewComponentPeer* const peer;
@@ -984,7 +982,7 @@ static bool attemptToConsumeKeys (JuceUIView* view, NSSet<UIPress*>* presses)
     return used;
 }
 
-- (void) pressesBegan:(NSSet<UIPress*>*) presses withEvent:(UIPressesEvent*) event
+- (void) pressesBegan: (NSSet<UIPress*>*) presses withEvent: (UIPressesEvent*) event
 {
     const auto handledEvent = [&]
     {
@@ -1033,13 +1031,13 @@ static bool doKeysUp (UIViewComponentPeer* owner, NSSet<UIPress*>* presses, UIPr
     return false;
 }
 
-- (void) pressesEnded:(NSSet<UIPress*>*) presses withEvent:(UIPressesEvent*) event
+- (void) pressesEnded: (NSSet<UIPress*>*) presses withEvent: (UIPressesEvent*) event
 {
     if (! doKeysUp (owner, presses, event))
         [super pressesEnded: presses withEvent: event];
 }
 
-- (void) pressesCancelled:(NSSet<UIPress*>*) presses withEvent:(UIPressesEvent*) event
+- (void) pressesCancelled: (NSSet<UIPress*>*) presses withEvent: (UIPressesEvent*) event
 {
     if (! doKeysUp (owner, presses, event))
         [super pressesCancelled: presses withEvent: event];

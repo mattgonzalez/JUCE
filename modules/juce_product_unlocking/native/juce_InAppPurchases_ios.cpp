@@ -600,7 +600,7 @@ struct InAppPurchases::Pimpl
         NSMutableArray<SKDownload*>* skDownloads = [NSMutableArray arrayWithCapacity: (NSUInteger) downloads.size()];
 
         for (const auto& d : downloads)
-            if (auto impl = dynamic_cast<DownloadImpl*>(d))
+            if (auto impl = dynamic_cast<DownloadImpl*> (d))
                 [skDownloads addObject: impl->download];
 
         return skDownloads;
@@ -632,7 +632,7 @@ private:
                              [&] (const auto& pending) { return pending->request.get() == request; });
     }
 
-    struct Class : public ObjCClass<NSObject<SKProductsRequestDelegate, SKPaymentTransactionObserver>>
+    struct Class final : public ObjCClass<NSObject<SKProductsRequestDelegate, SKPaymentTransactionObserver>>
     {
         //==============================================================================
         Class()

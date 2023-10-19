@@ -57,7 +57,7 @@
     This component sets its accessibility title and help text properties and
     also acts as a focus container for its children.
 */
-class ContentComponent  : public Component
+class ContentComponent final : public Component
 {
 public:
     ContentComponent (const String& title, const String& info, Component& contentToDisplay)
@@ -96,8 +96,8 @@ public:
 
 private:
     //==============================================================================
-    struct InfoIcon  : public Component,
-                       public SettableTooltipClient
+    struct InfoIcon final : public Component,
+                            public SettableTooltipClient
     {
         InfoIcon()
         {
@@ -151,7 +151,7 @@ private:
     visible and controllable by accessibility clients. There are a few examples
     of some widgets in this demo such as Sliders, Buttons and a TreeView.
 */
-class JUCEWidgetsComponent  : public Component
+class JUCEWidgetsComponent final : public Component
 {
 public:
     JUCEWidgetsComponent()
@@ -184,7 +184,7 @@ public:
 
 private:
     //==============================================================================
-    class ButtonsComponent  : public Component
+    class ButtonsComponent final : public Component
     {
     public:
         ButtonsComponent()
@@ -217,7 +217,7 @@ private:
 
     private:
         //==============================================================================
-        struct RadioButtonsGroupComponent  : public Component
+        struct RadioButtonsGroupComponent final : public Component
         {
             RadioButtonsGroupComponent()
             {
@@ -263,7 +263,7 @@ private:
     };
 
     //==============================================================================
-    class SlidersComponent  : public Component
+    class SlidersComponent final : public Component
     {
     public:
         SlidersComponent()
@@ -317,7 +317,7 @@ private:
     };
 
     //==============================================================================
-    class TreeViewComponent  : public Component
+    class TreeViewComponent final : public Component
     {
     public:
         TreeViewComponent()
@@ -335,11 +335,11 @@ private:
 
     private:
         //==============================================================================
-        struct RootItem  : public TreeViewItem
+        struct RootItem final : public TreeViewItem
         {
             RootItem()
             {
-                struct Item  : public TreeViewItem
+                struct Item final : public TreeViewItem
                 {
                     Item (int index, int depth, int numSubItems)
                         : textToDisplay ("Item " + String (index)
@@ -447,7 +447,7 @@ constexpr NameAndRole accessibilityRoles[]
     Component::createAccessibilityHandler() method to return a custom AccessibilityHandler.
     The properties of this handler are set by the various controls in the demo.
 */
-class CustomWidgetComponent  : public Component
+class CustomWidgetComponent final : public Component
 {
 public:
     CustomWidgetComponent()
@@ -488,7 +488,7 @@ public:
 
 private:
     //==============================================================================
-    class AccessibleComponent  : public Component
+    class AccessibleComponent final : public Component
     {
     public:
         explicit AccessibleComponent (CustomWidgetComponent& owner)
@@ -511,7 +511,7 @@ private:
                 and accessibility clients. This derived class represents the properties
                 set via the demo UI.
             */
-            struct CustomAccessibilityHandler  : public AccessibilityHandler
+            struct CustomAccessibilityHandler final : public AccessibilityHandler
             {
                 explicit CustomAccessibilityHandler (CustomWidgetComponent& comp)
                     : AccessibilityHandler (comp.accessibleComponent,
@@ -543,7 +543,7 @@ private:
     };
 
     //==============================================================================
-    class InfoComponent  : public Component
+    class InfoComponent final : public Component
     {
     public:
         explicit InfoComponent (CustomWidgetComponent& owner)
@@ -636,7 +636,7 @@ private:
     };
 
     //==============================================================================
-    class ActionsComponent  : public Component
+    class ActionsComponent final : public Component
     {
     public:
         explicit ActionsComponent (CustomWidgetComponent& owner)
@@ -675,8 +675,8 @@ private:
 
     private:
         //==============================================================================
-        class AccessibilityActionComponent  : public Component,
-                                              private Timer
+        class AccessibilityActionComponent final : public Component,
+                                                   private Timer
         {
         public:
             AccessibilityActionComponent (CustomWidgetComponent& owner,
@@ -769,7 +769,7 @@ private:
     };
 
     //==============================================================================
-    class ValueInterfaceComponent  : public Component
+    class ValueInterfaceComponent final : public Component
     {
     public:
         explicit ValueInterfaceComponent (CustomWidgetComponent& owner)
@@ -821,7 +821,7 @@ private:
 
         std::unique_ptr<AccessibilityValueInterface> getValueInterface()
         {
-            struct Numeric  : public AccessibilityNumericValueInterface
+            struct Numeric final : public AccessibilityNumericValueInterface
             {
                 explicit Numeric (ValueInterfaceComponent& o)
                     : owner (o)
@@ -835,7 +835,7 @@ private:
                 ValueInterfaceComponent& owner;
             };
 
-            struct Ranged  : public AccessibilityRangedNumericValueInterface
+            struct Ranged final : public AccessibilityRangedNumericValueInterface
             {
                 explicit Ranged (ValueInterfaceComponent& o)
                     : owner (o)
@@ -857,7 +857,7 @@ private:
                 ValueInterfaceComponent& owner;
             };
 
-            struct Text  : public AccessibilityTextValueInterface
+            struct Text final : public AccessibilityTextValueInterface
             {
                 explicit Text (ValueInterfaceComponent& o)
                     : owner (o)
@@ -883,7 +883,7 @@ private:
 
     private:
         //==============================================================================
-        struct RangedValueComponent  : public Component
+        struct RangedValueComponent final : public Component
         {
             RangedValueComponent()
             {
@@ -986,7 +986,7 @@ private:
     };
 
     //==============================================================================
-    class StateComponent  : public Component
+    class StateComponent final : public Component
     {
     public:
         StateComponent()
@@ -1096,7 +1096,7 @@ private:
 /**
     The top-level component containing an example of custom child component navigation.
 */
-class CustomNavigationComponent  : public Component
+class CustomNavigationComponent final : public Component
 {
 public:
     CustomNavigationComponent()
@@ -1126,7 +1126,7 @@ public:
 
 private:
     //==============================================================================
-    class NavigableComponentsHolder  : public Component
+    class NavigableComponentsHolder final : public Component
     {
     public:
         NavigableComponentsHolder()
@@ -1163,7 +1163,7 @@ private:
 
         std::unique_ptr<ComponentTraverser> createFocusTraverser() override
         {
-            struct CustomTraverser  : public FocusTraverser
+            struct CustomTraverser final : public FocusTraverser
             {
                 explicit CustomTraverser (NavigableComponentsHolder& owner)
                     : navigableComponentsHolder (owner)  {}
@@ -1221,7 +1221,7 @@ private:
         }
 
     private:
-        struct NavigableComponent  : public Component
+        struct NavigableComponent final : public Component
         {
             NavigableComponent (int index, int total, NavigableComponentsHolder& owner)
             {
@@ -1360,7 +1360,7 @@ private:
     screen reader application to be read out along with a priority determining how
     it should be read out (whether it should interrupt other announcements, etc.).
 */
-class AnnouncementsComponent  : public Component
+class AnnouncementsComponent final : public Component
 {
 public:
     AnnouncementsComponent()
@@ -1442,7 +1442,7 @@ private:
 
     This just contains a TabbedComponent with a tab for each of the top-level demos.
 */
-class AccessibilityDemo   : public Component
+class AccessibilityDemo final : public Component
 {
 public:
     AccessibilityDemo()

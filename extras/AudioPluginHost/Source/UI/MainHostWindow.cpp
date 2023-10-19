@@ -30,7 +30,7 @@
 constexpr const char* scanModeKey = "pluginScanMode";
 
 //==============================================================================
-class Superprocess  : private ChildProcessCoordinator
+class Superprocess final : private ChildProcessCoordinator
 {
 public:
     Superprocess()
@@ -94,8 +94,8 @@ private:
 };
 
 //==============================================================================
-class CustomPluginScanner  : public KnownPluginList::CustomScanner,
-                             private ChangeListener
+class CustomPluginScanner final : public KnownPluginList::CustomScanner,
+                                  private ChangeListener
 {
 public:
     CustomPluginScanner()
@@ -202,7 +202,7 @@ private:
 };
 
 //==============================================================================
-class CustomPluginListComponent  : public PluginListComponent
+class CustomPluginListComponent final : public PluginListComponent
 {
 public:
     CustomPluginListComponent (AudioPluginFormatManager& manager,
@@ -256,7 +256,7 @@ private:
 };
 
 //==============================================================================
-class MainHostWindow::PluginListWindow  : public DocumentWindow
+class MainHostWindow::PluginListWindow final : public DocumentWindow
 {
 public:
     PluginListWindow (MainHostWindow& mw, AudioPluginFormatManager& pluginFormatManager)
@@ -397,7 +397,7 @@ void MainHostWindow::closeButtonPressed()
     tryToQuitApplication();
 }
 
-struct AsyncQuitRetrier  : private Timer
+struct AsyncQuitRetrier final : private Timer
 {
     AsyncQuitRetrier()   { startTimer (500); }
 
@@ -759,7 +759,7 @@ void MainHostWindow::getCommandInfo (const CommandID commandID, ApplicationComma
    #if ! (JUCE_IOS || JUCE_ANDROID)
     case CommandIDs::newFile:
         result.setInfo ("New", "Creates a new filter graph file", category, 0);
-        result.defaultKeypresses.add(KeyPress('n', ModifierKeys::commandModifier, 0));
+        result.defaultKeypresses.add (KeyPress ('n', ModifierKeys::commandModifier, 0));
         break;
 
     case CommandIDs::open:
@@ -1002,7 +1002,7 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
             auto pos = graphHolder->getLocalPoint (this, Point<int> (x, y));
 
             for (int i = 0; i < jmin (5, typesFound.size()); ++i)
-                if (auto* desc = typesFound.getUnchecked(i))
+                if (auto* desc = typesFound.getUnchecked (i))
                     createPlugin (PluginDescriptionAndPreference { *desc }, pos);
         }
     }

@@ -56,9 +56,7 @@
  #error "You need to define the JucePlugin_LV2URI value! If you're using the Projucer/CMake, the definition will be written into JuceLV2Defines.h automatically."
 #endif
 
-namespace juce
-{
-namespace lv2_client
+namespace juce::lv2_client
 {
 
 constexpr bool startsWithValidScheme (const std::string_view str)
@@ -116,7 +114,7 @@ static const LV2_Options_Option* findMatchingOption (const LV2_Options_Option* o
     return nullptr;
 }
 
-class ParameterStorage : private AudioProcessorListener
+class ParameterStorage final : private AudioProcessorListener
 {
 public:
     ParameterStorage (AudioProcessor& proc, LV2_URID_Map map)
@@ -292,7 +290,7 @@ struct PortIndices
 };
 
 //==============================================================================
-class PlayHead : public AudioPlayHead
+class PlayHead final : public AudioPlayHead
 {
 public:
     PlayHead (LV2_URID_Map mapFeatureIn, double sampleRateIn)
@@ -490,7 +488,7 @@ private:
     JUCE_LEAK_DETECTOR (Ports)
 };
 
-class LV2PluginInstance : private AudioProcessorListener
+class LV2PluginInstance final : private AudioProcessorListener
 {
 public:
     LV2PluginInstance (double sampleRate,
@@ -1085,12 +1083,14 @@ private:
 
                 for (const auto& string : param.getAllValueStrings())
                 {
-                    const auto value = jmap ((float) counter++, 0.0f, (float) numSteps - 1.0f, min, max);
+                    const auto value = jmap ((float) counter, 0.0f, (float) numSteps - 1.0f, min, max);
 
                     os << (counter != 0 ? ", " : "") << "[\n"
                           "\t\trdfs:label \"" << string << "\" ;\n"
                           "\t\trdf:value " << value << " ;\n"
                           "\t]";
+
+                    ++counter;
                 }
             }
 
@@ -1516,8 +1516,8 @@ static Optional<float> findScaleFactor (const LV2_URID_Map* symap, const LV2_Opt
     return parser.parseNumericOption<float> (scaleFactorOption);
 }
 
-class LV2UIInstance : private Component,
-                      private ComponentListener
+class LV2UIInstance final : private Component,
+                            private ComponentListener
 {
 public:
     LV2UIInstance (const char*,
@@ -1829,7 +1829,6 @@ LV2_SYMBOL_EXPORT const LV2UI_Descriptor* lv2ui_descriptor (uint32_t index)
     return &descriptor;
 }
 
-}
-}
+} // namespace juce::lv2_client
 
 #endif

@@ -403,7 +403,7 @@ private:
 };
 
 //==============================================================================
-class WindowsDirectWriteTypeface  : public Typeface
+class WindowsDirectWriteTypeface final : public Typeface
 {
 public:
     WindowsDirectWriteTypeface (const Font& font, IDWriteFontCollection* fontCollection)
@@ -619,7 +619,38 @@ private:
         }
     }
 
-    struct PathGeometrySink  : public ComBaseClassHelper<IDWriteGeometrySink>
+    //
+    // D.R.Y. since this code is common to both constructors
+    //
+    void initializeFromFontFace()
+    {
+        if (dwFontFace != nullptr)
+        {
+            DWRITE_FONT_METRICS dwFontMetrics;
+            dwFontFace->GetMetrics(&dwFontMetrics);
+
+            // All Font Metrics are in design units so we need to get designUnitsPerEm value
+            // to get the metrics into Em/Design Independent Pixels
+            designUnitsPerEm = dwFontMetrics.designUnitsPerEm;
+
+            ascent = std::abs((float)dwFontMetrics.ascent);
+            auto totalSize = ascent + std::abs((float)dwFontMetrics.descent);
+            ascent /= totalSize;
+            unitsToHeightScaleFactor = (float)designUnitsPerEm / totalSize;
+
+            auto tempDC = GetDC(nullptr);
+            auto dpi = (float)(GetDeviceCaps(tempDC, LOGPIXELSX) + GetDeviceCaps(tempDC, LOGPIXELSY)) / 2.0f;
+            heightToPointsFactor = (dpi / (float)GetDeviceCaps(tempDC, LOGPIXELSY)) * unitsToHeightScaleFactor;
+            ReleaseDC(nullptr, tempDC);
+
+            auto pathAscent = (1024.0f * dwFontMetrics.ascent) / (float)designUnitsPerEm;
+            auto pathDescent = (1024.0f * dwFontMetrics.descent) / (float)designUnitsPerEm;
+            auto pathScale = 1.0f / (std::abs(pathAscent) + std::abs(pathDescent));
+            pathTransform = AffineTransform::scale(pathScale);
+        }
+    }
+
+    struct PathGeometrySink final : public ComBaseClassHelper<IDWriteGeometrySink>
     {
         PathGeometrySink() : ComBaseClassHelper (0) {}
 

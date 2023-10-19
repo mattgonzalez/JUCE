@@ -29,7 +29,7 @@
 */
 #define JUCE_MAJOR_VERSION      7
 #define JUCE_MINOR_VERSION      0
-#define JUCE_BUILDNUMBER        7
+#define JUCE_BUILDNUMBER        8
 
 /** Current JUCE version number.
 
@@ -93,6 +93,7 @@ JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4514 4245 4100)
 
 #if JUCE_MAC || JUCE_IOS
  #include <libkern/OSAtomic.h>
+ #include <libkern/OSByteOrder.h>
  #include <xlocale.h>
  #include <signal.h>
 #endif
@@ -148,7 +149,7 @@ JUCE_END_IGNORE_WARNINGS_MSVC
   #pragma warning (disable: 1125) // (virtual override warning)
  #endif
 #elif defined (JUCE_DLL) || defined (JUCE_DLL_BUILD)
- #define JUCE_API __attribute__ ((visibility("default")))
+ #define JUCE_API __attribute__ ((visibility ("default")))
 #endif
 
 //==============================================================================

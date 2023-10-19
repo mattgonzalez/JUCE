@@ -49,8 +49,8 @@ static void updateButtonTickColour (ToggleButton* button, bool usingDefault)
 }
 
 //==============================================================================
-class MultiChoicePropertyComponent::MultiChoiceRemapperSource    : public Value::ValueSource,
-                                                                   private Value::Listener
+class MultiChoicePropertyComponent::MultiChoiceRemapperSource final : public Value::ValueSource,
+                                                                      private Value::Listener
 {
 public:
     MultiChoiceRemapperSource (const Value& source, var v, int c)
@@ -107,8 +107,8 @@ private:
 };
 
 //==============================================================================
-class MultiChoicePropertyComponent::MultiChoiceRemapperSourceWithDefault    : public Value::ValueSource,
-                                                                              private Value::Listener
+class MultiChoicePropertyComponent::MultiChoiceRemapperSourceWithDefault final : public Value::ValueSource,
+                                                                                 private Value::Listener
 {
 public:
     MultiChoiceRemapperSourceWithDefault (const ValueTreePropertyWithDefault& val,
@@ -334,8 +334,7 @@ void MultiChoicePropertyComponent::setExpanded (bool shouldBeExpanded) noexcept
     if (auto* propertyPanel = findParentComponentOfClass<PropertyPanel>())
         propertyPanel->resized();
 
-    if (onHeightChange != nullptr)
-        onHeightChange();
+    NullCheckedInvocation::invoke (onHeightChange);
 
     expandButton.setTransform (AffineTransform::rotation (expanded ? MathConstants<float>::pi : MathConstants<float>::twoPi,
                                                           (float) expandButton.getBounds().getCentreX(),

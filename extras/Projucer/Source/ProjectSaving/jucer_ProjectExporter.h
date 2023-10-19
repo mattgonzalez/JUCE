@@ -64,7 +64,7 @@ private:
 };
 
 //==============================================================================
-class ProjectExporter  : private Value::Listener
+class ProjectExporter : private Value::Listener
 {
 public:
     ProjectExporter (Project&, const ValueTree& settings);
@@ -101,7 +101,6 @@ public:
     virtual bool canCopeWithDuplicateFiles() = 0;
     virtual bool supportsUserDefinedConfigurations() const = 0; // false if exporter only supports two configs Debug and Release
     virtual void updateDeprecatedSettings()               {}
-    virtual void updateDeprecatedSettingsInteractively()  {}
     virtual void initialiseDependencyPathValues()         {}
 
     // IDE targeted by exporter
@@ -264,7 +263,7 @@ public:
     const LinuxSubprocessHelperProperties linuxSubprocessHelperProperties { *this };
 
     //==============================================================================
-    class BuildConfiguration  : public ReferenceCountedObject
+    class BuildConfiguration : public ReferenceCountedObject
     {
     public:
         BuildConfiguration (Project& project, const ValueTree& configNode, const ProjectExporter&);

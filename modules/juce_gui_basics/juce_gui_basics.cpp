@@ -49,7 +49,6 @@
 
 //==============================================================================
 #if JUCE_MAC
- #import <WebKit/WebKit.h>
  #import <IOKit/pwr_mgt/IOPMLib.h>
  #import <MetalKit/MetalKit.h>
 
@@ -147,6 +146,7 @@
 
 #if JUCE_MAC || JUCE_IOS
  #include "native/accessibility/juce_AccessibilitySharedCode_mac.mm"
+ #include "native/juce_CGMetalLayerRenderer_mac.h"
 
  #if JUCE_IOS
   #include "native/juce_UIViewComponentPeer_ios.mm"
@@ -176,6 +176,9 @@
 
 #elif JUCE_WINDOWS
  #include "../juce_graphics/native/juce_ETW_windows.h"
+ #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
+  #include <juce_audio_plugin_client/AAX/juce_AAX_Modifier_Injector.h>
+ #endif
  #include "native/accessibility/juce_ComInterfaces_windows.h"
  #include "native/accessibility/juce_WindowsUIAWrapper_windows.h"
  #include "native/accessibility/juce_AccessibilityElement_windows.h"

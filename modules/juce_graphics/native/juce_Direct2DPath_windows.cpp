@@ -61,8 +61,14 @@ namespace juce
 
         using Ptr = ReferenceCountedObjectPtr<Direct2DPathData>;
 
+        struct GeometryRealisation
+        {
+            float flatteningTolerance = 1.0f;
+            ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
+        };
+
         ComSmartPtr<ID2D1Geometry> geometry;
-        ComSmartPtr<ID2D1GeometryRealization> filledGeometryRealization;
+        GeometryRealisation filled;
 
     private:
         // keep a reference to the DirectXFactories to retain the DLLs & factories

@@ -1067,28 +1067,55 @@ namespace juce
             //
             if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData().get()))
             {
+                //
+                // Has the geometry been created or has the path changed?
+                //
                 if (pathData->geometry == nullptr || pathData->hasChanged())
                 {
                     pathData->geometry = nullptr;
-                    pathData->filledGeometryRealization = nullptr;
+                    pathData->filled.geometryRealisation = nullptr;
                     pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
                 }
 
                 if (pathData->geometry)
                 {
-                    if (pathData->filledGeometryRealization == nullptr)
+                    //
+                    // Is there an existing geometry realisation; if so, was the flattening tolerance for that
+                    // realisation within range? 
+                    //
+                    auto flatteningTolerance = direct2d::findGeometryFlatteningTolerance(getPhysicalPixelScaleFactor(), transform);
+                    Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
+
+                    if (pathData->filled.geometryRealisation && !flatteningToleranceRange.contains(pathData->filled.flatteningTolerance))
                     {
-                        deviceContext->CreateFilledGeometryRealization(pathData->geometry, 1.0f, pathData->filledGeometryRealization.resetAndGetPointerAddress());
+                        pathData->filled.geometryRealisation = nullptr;
+                    }
+                        
+                    //
+                    // Create a new realisation?
+                    //
+                    if (pathData->filled.geometryRealisation == nullptr)
+                    {
+                        pathData->filled.flatteningTolerance = flatteningTolerance;
+                        deviceContext->CreateFilledGeometryRealization(pathData->geometry,
+                            pathData->filled.flatteningTolerance,
+                            pathData->filled.geometryRealisation.resetAndGetPointerAddress());
                     }
 
+                    //
+                    // Fill the realisation
+                    //
                     updateDeviceContextTransform(transform);
 
-                    if (pathData->filledGeometryRealization)
+                    if (pathData->filled.geometryRealisation)
                     {
-                        deviceContext->DrawGeometryRealization(pathData->filledGeometryRealization, currentState->currentBrush);
+                        deviceContext->DrawGeometryRealization(pathData->filled.geometryRealisation, currentState->currentBrush);
                         return;
                     }
 
+                    //
+                    // All that didn't work; call FillGeometry instead
+                    //
                     deviceContext->FillGeometry(pathData->geometry, currentState->currentBrush);
                     return;
                 }

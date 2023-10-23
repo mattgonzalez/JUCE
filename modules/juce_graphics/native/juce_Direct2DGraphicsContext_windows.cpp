@@ -1054,12 +1054,44 @@ namespace juce
     void Direct2DGraphicsContext::fillPath(const Path& p, const AffineTransform& transform)
     {
         TRACE_LOG_D2D_PAINT_CALL(etw::fillPath);
-
+        
         if (auto deviceContext = getPimpl()->getDeviceContext())
         {
             if (currentState->fillType.isInvisible())
             {
                 return;
+            }
+
+            //
+            // Is this a Direct2D Path?
+            //
+            if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData().get()))
+            {
+                if (pathData->geometry == nullptr || pathData->hasChanged())
+                {
+                    pathData->geometry = nullptr;
+                    pathData->filledGeometryRealization = nullptr;
+                    pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
+                }
+
+                if (pathData->geometry)
+                {
+                    if (pathData->filledGeometryRealization == nullptr)
+                    {
+                        deviceContext->CreateFilledGeometryRealization(pathData->geometry, 1.0f, pathData->filledGeometryRealization.resetAndGetPointerAddress());
+                    }
+
+                    updateDeviceContextTransform(transform);
+
+                    if (pathData->filledGeometryRealization)
+                    {
+                        deviceContext->DrawGeometryRealization(pathData->filledGeometryRealization, currentState->currentBrush);
+                        return;
+                    }
+
+                    deviceContext->FillGeometry(pathData->geometry, currentState->currentBrush);
+                    return;
+                }
             }
 
             if (auto geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform))

@@ -99,7 +99,18 @@ void PathData::PathBounds::extend (float x, float y) noexcept
 
 //==============================================================================
 Path::Path() :
-    internal(NativePathType{}.createData())
+    internal(SoftwarePathType{}.createData())
+{
+}
+
+Path::Path(ReferenceCountedObjectPtr<PathData> pathData) :
+    internal(pathData->createType()->createData())
+{
+    *internal = *pathData;
+}
+
+Path::Path(const PathType& type) :
+    internal(type.createData())
 {
 }
 
@@ -107,17 +118,15 @@ Path::~Path()
 {
 }
 
-Path::Path (const Path& other)
-    : internal (other.internal)
+Path::Path (const Path& other) :
+    internal(other.getPathData()->createType()->createData())
 {
+    *internal = *other.internal;
 }
 
 Path& Path::operator= (const Path& other)
 {
-    if (this != &other)
-    {
-        internal = other.internal;
-    }
+    *internal = *other.internal;
 
     return *this;
 }
@@ -1536,14 +1545,48 @@ bool Path::Iterator::next() noexcept
 
 #undef JUCE_CHECK_COORDS_ARE_VALID
 
+//==============================================================================
+
+std::unique_ptr<PathType> PathData::createType() const
+{
+    return std::make_unique<SoftwarePathType>();
+}
+
+
+PathData::Ptr SoftwarePathType::createData() const
+{
+    return new PathData;
+
+}
+
+int SoftwarePathType::getTypeID() const
+{
+    return 1;
+}
+
+
+#if (JUCE_WINDOWS && !JUCE_DIRECT2D) || JUCE_LINUX || JUCE_BSD
+
 std::unique_ptr<juce::PathType> NativePathData::createType() const
 {
-    return std::make_unique<NativePathType>();
+    return std::make_unique<SoftwarePathType>();
 }
 
 PathData::Ptr NativePathType::createData() const
 {
     return new NativePathData;
+}
+
+int NativePathType::getTypeID() const
+{
+    return 0xd2d;
+}
+
+#endif
+
+bool PathData::operator==(const PathData& other) const noexcept
+{
+    return useNonZeroWinding == other.useNonZeroWinding && data == other.data;
 }
 
 

@@ -28,6 +28,7 @@ namespace juce
 
 class PathType;
 class PathData;
+class SoftwarePathType;
 
 //==============================================================================
 /**
@@ -803,6 +804,11 @@ public:
     */
     void restoreFromString (StringRef stringVersion);
 
+    ReferenceCountedObjectPtr<PathData> getPathData() const noexcept
+    {
+        return internal;
+    }
+
 private:
     //==============================================================================
     friend class PathFlatteningIterator;
@@ -826,7 +832,9 @@ public:
     PathData() = default;
     ~PathData() override = default;
 
-    virtual std::unique_ptr<PathType> createType() const = 0;
+    bool operator== (const PathData&) const noexcept;
+
+    virtual std::unique_ptr<PathType> createType() const;
 
     void clear()
     {
@@ -839,6 +847,11 @@ public:
     int getNumDataPoints() const noexcept
     {
         return data.size();
+    }
+
+    bool hasChanged() const noexcept
+    {
+        return changed;
     }
 
     using Ptr = ReferenceCountedObjectPtr<PathData>;
@@ -885,19 +898,11 @@ public:
 class JUCE_API  SoftwarePathType : public PathType
 {
 public:
-    SoftwarePathType();
-    ~SoftwarePathType() override;
+    SoftwarePathType() = default;
+    ~SoftwarePathType() override = default;
 
     PathData::Ptr createData() const override;
-    int getTypeID() const override;
-};
-
-class NativePathData : public PathData
-{
-public:
-    ~NativePathData() override = default;
-
-    std::unique_ptr<PathType> createType() const override;
+    int getTypeID() const;
 };
 
 class JUCE_API  NativePathType : public PathType
@@ -907,11 +912,8 @@ public:
     ~NativePathType() override = default;
 
     PathData::Ptr createData() const override;
-
-    int getTypeID() const override
-    {
-        return 1;
-    }
+    int getTypeID() const override;
 };
+
 
 } // namespace juce

@@ -138,7 +138,8 @@ Path::Path (Path&& other) noexcept
 
 Path& Path::operator= (Path&& other) noexcept
 {
-    internal = std::move (other.internal);
+    *internal = *other.internal;
+    other.internal = nullptr;
     return *this;
 }
 

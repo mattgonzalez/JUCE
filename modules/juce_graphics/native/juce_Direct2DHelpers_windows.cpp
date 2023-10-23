@@ -300,7 +300,7 @@ ComSmartPtr<ID2D1StrokeStyle1> pathStrokeTypeToStrokeStyle(ID2D1Factory1* factor
         1.0f, 
         D2D1_DASH_STYLE_SOLID,
         0.0f,
-        D2D1_STROKE_TRANSFORM_TYPE_FIXED
+        D2D1_STROKE_TRANSFORM_TYPE_NORMAL
     };
     ComSmartPtr<ID2D1StrokeStyle1> strokeStyle;
     factory->CreateStrokeStyle(strokeStyleProperties,

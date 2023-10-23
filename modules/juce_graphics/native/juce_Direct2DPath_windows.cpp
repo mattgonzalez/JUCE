@@ -69,6 +69,7 @@ namespace juce
 
         struct StrokedGeometryRealisation : public GeometryRealisation
         {
+            Rectangle<float> size;
             PathStrokeType stroke{ 1.0f };
         };
 

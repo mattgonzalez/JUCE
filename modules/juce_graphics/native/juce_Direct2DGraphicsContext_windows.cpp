@@ -1059,7 +1059,7 @@ namespace juce
         
         if (auto deviceContext = getPimpl()->getDeviceContext())
         {
-            if (currentState->fillType.isInvisible())
+            if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
             {
                 return;
             }
@@ -1148,7 +1148,7 @@ namespace juce
         {
             if (auto deviceContext = getPimpl()->getDeviceContext())
             {
-                if (currentState->fillType.isInvisible())
+                if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
                 {
                     return true;
                 }
@@ -1180,7 +1180,14 @@ namespace juce
                         auto flatteningTolerance = direct2d::findGeometryFlatteningTolerance(getPhysicalPixelScaleFactor(), transform);
                         Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
 
-                        if (pathData->stroked.geometryRealisation && !flatteningToleranceRange.contains(pathData->stroked.flatteningTolerance))
+                        auto transformedSize = p.getBoundsTransformed(transform).withZeroOrigin();
+                        if (transformedSize.isEmpty())
+                        {
+                            return true;
+                        }
+
+                        if (! flatteningToleranceRange.contains(pathData->stroked.flatteningTolerance) ||
+                            pathData->stroked.size != transformedSize)
                         {
                             pathData->stroked.geometryRealisation = nullptr;
                         }
@@ -1200,11 +1207,21 @@ namespace juce
                         {
                             if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
                             {
+                                //
+                                // Transforming the stroked geometry realization will also affect the line weight. 
+                                // Determine how much the specified transform will affect the path bounds
+                                // and scale the link thickness accordingly.
+                                //
+                                auto widthRatio = pathData->stroked.size.getWidth() / transformedSize.getWidth();
+                                auto heightRatio = pathData->stroked.size.getHeight() / transformedSize.getHeight();
+                                auto strokeThicknessScale = juce::jmin(widthRatio, heightRatio);
+
+                                pathData->stroked.size = transformedSize;
                                 pathData->stroked.flatteningTolerance = flatteningTolerance;
                                 pathData->stroked.stroke = strokeType;
                                 deviceContext->CreateStrokedGeometryRealization(geometry,
                                     pathData->stroked.flatteningTolerance,
-                                    strokeType.getStrokeThickness(),
+                                    strokeType.getStrokeThickness() * strokeThicknessScale,
                                     strokeStyle,
                                     pathData->stroked.geometryRealisation.resetAndGetPointerAddress());
                             }

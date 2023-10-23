@@ -311,19 +311,6 @@ ComSmartPtr<ID2D1StrokeStyle1> pathStrokeTypeToStrokeStyle(ID2D1Factory1* factor
     return strokeStyle;
 }
 
-float findGeometryFlatteningTolerance(float dpiScaleFactor, const AffineTransform& transform, float maxZoomFactor = 1.0f)
-{
-    jassert(maxZoomFactor > 0.0f);
-
-    //
-    // Could use D2D1::ComputeFlatteningTolerance here, but that requires defining NTDDI_VERSION and it doesn't do anything special.
-    // 
-    // Direct2D default flattening tolerance is 0.25
-    //
-    auto transformScaleFactor = std::sqrt(std::abs(transform.getDeterminant()));
-    return 0.25f / (transformScaleFactor * dpiScaleFactor * maxZoomFactor);
-}
-
 //-------------------------------------------------------------------------------------------------
 //
 // UpdateRegion extracts the invalid region for a window

@@ -1553,11 +1553,9 @@ std::unique_ptr<PathType> PathData::createType() const
     return std::make_unique<SoftwarePathType>();
 }
 
-
 PathData::Ptr SoftwarePathType::createData() const
 {
     return new PathData;
-
 }
 
 int SoftwarePathType::getTypeID() const

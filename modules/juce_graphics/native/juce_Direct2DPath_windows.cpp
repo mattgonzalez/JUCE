@@ -63,15 +63,114 @@ namespace juce
 
         struct GeometryRealisation
         {
+            virtual void create(ID2D1Geometry* geometry, juce::Rectangle<float>, ID2D1DeviceContext1* const deviceContext)
+            {
+                if (geometry)
+                {
+                    //
+                    // Create a new realisation?
+                    //
+                    if (geometryRealisation == nullptr)
+                    {
+                        deviceContext->CreateFilledGeometryRealization(geometry,
+                            flatteningTolerance,
+                            geometryRealisation.resetAndGetPointerAddress());
+                    }
+                }
+            }
+
             float flatteningTolerance = 1.0f;
             ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
         };
 
         struct StrokedGeometryRealisation : public GeometryRealisation
         {
+            virtual void create(ID2D1Geometry* geometry, juce::Rectangle<float> pathBounds, ID2D1DeviceContext1* const deviceContext)
+            {
+                if (geometry)
+                {
+                    //
+                    // Create a new realisation?
+                    //
+                    if (geometryRealisation == nullptr && strokeStyle != nullptr)
+                    {
+                        //
+                        // Transforming the stroked geometry realization will also affect the line weight. 
+                        // Determine how much the specified transform will affect the path bounds
+                        // and scale the link thickness accordingly.
+                        //
+                        auto widthRatio = pathBounds.getWidth() / size.getWidth();
+                        auto heightRatio = pathBounds.getHeight() / size.getHeight();
+                        auto strokeThicknessScale = juce::jmin(widthRatio, heightRatio);
+
+                        deviceContext->CreateStrokedGeometryRealization(geometry,
+                            flatteningTolerance,
+                            strokeType.getStrokeThickness() * strokeThicknessScale,
+                            strokeStyle,
+                            geometryRealisation.resetAndGetPointerAddress());
+
+                        strokeStyle = nullptr;
+                    }
+                }
+
+            }
+
             Rectangle<float> size;
-            PathStrokeType stroke{ 1.0f };
+            PathStrokeType strokeType{ 1.0f };
+            ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
         };
+
+        static float findGeometryFlatteningTolerance(float dpiScaleFactor, const AffineTransform& transform, float maxZoomFactor = 1.0f)
+        {
+            jassert(maxZoomFactor > 0.0f);
+
+            //
+            // Could use D2D1::ComputeFlatteningTolerance here, but that requires defining NTDDI_VERSION and it doesn't do anything special.
+            // 
+            // Direct2D default flattening tolerance is 0.25
+            //
+            auto transformScaleFactor = std::sqrt(std::abs(transform.getDeterminant()));
+            return 0.25f / (transformScaleFactor * dpiScaleFactor * maxZoomFactor);
+        }
+
+        ID2D1GeometryRealization* const getOrCreateFilledGeometryRealisation(Path const& path, 
+            ID2D1Factory2* const factory, 
+            ID2D1DeviceContext1* const deviceContext, 
+            float dpiScaleFactor, 
+            AffineTransform const& transform)
+        {
+            return getOrCreateCommon(path, factory, deviceContext, dpiScaleFactor, transform, filled);
+        }
+
+        ID2D1GeometryRealization* const getOrCreateStrokedGeometryRealisation(Path const& path,
+            const PathStrokeType& strokeType,
+            ID2D1Factory2* const factory,
+            ID2D1DeviceContext1* const deviceContext,
+            float dpiScaleFactor,
+            AffineTransform const& transform)
+        {
+            auto transformedSize = path.getBoundsTransformed(transform).withZeroOrigin();
+            if (transformedSize.isEmpty())
+            {
+                return nullptr;
+            }
+
+            if (stroked.size != transformedSize)
+            {
+                stroked.geometryRealisation = nullptr;
+                stroked.size = transformedSize;
+            }
+
+            if (strokeType != stroked.strokeType)
+            {
+                stroked.geometryRealisation = nullptr;
+                stroked.strokeType = strokeType;
+                stroked.strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType);
+            }
+
+            auto gr = getOrCreateCommon(path, factory, deviceContext, dpiScaleFactor, transform, stroked);
+            return gr;
+        }
 
         ComSmartPtr<ID2D1Geometry> geometry;
         GeometryRealisation filled;
@@ -80,6 +179,51 @@ namespace juce
     private:
         // keep a reference to the DirectXFactories to retain the DLLs & factories
         SharedResourcePointer<DirectXFactories> factories;
+
+        ID2D1GeometryRealization* getOrCreateCommon(Path const& path, 
+            ID2D1Factory2* const factory, 
+            ID2D1DeviceContext1* const deviceContext, 
+            float dpiScaleFactor, 
+            AffineTransform const& transform, 
+            GeometryRealisation& realisation)
+        {
+            //
+            // Has the geometry been created or has the path changed?
+            //
+            if (geometry == nullptr || hasChanged())
+            {
+                geometry = nullptr;
+                filled.geometryRealisation = nullptr;
+                stroked.geometryRealisation = nullptr;
+
+                geometry = direct2d::pathToPathGeometry(factory, path, {});
+            }
+
+            if (geometry)
+            {
+                //
+                // Is there an existing geometry realisation; if so, was the flattening tolerance for that
+                // realisation within range? 
+                //
+                auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor, transform);
+                Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
+                if (!flatteningToleranceRange.contains(flatteningTolerance))
+                {
+                    realisation.geometryRealisation = nullptr;
+                }
+
+                //
+                // Create a new realisation if necessary
+                //
+                if (realisation.geometryRealisation == nullptr)
+                {
+                    realisation.flatteningTolerance = flatteningTolerance;
+                    realisation.create(geometry, path.getBounds(), deviceContext);
+                }
+            }
+
+            return realisation.geometryRealisation;
+        }
 
         JUCE_LEAK_DETECTOR(Direct2DPathData)
     };

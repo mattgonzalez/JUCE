@@ -804,9 +804,9 @@ public:
     */
     void restoreFromString (StringRef stringVersion);
 
-    ReferenceCountedObjectPtr<PathData> getPathData() const noexcept
+    PathData* const getPathData() const noexcept
     {
-        return internal;
+        return internal.get();
     }
 
 private:

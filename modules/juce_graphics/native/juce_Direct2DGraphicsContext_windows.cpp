@@ -1052,84 +1052,37 @@ namespace juce
 
     void Direct2DGraphicsContext::fillPath(const Path& p, const AffineTransform& transform)
     {
-        ComSmartPtr<ID2D1Geometry> geometry;
+        auto factory = getPimpl()->getDirect2DFactory();
 
         TRACE_LOG_D2D_PAINT_CALL(etw::fillPath);
         
         if (auto deviceContext = getPimpl()->getDeviceContext())
         {
+            //
+            // Don't bother if the path would be invisible
+            //
             if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
             {
                 return;
             }
 
             //
-            // Is this a Direct2D Path?
+            // Use a cached geometry realisation?
             //
-            if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData().get()))
+            if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
             {
-                //
-                // Has the geometry been created or has the path changed?
-                //
-                if (pathData->geometry == nullptr || pathData->hasChanged())
+                if (auto geometryRealisation = pathData->getOrCreateFilledGeometryRealisation(p, factory, deviceContext, getPimpl()->getScaleFactor(), transform))
                 {
-                    pathData->geometry = nullptr;
-                    pathData->filled.geometryRealisation = nullptr;
-                    pathData->stroked.geometryRealisation = nullptr;
-
-                    pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
-                }
-
-                geometry = pathData->geometry;
-                     
-                if (geometry)
-                {
-                    //
-                    // Is there an existing geometry realisation; if so, was the flattening tolerance for that
-                    // realisation within range? 
-                    //
-                    auto flatteningTolerance = direct2d::findGeometryFlatteningTolerance(getPhysicalPixelScaleFactor(), transform);
-                    Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
-
-                    if (pathData->filled.geometryRealisation && !flatteningToleranceRange.contains(pathData->filled.flatteningTolerance))
-                    {
-                        pathData->filled.geometryRealisation = nullptr;
-                    }
-
-                    //
-                    // Create a new realisation?
-                    //
-                    if (pathData->filled.geometryRealisation == nullptr)
-                    {
-                        pathData->filled.flatteningTolerance = flatteningTolerance;
-                        deviceContext->CreateFilledGeometryRealization(geometry,
-                            pathData->filled.flatteningTolerance,
-                            pathData->filled.geometryRealisation.resetAndGetPointerAddress());
-                    }
-
-                    //
-                    // Fill the realisation
-                    //
-                    //updateDeviceContextTransform(transform);
-                    getPimpl()->setDeviceContextTransform({});
-
-                    if (pathData->filled.geometryRealisation)
-                    {
-                        deviceContext->DrawGeometryRealization(pathData->filled.geometryRealisation, currentState->currentBrush);
-                        return;
-                    }
+                    updateDeviceContextTransform(transform);
+                    deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+                    return;
                 }
             }
 
             //
-            // Fill the geometry without using a realisation
+            // Create and fill the geometry
             //
-            if (!geometry)
-            {
-                geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform);
-            }
-
-            if (geometry != nullptr)
+            if (auto geometry = direct2d::pathToPathGeometry(factory, p, transform))
             {
                 updateDeviceContextTransform();
                 deviceContext->FillGeometry(geometry, currentState->currentBrush);
@@ -1139,115 +1092,42 @@ namespace juce
 
     bool Direct2DGraphicsContext::drawPath(const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
     {
-        ComSmartPtr<ID2D1Geometry> geometry;
-
         TRACE_LOG_D2D_PAINT_CALL(etw::drawPath);
 
         if (auto factory = getPimpl()->getDirect2DFactory())
         {
             if (auto deviceContext = getPimpl()->getDeviceContext())
             {
+                //
+                // Don't bother if the path would be invisible
+                //
                 if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
                 {
                     return true;
                 }
 
                 //
-                // Is this a Direct2D Path?
+                // Use a cached geometry realisation?
                 //
-                if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData().get()))
+                if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
                 {
-                    //
-                    // Has the geometry been created or has the path changed?
-                    //
-                    if (pathData->geometry == nullptr || pathData->hasChanged())
+                    if (auto geometryRealisation = pathData->getOrCreateStrokedGeometryRealisation(p, 
+                        strokeType, 
+                        factory, 
+                        deviceContext, 
+                        getPimpl()->getScaleFactor(), 
+                        transform))
                     {
-                        pathData->geometry = nullptr;
-                        pathData->filled.geometryRealisation = nullptr;
-                        pathData->stroked.geometryRealisation = nullptr;
-                        pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
-                    }
-
-                    geometry = pathData->geometry;
-
-                    if (geometry)
-                    {
-                        //
-                        // Is there an existing geometry realisation; if so, was the flattening tolerance for that
-                        // realisation within range? 
-                        //
-                        auto flatteningTolerance = direct2d::findGeometryFlatteningTolerance(getPhysicalPixelScaleFactor(), transform);
-                        Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
-
-                        auto transformedSize = p.getBoundsTransformed(transform).withZeroOrigin();
-                        if (transformedSize.isEmpty())
-                        {
-                            return true;
-                        }
-
-                        if (! flatteningToleranceRange.contains(pathData->stroked.flatteningTolerance) ||
-                            pathData->stroked.size != transformedSize)
-                        {
-                            pathData->stroked.geometryRealisation = nullptr;
-                        }
-
-                        //
-                        // Does the stroke style match for the existing geometry realisation?
-                        //
-                        if (pathData->stroked.stroke != strokeType)
-                        {
-                            pathData->stroked.geometryRealisation = nullptr;
-                        }
-
-                        //
-                        // Create a new realisation?
-                        //
-                        if (pathData->stroked.geometryRealisation == nullptr)
-                        {
-                            if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
-                            {
-                                //
-                                // Transforming the stroked geometry realization will also affect the line weight. 
-                                // Determine how much the specified transform will affect the path bounds
-                                // and scale the link thickness accordingly.
-                                //
-                                auto widthRatio = pathData->stroked.size.getWidth() / transformedSize.getWidth();
-                                auto heightRatio = pathData->stroked.size.getHeight() / transformedSize.getHeight();
-                                auto strokeThicknessScale = juce::jmin(widthRatio, heightRatio);
-
-                                pathData->stroked.size = transformedSize;
-                                pathData->stroked.flatteningTolerance = flatteningTolerance;
-                                pathData->stroked.stroke = strokeType;
-                                deviceContext->CreateStrokedGeometryRealization(geometry,
-                                    pathData->stroked.flatteningTolerance,
-                                    strokeType.getStrokeThickness() * strokeThicknessScale,
-                                    strokeStyle,
-                                    pathData->stroked.geometryRealisation.resetAndGetPointerAddress());
-                            }
-                        }
-
-                        //
-                        // Draw the realisation
-                        //
-                        updateDeviceContextTransform();
-
-                        if (pathData->stroked.geometryRealisation)
-                        {
-                            deviceContext->DrawGeometryRealization(pathData->stroked.geometryRealisation, currentState->currentBrush);
-                            return true;
-                        }
+                        updateDeviceContextTransform(transform);
+                        deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+                        return true;
                     }
                 }
 
                 //
                 // Create and draw a geometry
                 //
-                if (!geometry)
-                {
-                    geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform);
-                }
-
-                if (geometry)
+                if (auto geometry = direct2d::pathToPathGeometry(factory, p, transform))
                 {
                     if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
                     {
@@ -1257,6 +1137,8 @@ namespace juce
                 }
             }
         }
+
+
 
         return true;
     }

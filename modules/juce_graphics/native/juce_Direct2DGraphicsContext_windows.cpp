@@ -484,12 +484,11 @@ namespace juce
         JUCE_DECLARE_WEAK_REFERENCEABLE(Pimpl)
 
     public:
-        Pimpl(Direct2DGraphicsContext& owner_, float dpiScalingFactor_, bool opaque_)
+        Pimpl(Direct2DGraphicsContext& owner_, bool opaque_)
             : owner(owner_),
             opaque(opaque_)
         {
             setTargetAlpha(1.0f);
-            setScaleFactor(dpiScalingFactor_);
 
             D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
             factories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());

@@ -174,6 +174,11 @@ namespace juce
             return nullptr;
         }
 
+        float getDPIScalingFactor() const noexcept
+        {
+            return scaledArea.getDPIScalingFactor();
+        }
+
         std::unique_ptr<ImageType> createType() const override
         {
             return std::make_unique<NativeImageType>();

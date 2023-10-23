@@ -154,8 +154,8 @@ namespace juce
         JUCE_DECLARE_WEAK_REFERENCEABLE(HwndPimpl)
 
     public:
-        HwndPimpl(Direct2DHwndContext& owner_, HWND hwnd_, float dpiScalingFactor_, bool opaque_)
-            : Pimpl(owner_, dpiScalingFactor_, opaque_),
+        HwndPimpl(Direct2DHwndContext& owner_, HWND hwnd_, bool opaque_)
+            : Pimpl(owner_, opaque_),
             hwnd(hwnd_)
         {
             adapter = factories->getAdapterForHwnd(hwnd_);
@@ -558,7 +558,9 @@ namespace juce
     //==============================================================================
     Direct2DHwndContext::Direct2DHwndContext(HWND hwnd_, float dpiScalingFactor_, bool opaque)
     {
-        pimpl = std::make_unique<HwndPimpl>(*this, hwnd_, dpiScalingFactor_, opaque);
+        pimpl = std::make_unique<HwndPimpl>(*this, hwnd_, opaque);
+
+        getPimpl()->setScaleFactor(dpiScalingFactor_);
         updateSize();
     }
 

@@ -145,7 +145,7 @@ namespace juce
             Direct2DPixelData::Ptr                direct2DPixelData_,
             Point<int>                            origin_,
             const RectangleList<int>& initialClip_)
-            : Pimpl(owner_, direct2DPixelData_->scaledArea.getDPIScalingFactor(), false /* opaque */),
+            : Pimpl(owner_, false /* opaque */),
             direct2DPixelData(direct2DPixelData_),
             origin(origin_),
             initialClip(initialClip_)
@@ -181,6 +181,8 @@ namespace juce
         : clearImage(clearImage_),
         pimpl(new ImagePimpl{ *this, direct2DPixelData_, origin, initialClip })
     {
+        setPhysicalPixelScaleFactor(direct2DPixelData_->getDPIScalingFactor());
+
         startFrame();
     }
 

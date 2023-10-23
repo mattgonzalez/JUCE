@@ -1053,6 +1053,8 @@ namespace juce
 
     void Direct2DGraphicsContext::fillPath(const Path& p, const AffineTransform& transform)
     {
+        ComSmartPtr<ID2D1Geometry> geometry;
+
         TRACE_LOG_D2D_PAINT_CALL(etw::fillPath);
         
         if (auto deviceContext = getPimpl()->getDeviceContext())
@@ -1074,10 +1076,14 @@ namespace juce
                 {
                     pathData->geometry = nullptr;
                     pathData->filled.geometryRealisation = nullptr;
+                    pathData->stroked.geometryRealisation = nullptr;
+
                     pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
                 }
 
-                if (pathData->geometry)
+                geometry = pathData->geometry;
+                     
+                if (geometry)
                 {
                     //
                     // Is there an existing geometry realisation; if so, was the flattening tolerance for that
@@ -1090,14 +1096,14 @@ namespace juce
                     {
                         pathData->filled.geometryRealisation = nullptr;
                     }
-                        
+
                     //
                     // Create a new realisation?
                     //
                     if (pathData->filled.geometryRealisation == nullptr)
                     {
                         pathData->filled.flatteningTolerance = flatteningTolerance;
-                        deviceContext->CreateFilledGeometryRealization(pathData->geometry,
+                        deviceContext->CreateFilledGeometryRealization(geometry,
                             pathData->filled.flatteningTolerance,
                             pathData->filled.geometryRealisation.resetAndGetPointerAddress());
                     }
@@ -1105,23 +1111,26 @@ namespace juce
                     //
                     // Fill the realisation
                     //
-                    updateDeviceContextTransform(transform);
+                    //updateDeviceContextTransform(transform);
+                    getPimpl()->setDeviceContextTransform({});
 
                     if (pathData->filled.geometryRealisation)
                     {
                         deviceContext->DrawGeometryRealization(pathData->filled.geometryRealisation, currentState->currentBrush);
                         return;
                     }
-
-                    //
-                    // All that didn't work; call FillGeometry instead
-                    //
-                    deviceContext->FillGeometry(pathData->geometry, currentState->currentBrush);
-                    return;
                 }
             }
 
-            if (auto geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform))
+            //
+            // Fill the geometry without using a realisation
+            //
+            if (!geometry)
+            {
+                geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform);
+            }
+
+            if (geometry != nullptr)
             {
                 updateDeviceContextTransform();
                 deviceContext->FillGeometry(geometry, currentState->currentBrush);
@@ -1131,78 +1140,108 @@ namespace juce
 
     bool Direct2DGraphicsContext::drawPath(const Path& p, const PathStrokeType& strokeType, const AffineTransform& transform)
     {
+        ComSmartPtr<ID2D1Geometry> geometry;
+
         TRACE_LOG_D2D_PAINT_CALL(etw::drawPath);
 
-        if (auto deviceContext = getPimpl()->getDeviceContext())
+        if (auto factory = getPimpl()->getDirect2DFactory())
         {
-            if (currentState->fillType.isInvisible())
+            if (auto deviceContext = getPimpl()->getDeviceContext())
             {
-                return true;
-            }
-
-            if (auto factory = getPimpl()->getDirect2DFactory())
-            {
-                if (auto geometry = direct2d::pathToPathGeometry(factory, p, transform))
+                if (currentState->fillType.isInvisible())
                 {
-                    // JUCE JointStyle   ID2D1StrokeStyle
-                    // ---------------   ----------------
-                    // mitered           D2D1_LINE_JOIN_MITER
-                    // curved            D2D1_LINE_JOIN_ROUND
-                    // beveled           D2D1_LINE_JOIN_BEVEL
+                    return true;
+                }
+
+                //
+                // Is this a Direct2D Path?
+                //
+                if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData().get()))
+                {
                     //
-                    // JUCE EndCapStyle  ID2D1StrokeStyle
-                    // ----------------  ----------------
-                    // butt              D2D1_CAP_STYLE_FLAT
-                    // square            D2D1_CAP_STYLE_SQUARE
-                    // rounded           D2D1_CAP_STYLE_ROUND
+                    // Has the geometry been created or has the path changed?
                     //
-                    auto lineJoin = D2D1_LINE_JOIN_MITER;
-                    switch (strokeType.getJointStyle())
+                    if (pathData->geometry == nullptr || pathData->hasChanged())
                     {
-                    case PathStrokeType::JointStyle::mitered:
-                        // already set
-                        break;
-
-                    case PathStrokeType::JointStyle::curved: lineJoin = D2D1_LINE_JOIN_ROUND; break;
-
-                    case PathStrokeType::JointStyle::beveled: lineJoin = D2D1_LINE_JOIN_BEVEL; break;
-
-                    default:
-                        // invalid EndCapStyle
-                        jassertfalse;
-                        break;
+                        pathData->geometry = nullptr;
+                        pathData->filled.geometryRealisation = nullptr;
+                        pathData->stroked.geometryRealisation = nullptr;
+                        pathData->geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, {});
                     }
 
-                    auto capStyle = D2D1_CAP_STYLE_FLAT;
-                    switch (strokeType.getEndStyle())
+                    geometry = pathData->geometry;
+
+                    if (geometry)
                     {
-                    case PathStrokeType::EndCapStyle::butt:
-                        // already set
-                        break;
+                        //
+                        // Is there an existing geometry realisation; if so, was the flattening tolerance for that
+                        // realisation within range? 
+                        //
+                        auto flatteningTolerance = direct2d::findGeometryFlatteningTolerance(getPhysicalPixelScaleFactor(), transform);
+                        Range<float> flatteningToleranceRange{ flatteningTolerance * 0.5f, flatteningTolerance * 2.0f };
 
-                    case PathStrokeType::EndCapStyle::square: capStyle = D2D1_CAP_STYLE_SQUARE; break;
+                        if (pathData->stroked.geometryRealisation && !flatteningToleranceRange.contains(pathData->stroked.flatteningTolerance))
+                        {
+                            pathData->stroked.geometryRealisation = nullptr;
+                        }
 
-                    case PathStrokeType::EndCapStyle::rounded: capStyle = D2D1_CAP_STYLE_ROUND; break;
+                        //
+                        // Does the stroke style match for the existing geometry realisation?
+                        //
+                        if (pathData->stroked.stroke != strokeType)
+                        {
+                            pathData->stroked.geometryRealisation = nullptr;
+                        }
 
-                    default:
-                        // invalid EndCapStyle
-                        jassertfalse;
-                        break;
+                        //
+                        // Create a new realisation?
+                        //
+                        if (pathData->stroked.geometryRealisation == nullptr)
+                        {
+                            if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
+                            {
+                                pathData->stroked.flatteningTolerance = flatteningTolerance;
+                                pathData->stroked.stroke = strokeType;
+                                deviceContext->CreateStrokedGeometryRealization(geometry,
+                                    pathData->stroked.flatteningTolerance,
+                                    strokeType.getStrokeThickness(),
+                                    strokeStyle,
+                                    pathData->stroked.geometryRealisation.resetAndGetPointerAddress());
+                            }
+                        }
+
+                        //
+                        // Draw the realisation
+                        //
+                        updateDeviceContextTransform();
+
+                        if (pathData->stroked.geometryRealisation)
+                        {
+                            deviceContext->DrawGeometryRealization(pathData->stroked.geometryRealisation, currentState->currentBrush);
+                            return true;
+                        }
                     }
+                }
 
-                    D2D1_STROKE_STYLE_PROPERTIES  strokeStyleProperties{ capStyle, capStyle, capStyle, lineJoin, 1.0f, D2D1_DASH_STYLE_SOLID,
-                                                                         0.0f };
-                    ComSmartPtr<ID2D1StrokeStyle> strokeStyle;
-                    factory->CreateStrokeStyle(strokeStyleProperties, // TODO reuse the stroke style
-                        nullptr,
-                        0,
-                        strokeStyle.resetAndGetPointerAddress());
+                //
+                // Create and draw a geometry
+                //
+                if (!geometry)
+                {
+                    geometry = direct2d::pathToPathGeometry(getPimpl()->getDirect2DFactory(), p, transform);
+                }
 
-                    updateDeviceContextTransform();
-                    deviceContext->DrawGeometry(geometry, currentState->currentBrush, strokeType.getStrokeThickness(), strokeStyle);
+                if (geometry)
+                {
+                    if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
+                    {
+                        updateDeviceContextTransform();
+                        deviceContext->DrawGeometry(geometry, currentState->currentBrush, strokeType.getStrokeThickness(), strokeStyle);
+                    }
                 }
             }
         }
+
         return true;
     }
 

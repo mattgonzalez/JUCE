@@ -243,6 +243,74 @@ ComSmartPtr<ID2D1Geometry> pathToPathGeometry (ID2D1Factory* factory, const Path
     return nullptr;
 }
 
+ComSmartPtr<ID2D1StrokeStyle1> pathStrokeTypeToStrokeStyle(ID2D1Factory1* factory, const PathStrokeType& strokeType)
+{
+    // JUCE JointStyle   ID2D1StrokeStyle
+    // ---------------   ----------------
+    // mitered           D2D1_LINE_JOIN_MITER
+    // curved            D2D1_LINE_JOIN_ROUND
+    // beveled           D2D1_LINE_JOIN_BEVEL
+    //
+    // JUCE EndCapStyle  ID2D1StrokeStyle
+    // ----------------  ----------------
+    // butt              D2D1_CAP_STYLE_FLAT
+    // square            D2D1_CAP_STYLE_SQUARE
+    // rounded           D2D1_CAP_STYLE_ROUND
+    //
+    auto lineJoin = D2D1_LINE_JOIN_MITER;
+    switch (strokeType.getJointStyle())
+    {
+    case PathStrokeType::JointStyle::mitered:
+        // already set
+        break;
+
+    case PathStrokeType::JointStyle::curved: lineJoin = D2D1_LINE_JOIN_ROUND; break;
+
+    case PathStrokeType::JointStyle::beveled: lineJoin = D2D1_LINE_JOIN_BEVEL; break;
+
+    default:
+        // invalid EndCapStyle
+        jassertfalse;
+        break;
+    }
+
+    auto capStyle = D2D1_CAP_STYLE_FLAT;
+    switch (strokeType.getEndStyle())
+    {
+    case PathStrokeType::EndCapStyle::butt:
+        // already set
+        break;
+
+    case PathStrokeType::EndCapStyle::square: capStyle = D2D1_CAP_STYLE_SQUARE; break;
+
+    case PathStrokeType::EndCapStyle::rounded: capStyle = D2D1_CAP_STYLE_ROUND; break;
+
+    default:
+        // invalid EndCapStyle
+        jassertfalse;
+        break;
+    }
+
+    D2D1_STROKE_STYLE_PROPERTIES1 strokeStyleProperties
+    { 
+        capStyle, 
+        capStyle, 
+        capStyle, 
+        lineJoin, 
+        1.0f, 
+        D2D1_DASH_STYLE_SOLID,
+        0.0f,
+        D2D1_STROKE_TRANSFORM_TYPE_FIXED
+    };
+    ComSmartPtr<ID2D1StrokeStyle1> strokeStyle;
+    factory->CreateStrokeStyle(strokeStyleProperties,
+        nullptr,
+        0,
+        strokeStyle.resetAndGetPointerAddress());
+
+    return strokeStyle;
+}
+
 float findGeometryFlatteningTolerance(float dpiScaleFactor, const AffineTransform& transform, float maxZoomFactor = 1.0f)
 {
     jassert(maxZoomFactor > 0.0f);

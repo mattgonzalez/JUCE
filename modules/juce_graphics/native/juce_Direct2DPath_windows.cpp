@@ -67,8 +67,14 @@ namespace juce
             ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
         };
 
+        struct StrokedGeometryRealisation : public GeometryRealisation
+        {
+            PathStrokeType stroke{ 1.0f };
+        };
+
         ComSmartPtr<ID2D1Geometry> geometry;
         GeometryRealisation filled;
+        StrokedGeometryRealisation stroked;
 
     private:
         // keep a reference to the DirectXFactories to retain the DLLs & factories

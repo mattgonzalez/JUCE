@@ -52,8 +52,8 @@ namespace juce
     public:
         Direct2DPixelData(Image::PixelFormat formatToUse, direct2d::DPIScalableArea<int> area_, bool clearImage_)
             : ImagePixelData((formatToUse == Image::SingleChannel) ? Image::SingleChannel : Image::ARGB,
-                area_.getDeviceIndependentWidth<int>(),
-                area_.getDeviceIndependentHeight<int>()),
+                area_.getDeviceIndependentWidth(),
+                area_.getDeviceIndependentHeight()),
             area(area_),
             deviceIndependentClipArea(area_.getDeviceIndependentArea()),
             pixelStride((formatToUse == Image::SingleChannel) ? 1 : 4),

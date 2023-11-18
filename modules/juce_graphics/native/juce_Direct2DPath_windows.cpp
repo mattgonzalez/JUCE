@@ -63,6 +63,8 @@ namespace juce
 
         struct GeometryRealisation
         {
+            virtual ~GeometryRealisation() = default;
+
             virtual void create(ID2D1Geometry* geometry, juce::Rectangle<float>, ID2D1DeviceContext1* const deviceContext)
             {
                 if (geometry)
@@ -85,6 +87,8 @@ namespace juce
 
         struct StrokedGeometryRealisation : public GeometryRealisation
         {
+            virtual ~StrokedGeometryRealisation() = default;
+
             virtual void create(ID2D1Geometry* geometry, juce::Rectangle<float> pathBounds, ID2D1DeviceContext1* const deviceContext)
             {
                 if (geometry)

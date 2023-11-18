@@ -180,7 +180,7 @@ public:
         if (threadWithListener != threads.end())
             removeListener (threadWithListener, listener);
 
-        for (const auto& adapter : Adapters::getInstance().getAdapters())
+        for (const auto& adapter : DXGIAdapters::getInstance().getAdapters())
         {
             UINT i = 0;
             ComSmartPtr<IDXGIOutput> output;
@@ -207,7 +207,7 @@ public:
 
     void reconfigureDisplays()
     {
-        Adapters::getInstance().updateAdapters();
+        DXGIAdapters::getInstance().updateAdapters();
 
         for (auto& thread : threads)
             thread->updateMonitor();

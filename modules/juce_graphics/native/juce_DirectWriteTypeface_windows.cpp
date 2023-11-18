@@ -211,10 +211,10 @@ public:
         }
 
 #if JUCE_DIRECT2D
-        Adapters::getInstance().updateAdapters();
+        DXGIAdapters::getInstance().updateAdapters();
         adapters.clear();
 
-        for (const auto& adapterPtr : Adapters::getInstance().getAdapters())
+        for (const auto& adapterPtr : DXGIAdapters::getInstance().getAdapters())
         {
             const GraphicsAdapter::Ptr adapter { new GraphicsAdapter { *this, adapterPtr } };
 
@@ -301,7 +301,7 @@ public:
     IDXGIFactory2* getDXGIFactory() const
     {
         jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
-        return Adapters::getInstance().getFactory();
+        return DXGIAdapters::getInstance().getFactory();
     }
 #endif
 

@@ -158,7 +158,7 @@
 
 #elif JUCE_WINDOWS
  #include "native/juce_ETW_windows.h"
- #include "native/juce_Adapters_windows.h"
+ #include "native/juce_DXGIAdapters_windows.h"
  #if JUCE_DIRECT2D
   #include "native/juce_DirectWriteCustomFontCollection_windows.cpp"
  #endif

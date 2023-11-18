@@ -1035,7 +1035,7 @@ public:
         DeleteObject (hBitmap);
     }
 
-    std::unique_ptr<ImageType> createType() const override    { return std::make_unique<NativeImageType>(); }
+    std::unique_ptr<ImageType> createType() const override    { return std::make_unique<SoftwareImageType>(); }
 
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override
     {

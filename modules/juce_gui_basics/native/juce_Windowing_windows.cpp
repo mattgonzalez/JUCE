@@ -1435,14 +1435,14 @@ static HMONITOR getMonitorFromOutput (ComSmartPtr<IDXGIOutput> output)
 using VBlankListener = ComponentPeer::VBlankListener;
 
 //==============================================================================
-class VSyncThread : private Thread,
-                    private AsyncUpdater
+class VBlankThread : private Thread,
+                     private AsyncUpdater
 {
 public:
-    VSyncThread (ComSmartPtr<IDXGIOutput> out,
-                 HMONITOR mon,
-                 VBlankListener& listener)
-        : Thread ("VSyncThread"),
+    VBlankThread (ComSmartPtr<IDXGIOutput> out,
+                  HMONITOR mon,
+                  VBlankListener& listener)
+        : Thread ("VBlankThread"),
           output (out),
           monitor (mon)
     {
@@ -1450,7 +1450,7 @@ public:
         startThread (Priority::highest);
     }
 
-    ~VSyncThread() override
+    ~VBlankThread() override
     {
         stopThread (-1);
         cancelPendingUpdate();
@@ -1527,8 +1527,8 @@ private:
     HMONITOR monitor = nullptr;
     std::vector<std::reference_wrapper<VBlankListener>> listeners;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VSyncThread)
-    JUCE_DECLARE_NON_MOVEABLE (VSyncThread)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VBlankThread)
+    JUCE_DECLARE_NON_MOVEABLE (VBlankThread)
 };
 
 //==============================================================================
@@ -1586,7 +1586,7 @@ public:
             {
                 if (getMonitorFromOutput (output) == monitor)
                 {
-                    threads.emplace_back (std::make_unique<VSyncThread> (output, monitor, listener));
+                    threads.emplace_back (std::make_unique<VBlankThread> (output, monitor, listener));
                     return;
                 }
 
@@ -1633,7 +1633,7 @@ public:
 
 private:
     //==============================================================================
-    using Threads = std::vector<std::unique_ptr<VSyncThread>>;
+    using Threads = std::vector<std::unique_ptr<VBlankThread>>;
 
     VBlankDispatcher()
     {

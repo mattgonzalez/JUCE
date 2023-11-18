@@ -44,7 +44,7 @@ namespace juce
 
     //==============================================================================
     //
-    // Direct2D native image type
+    // Direct2D native pixel data
     //
 
     class Direct2DPixelData : public ImagePixelData
@@ -241,15 +241,14 @@ namespace juce
         JUCE_LEAK_DETECTOR(Direct2DPixelData)
     };
 
-    ImagePixelData::Ptr Direct2DImageType::create(Image::PixelFormat format, int width, int height, bool shouldClearImage) const
-    {
-        auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, dpiScalingFactor);
-        return new Direct2DPixelData{ format, area, shouldClearImage };
-    }
+    //==============================================================================
+    //
+    // Direct2D native image type
+    //
 
     ImagePixelData::Ptr NativeImageType::create(Image::PixelFormat format, int width, int height, bool clearImage) const
     {
-        auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, 1.0f);
+        auto area = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea({ width, height }, scaleFactor);
         return new Direct2DPixelData{ format, area, clearImage };
     }
 

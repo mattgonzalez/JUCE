@@ -139,6 +139,7 @@ int SoftwareImageType::getTypeID() const
 
 //==============================================================================
 NativeImageType::NativeImageType() {}
+NativeImageType::NativeImageType(float scaleFactor_) : scaleFactor(scaleFactor_) {}
 NativeImageType::~NativeImageType() {}
 
 int NativeImageType::getTypeID() const

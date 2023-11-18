@@ -548,10 +548,13 @@ class JUCE_API  NativeImageType   : public ImageType
 {
 public:
     NativeImageType();
+    NativeImageType(float scaleFactor_);
     ~NativeImageType() override;
 
     ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool clearImage) const override;
     int getTypeID() const override;
+
+    float const scaleFactor = 1.0f;
 };
 
 } // namespace juce

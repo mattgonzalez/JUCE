@@ -905,15 +905,4 @@ public:
     int getTypeID() const;
 };
 
-class JUCE_API  NativePathType : public PathType
-{
-public:
-    NativePathType() = default;
-    ~NativePathType() override = default;
-
-    PathData::Ptr createData() const override;
-    int getTypeID() const override;
-};
-
-
 } // namespace juce

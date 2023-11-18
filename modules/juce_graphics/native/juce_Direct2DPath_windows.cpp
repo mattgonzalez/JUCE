@@ -237,14 +237,4 @@ namespace juce
         return new Direct2DPathData{};
     }
 
-    PathData::Ptr NativePathType::createData() const
-    {
-        return new Direct2DPathData{};
-    }
-
-    int NativePathType::getTypeID() const
-    {
-        return 0xd2d;
-    }
-
 } // namespace juce

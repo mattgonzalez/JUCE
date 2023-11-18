@@ -1563,26 +1563,6 @@ int SoftwarePathType::getTypeID() const
     return 1;
 }
 
-
-#if (JUCE_WINDOWS && !JUCE_DIRECT2D) || JUCE_LINUX || JUCE_BSD
-
-std::unique_ptr<juce::PathType> NativePathData::createType() const
-{
-    return std::make_unique<SoftwarePathType>();
-}
-
-PathData::Ptr NativePathType::createData() const
-{
-    return new NativePathData;
-}
-
-int NativePathType::getTypeID() const
-{
-    return 0xd2d;
-}
-
-#endif
-
 bool PathData::operator==(const PathData& other) const noexcept
 {
     return useNonZeroWinding == other.useNonZeroWinding && data == other.data;

@@ -1069,6 +1069,7 @@ namespace juce
             //
             // Use a cached geometry realisation?
             //
+#if 0
             if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
             {
                 if (auto geometryRealisation = pathData->getOrCreateFilledGeometryRealisation(p, factory, deviceContext, getPimpl()->getScaleFactor(), transform))
@@ -1078,6 +1079,7 @@ namespace juce
                     return;
                 }
             }
+#endif
 
             //
             // Create and fill the geometry
@@ -1109,6 +1111,7 @@ namespace juce
                 //
                 // Use a cached geometry realisation?
                 //
+#if 0
                 if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
                 {
                     if (auto geometryRealisation = pathData->getOrCreateStrokedGeometryRealisation(p, 
@@ -1123,6 +1126,7 @@ namespace juce
                         return true;
                     }
                 }
+#endif
 
                 //
                 // Create and draw a geometry

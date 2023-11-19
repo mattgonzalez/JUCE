@@ -453,7 +453,6 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 }
 
 
-#if JUCE_DIRECT2D_SNAPSHOT
 Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
 {
     int numDesktopComponents = Desktop::getInstance().getNumComponents();
@@ -471,6 +470,5 @@ Image createSnapshotOfNativeWindow(void* nativeWindowHandle)
 
     return createGDISnapshotOfNativeWindow(nativeWindowHandle);
 }
-#endif
 
 #endif

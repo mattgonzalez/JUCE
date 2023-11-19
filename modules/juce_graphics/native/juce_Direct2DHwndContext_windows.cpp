@@ -498,9 +498,8 @@ namespace juce
             return factories->getSystemFonts();
         }
 
-        Image createSnapshot([[maybe_unused]] direct2d::DPIScalableArea<int> scalableArea)
+        Image createSnapshot(direct2d::DPIScalableArea<int> scalableArea)
         {
-#if JUCE_DIRECT2D_SNAPSHOT
             scalableArea.clipToPhysicalArea(frameSize);
 
             if (scalableArea.isEmpty() ||
@@ -542,7 +541,6 @@ namespace juce
                     return Image{ pixelData };
                 }
             }
-#endif
 
             return Image{};
         }

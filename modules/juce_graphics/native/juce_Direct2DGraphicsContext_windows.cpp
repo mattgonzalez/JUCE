@@ -502,10 +502,6 @@ namespace juce
             return pushFirstSavedState(paintBounds);
         }
 
-#if JUCE_DIRECT2D_SNAPSHOT
-        virtual void takeSnapshot() {}
-#endif
-
         virtual HRESULT finishFrame()
         {
             //

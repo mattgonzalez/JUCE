@@ -238,14 +238,29 @@ namespace juce
         void addDeferredRepaint(Rectangle<int> deferredRepaint)
         {
             //
-            // Clipping regions are specified with floating-point values and can be anti-aliased with
-            // sub-pixel boundaries, especially with high DPI.
-            //
-            // The swap chain dirty rectangles are specified with integer values.
-            //
-            // To keep the clipping regions and the dirty rectangles lined up, find the lowest
-            // common denominator and expand the clipping region slightly so that both the
-            // clipping region and the dirty rectangle will sit on pixel boundaries.
+            // deferredRepaint specifies an area that needs to be painted in units of points (device-independent pixels).
+            // 
+            // deferredRepaint will be used as a clipping region for the device context. The device context will scale the 
+            // clipping region by the DPI scale factor. This scaled clipping region may or may not align on a physical 
+            // pixel boundary.
+            // 
+            // deferredRepaint will also be used to set a dirty rectangle for the swap chain. Dirty rectangles are also 
+            // DPI scaled, but must align on a physical pixel boundary. The scaled clipping region may be smaller than the 
+            // dirty rectangle, leaving a small unpainted gap between the clipping region and the dirty rectangle.
+            // 
+            // For example - say deferredRepaint is x:1, y:3, w:97, h:99 and that DPI scaling is 125%. 
+            // When scaled, the physical area in the swap chain buffer will be:
+            // 
+            // { 9, 11, 97, 99 } * 1.25 == { 11.25, 13.75, 121.25, 123.75 }
+            // 
+            // The component will only fill this subpixel region in the swap chain, but the swap chain dirty rectangle 
+            // will be { 11, 13, 122, 124 }, meaning that the dirty rectangle will not be fully painted.
+            // 
+            // The unscaled deferred repaint area needs to be extended so that the unscaled deferred repaint area. In the example above,
+            // the { 9, 11, 97, 99 } unscaled region would be expanded to { 8, 8, 100, 100 }, which scales up nicely 
+            // to { 10, 10, 125, 125 }
+            // 
+            // Please refer to setScaleFactor() to see how the snap factor is calculated.
             //
             auto snapMask = ~(repaintAreaPixelSnap - 1);
             deferredRepaints.add(Rectangle<int>::leftTopRightBottom(deferredRepaint.getX() & snapMask,
@@ -384,37 +399,49 @@ namespace juce
             Pimpl::setScaleFactor(scale_);
 
             //
-            // Round DPI scaling factor to nearest 1/128 so the repainted areas
-            // and the dirty rectangles both snap to pixel boundaries
-            //
-            snappedDpiScalingFactor = roundToInt(scale_ * dpiScalingIntConversionFactor) / float{ dpiScalingIntConversionFactor };
-
-            //
-            // Typical Windows DPI scaling is in steps of 25%, so the repaint area needs to be expanded and snapped to the nearest multiple of 4.
-            //
-            // Windows lets the user enter scaling in steps of 1%, which would require expanding to the nearest multiple of 100.
-            // This method finds the least common denominator as a power of 2 up to a snap of 128 pixels.
-            //
+            // See addDeferredRepaint() for more information on why repaint areas need to be extended to avoid ghosting
+            // 
+            // The goal here is to find the minimum snap amount to expand the deferred repaint areas based on the DPI scale factor. 
+            // Instead of a percentage, think of the DPI scale factor as a fractional integer ratio:
+            // 
+            // 100% == 100/100
+            // 125% == 125/100
+            // 250% == 250/100
+            // 
+            // Simplify the ratio; the denominator of the simplified ratio is the minimum snap amount.
+            // 
+            // 100% == 100/100 == 1/1 == snap to nearest multiple of 1
+            // 125% == 125/100 == 5/4 == snap to nearest multiple of 4
+            // 250% == 250/100 == 5/2 == snap to nearest multiple of 2
+            // 
+            // Windows allows the user to manually specify the DPI scale factor to the nearest 1%, so round the DPI scaling factor
+            // to the nearest 1/128th and simplify the ratio.
+            // 
             // For example: DPI scaling 150%
+            //      snappedDpiScalingFactor = 1.5
             //      greatestCommonDenominator = gdc( 1.5 * 128, 128) = 64
-            //      repaintAreaPixel = 128 / 64 = 2
-            //      deferredRepaints will be expanded to snap to the next multiple of 2
+            //      repaintAreaPixelSnap = 128 / 64 = 2
+            //      deferredRepaint will be expanded to snap to the next multiple of 2
             //
             // DPI scaling of 225%
+            //      snappedDpiScalingFactor = 2.25
             //      greatestCommonDenominator = gdc( 2.25 * 128, 128) = 32
-            //      repaintAreaPixel = 128 / 32 = 4
-            //      deferredRepaints will be expanded to snap to the next multiple of 4
+            //      repaintAreaPixelSnap = 128 / 32 = 4
+            //      deferredRepaint will be expanded to snap to the next multiple of 4
             //
             // DPI scaling of 301%
-            //      greatestCommonDenominator = gdc( 3.01 * 128, 128) = 1
-            //      repaintAreaPixel = 128 / 1 = 128
-            //      deferredRepaints will be expanded to snap to the next multiple of 128
+            //      snappedDpiScalingFactor = 3.0078125
+            //      greatestCommonDenominator = gdc( 3.0078125 * 128, 128) = 1
+            //      repaintAreaPixelSnap = 128 / 1 = 128
+            //      deferredRepaint will be expanded to snap to the next multiple of 128
             //
             // For the typical scaling factors, the deferred repaint area will be only slightly expanded to the nearest multiple of 4. The more offbeat
             // scaling factors will be less efficient and require more painting.
             //
-            auto greatestCommonDenominator =
-                std::gcd(roundToInt(float{ dpiScalingIntConversionFactor } *snappedDpiScalingFactor), dpiScalingIntConversionFactor);
+            snappedDpiScalingFactor = roundToInt(scale_ * dpiScalingIntConversionFactor) / float{ dpiScalingIntConversionFactor };
+
+            auto greatestCommonDenominator = std::gcd(roundToInt(float{ dpiScalingIntConversionFactor } * snappedDpiScalingFactor), 
+                dpiScalingIntConversionFactor);
             repaintAreaPixelSnap = dpiScalingIntConversionFactor / greatestCommonDenominator;
 
             //

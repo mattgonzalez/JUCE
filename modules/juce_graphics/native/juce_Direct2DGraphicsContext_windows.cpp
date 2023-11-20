@@ -665,10 +665,9 @@ namespace juce
 
     void Direct2DGraphicsContext::endFrame()
     {
-        getPimpl()->popAllSavedStates();
-        currentState = nullptr;
-
         getPimpl()->finishFrame();
+
+        currentState = nullptr;
     }
 
     void Direct2DGraphicsContext::setOrigin(Point<int> o)

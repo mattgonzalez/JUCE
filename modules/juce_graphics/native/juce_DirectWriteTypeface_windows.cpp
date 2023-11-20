@@ -88,77 +88,6 @@ namespace
 class DirectXFactories
 {
 public:
-    struct GraphicsOutput
-    {
-        ComSmartPtr<IDXGIOutput> dxgiOutput;
-    };
-
-    struct GraphicsAdapter : public ReferenceCountedObject
-    {
-        GraphicsAdapter (DirectXFactories& directXFactories_, const ComSmartPtr<IDXGIAdapter>& dxgiAdapter_)
-            : directXFactories (directXFactories_), dxgiAdapter (dxgiAdapter_)
-        {
-            uint32                    i = 0;
-            ComSmartPtr<IDXGIOutput> dxgiOutput;
-
-            while (dxgiAdapter_->EnumOutputs (i, dxgiOutput.resetAndGetPointerAddress()) != DXGI_ERROR_NOT_FOUND)
-            {
-                outputs.push_back ({ dxgiOutput });
-                ++i;
-            }
-        }
-
-        HRESULT createDirect2DResources()
-        {
-            HRESULT hr = S_OK;
-
-            if (direct3DDevice == nullptr)
-            {
-                direct2DDevice = nullptr;
-                dxgiDevice = nullptr;
-
-                // This flag adds support for surfaces with a different color channel ordering
-                // than the API default. It is required for compatibility with Direct2D.
-                UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-    #if JUCE_DEBUG
-                creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
-    #endif
-
-                hr = D3D11CreateDevice (dxgiAdapter,
-                    D3D_DRIVER_TYPE_UNKNOWN,
-                    nullptr,
-                    creationFlags,
-                    nullptr,
-                    0,
-                    D3D11_SDK_VERSION,
-                    direct3DDevice.resetAndGetPointerAddress(),
-                    nullptr,
-                    nullptr);
-            }
-
-            if (SUCCEEDED(hr))
-            {
-                hr = direct3DDevice->QueryInterface (dxgiDevice.resetAndGetPointerAddress());
-            }
-
-            if (SUCCEEDED(hr) && direct2DDevice == nullptr)
-            {
-                hr = directXFactories.getDirect2DFactory()->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
-            }
-
-            return hr;
-        }
-
-        DirectXFactories& directXFactories;
-        ComSmartPtr<IDXGIAdapter> dxgiAdapter;
-        ComSmartPtr<ID3D11Device> direct3DDevice;
-        ComSmartPtr<IDXGIDevice>  dxgiDevice;
-        ComSmartPtr<ID2D1Device1> direct2DDevice;
-        std::vector<GraphicsOutput> outputs;
-
-        using Ptr = ReferenceCountedObjectPtr<GraphicsAdapter>;
-    };
-
     DirectXFactories()
     {
         JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wlanguage-extension-token")
@@ -210,27 +139,16 @@ public:
             }
         }
 
-#if JUCE_DIRECT2D
         DXGIAdapters::getInstance().updateAdapters();
-        adapters.clear();
-
-        for (const auto& adapterPtr : DXGIAdapters::getInstance().getAdapters())
-        {
-            const GraphicsAdapter::Ptr adapter { new GraphicsAdapter { *this, adapterPtr } };
-
-            if (! adapter->outputs.empty())
-                adapters.add (adapter);
-        }
-#endif
 
         JUCE_END_IGNORE_WARNINGS_GCC_LIKE
     }
 
     ~DirectXFactories()
     {
-#if JUCE_DIRECT2D
-        adapters.clear();
+        DXGIAdapters::getInstance().clearAdapters();
 
+#if JUCE_DIRECT2D
         if (directWriteFactory != nullptr)
         {
             //
@@ -323,34 +241,6 @@ public:
         jassert(MessageManager::getInstance()->isThisTheMessageThread());
         return customFontCollectionLoaders;
     }
-
-    GraphicsAdapter::Ptr const getAdapterForHwnd (HWND hwnd) const
-    {
-        if (auto monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONULL))
-        {
-            for (auto& adapter : adapters)
-            {
-                for (auto output : adapter->outputs)
-                {
-                    DXGI_OUTPUT_DESC desc;
-                    if (auto hr = output.dxgiOutput->GetDesc (&desc); SUCCEEDED (hr))
-                    {
-                        if (desc.Monitor == monitor)
-                        {
-                            return adapter;
-                        }
-                    }
-                }
-            }
-        }
-
-        return getDefaultAdapter();
-    }
-
-    GraphicsAdapter::Ptr getDefaultAdapter() const
-    {
-        return adapters.getFirst();
-    }
 #endif
 
     ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
@@ -373,8 +263,6 @@ private:
 
 #if JUCE_DIRECT2D
     OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
-
-    ReferenceCountedArray<GraphicsAdapter> adapters;
 #endif
 };
 

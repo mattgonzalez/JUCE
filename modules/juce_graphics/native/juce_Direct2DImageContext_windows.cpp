@@ -150,7 +150,7 @@ namespace juce
             origin(origin_),
             initialClip(initialClip_)
         {
-            adapter = factories->getDefaultAdapter();
+            adapter = DXGIAdapters::getInstance().getDefaultAdapter();
         }
 
         ~ImagePimpl() override {}

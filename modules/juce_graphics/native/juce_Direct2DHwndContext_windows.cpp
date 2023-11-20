@@ -158,7 +158,7 @@ namespace juce
             : Pimpl(owner_, opaque_),
             hwnd(hwnd_)
         {
-            adapter = factories->getAdapterForHwnd(hwnd_);
+            adapter = DXGIAdapters::getInstance().getAdapterForHwnd(hwnd_);
         }
 
         ~HwndPimpl() override = default;

@@ -109,13 +109,17 @@ public:
     //
     // Create a Direct2D device context for a DXGI adapter
     //
-    HRESULT create(DirectXFactories::GraphicsAdapter::Ptr adapter, double dpiScalingFactor)
+    HRESULT create(DXGIAdapter::Ptr adapter, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
 
+        jassert(adapter);
+
         if (deviceContext.context == nullptr)
         {
-            hr = adapter->createDirect2DResources();
+            SharedResourcePointer<DirectXFactories> factories;
+
+            hr = adapter->createDirect2DResources(factories->getDirect2DFactory());
             if (SUCCEEDED(hr))
             {
                 hr = adapter->direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
@@ -171,7 +175,7 @@ public:
         release();
     }
 
-    HRESULT create(HWND hwnd, Rectangle<int> size, DirectXFactories::GraphicsAdapter::Ptr adapter)
+    HRESULT create(HWND hwnd, Rectangle<int> size, DXGIAdapter::Ptr adapter)
     {
         if (!chain && hwnd)
         {

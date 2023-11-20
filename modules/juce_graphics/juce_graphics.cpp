@@ -70,6 +70,8 @@
   #include <d3d11_1.h>
   #include <dwrite.h>
   #include <dcomp.h>
+  #include <dxgi1_2.h>
+
 
 #if JUCE_ETW_TRACELOGGING
   #include <evntrace.h>

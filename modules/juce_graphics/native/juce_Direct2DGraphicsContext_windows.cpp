@@ -396,7 +396,7 @@ namespace juce
         SharedResourcePointer<DirectXFactories> factories;
         float                                   dpiScalingFactor = 1.0f;
 
-        DirectXFactories::GraphicsAdapter::Ptr adapter;
+        DXGIAdapter::Ptr adapter;
         direct2d::DeviceResources              deviceResources;
 
         std::stack<std::unique_ptr<Direct2DGraphicsContext::SavedState>> savedClientStates;

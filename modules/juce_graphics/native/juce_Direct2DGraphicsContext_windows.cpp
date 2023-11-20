@@ -582,6 +582,11 @@ namespace juce
             return deviceResources.deviceContext.context;
         }
 
+        auto getDirect2DDeviceUniqueID() const noexcept
+        {
+            return adapter->direct2DDeviceUniqueID;
+        }
+
         void setDeviceContextTransform(AffineTransform transform)
         {
             deviceResources.deviceContext.setTransform(transform);
@@ -1102,14 +1107,17 @@ namespace juce
             //
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (image.getPixelData()))
             {
-                D2D1_RECT_F sourceRectangle = direct2d::rectangleToRectF(direct2DPixelData->deviceIndependentClipArea);
-                deviceContext->DrawBitmap(direct2DPixelData->targetBitmap,
-                    nullptr,
-                    currentState->fillType.getOpacity(),
-                    currentState->interpolationMode,
-                    &sourceRectangle,
-                    {});
-                return;
+                if (direct2DPixelData->targetBitmap && direct2DPixelData->direct2DDeviceUniqueID == getPimpl()->getDirect2DDeviceUniqueID())
+                {
+                    D2D1_RECT_F sourceRectangle = direct2d::rectangleToRectF(direct2DPixelData->deviceIndependentClipArea);
+                    deviceContext->DrawBitmap(direct2DPixelData->targetBitmap,
+                        nullptr,
+                        currentState->fillType.getOpacity(),
+                        currentState->interpolationMode,
+                        &sourceRectangle,
+                        {});
+                    return;
+                }
             }
 
             //

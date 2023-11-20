@@ -104,6 +104,11 @@ namespace juce
                     deviceContext->Clear();
                     deviceContext->EndDraw();
                     deviceContext->SetTarget(nullptr);
+
+                    //
+                    // Store the unique ID for the Direct2D device
+                    //
+                    direct2DPixelData->direct2DDeviceUniqueID = getDirect2DDeviceUniqueID();
                 }
 
                 direct2DPixelData->mappableBitmap = nullptr;

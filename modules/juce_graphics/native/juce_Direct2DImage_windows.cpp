@@ -271,6 +271,7 @@ namespace juce
         ComSmartPtr<ID2D1Bitmap1> targetBitmap;
         ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
         D2D1_MAPPED_RECT          mappedRect{};
+        Uuid                      direct2DDeviceUniqueID = Uuid::null();
 
         JUCE_LEAK_DETECTOR(Direct2DPixelData)
     };

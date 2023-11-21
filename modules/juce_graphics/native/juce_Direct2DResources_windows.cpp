@@ -102,14 +102,16 @@ public:
 
     ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
     {
-        if (auto cachedGeometry = getCachedGeometry(path))
+        Hasher hasher{ path, dpiScaleFactor };
+        auto hash = hasher.calculateHash();
+
+        if (auto cachedGeometry = getCachedGeometry(hash))
         {
             if (! cachedGeometry->filledGeometryRealisation)
             {
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
-                    auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
-                    auto hr = deviceContext->CreateFilledGeometryRealization(geometry, flatteningTolerance, cachedGeometry->filledGeometryRealisation.resetAndGetPointerAddress());
+                    auto hr = deviceContext->CreateFilledGeometryRealization(geometry, hasher.flatteningTolerance, cachedGeometry->filledGeometryRealisation.resetAndGetPointerAddress());
 
                     if (hr == E_OUTOFMEMORY)
                     {
@@ -126,7 +128,10 @@ public:
 
     ID2D1GeometryRealization* getStrokedGeometryRealisation(const Path& path, const PathStrokeType& strokeType, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
     {
-        if (auto cachedGeometry = getCachedGeometry(path))
+        Hasher hasher{ path, strokeType, dpiScaleFactor };
+        auto hash = hasher.calculateHash();
+
+        if (auto cachedGeometry = getCachedGeometry(hash))
         {
             if (!cachedGeometry->strokedGeometryRealisation)
             {
@@ -134,9 +139,8 @@ public:
                 {
                     if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
                     {
-                        auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
-                        auto hr = deviceContext->CreateStrokedGeometryRealization(geometry,
-                            flatteningTolerance, strokeType.getStrokeThickness(), strokeStyle,
+                        auto hr = deviceContext->CreateStrokedGeometryRealization(geometry, hasher.flatteningTolerance, 
+                            strokeType.getStrokeThickness(), strokeStyle,
                             cachedGeometry->strokedGeometryRealisation.resetAndGetPointerAddress());
 
                         if (hr == E_OUTOFMEMORY)
@@ -154,6 +158,61 @@ public:
     }
 
 private:
+
+    static float findGeometryFlatteningTolerance(float dpiScaleFactor, /*const AffineTransform& transform,*/ float maxZoomFactor = 1.0f)
+    {
+        jassert(maxZoomFactor > 0.0f);
+
+        //
+        // Could use D2D1::ComputeFlatteningTolerance here, but that requires defining NTDDI_VERSION and it doesn't do anything special.
+        // 
+        // Direct2D default flattening tolerance is 0.25
+        //
+        //auto transformScaleFactor = std::sqrt(std::abs(transform.getDeterminant()));
+        return 0.25f / (/*transformScaleFactor **/ dpiScaleFactor * maxZoomFactor);
+    }
+
+    //--------------------------------------------------------------------------
+    //
+    // Hashing
+    //
+    struct Hasher
+    {
+        Hasher(Path const& path, float dpiScaleFactor) :
+            startingHash(path.calculateHash()),
+            flatteningTolerance(findGeometryFlatteningTolerance(dpiScaleFactor)),
+            nonZeroWinding(path.isUsingNonZeroWinding())
+        {
+        }
+
+        Hasher(Path const& path, PathStrokeType const& strokeType, float dpiScaleFactor) :
+            Hasher(path, dpiScaleFactor)
+        {
+            strokeThickness = strokeType.getStrokeThickness();
+            jointStyle = static_cast<int16>(strokeType.getJointStyle());
+            endCapStyle = static_cast<int16>(strokeType.getEndStyle());
+        }
+
+        size_t calculateHash() const
+        {
+            std::string_view tempStringView{ reinterpret_cast<char const*>(this), sizeof(Hasher) };
+            return std::hash<std::string_view>{}(tempStringView);
+        }
+
+        size_t startingHash = 0;
+        float strokeThickness = 0.0f;
+        float flatteningTolerance = 0.0f;
+        int16 jointStyle = 0;
+        int16 endCapStyle = 0;
+        int16 nonZeroWinding = 0;
+        int16 reserved = 0;
+    };
+
+
+    //--------------------------------------------------------------------------
+    //
+    // Caching
+    //
     struct CachedGeometry
     {
         CachedGeometry(size_t hash_) :
@@ -182,22 +241,8 @@ private:
     std::deque<CachedGeometry> cache;
     std::unordered_map<size_t, WeakReference<CachedGeometry>> hashMap;
 
-    static float findGeometryFlatteningTolerance(float dpiScaleFactor, /*const AffineTransform& transform,*/ float maxZoomFactor = 1.0f)
+    CachedGeometry* getCachedGeometry(size_t hash)
     {
-        jassert(maxZoomFactor > 0.0f);
-
-        //
-        // Could use D2D1::ComputeFlatteningTolerance here, but that requires defining NTDDI_VERSION and it doesn't do anything special.
-        // 
-        // Direct2D default flattening tolerance is 0.25
-        //
-        //auto transformScaleFactor = std::sqrt(std::abs(transform.getDeterminant()));
-        return 0.25f / (/*transformScaleFactor **/ dpiScaleFactor * maxZoomFactor);
-    }
-
-    CachedGeometry* getCachedGeometry(const Path& path)
-    {
-        auto hash = path.calculateHash();
         auto cachedGeometry = hashMap[hash];
 
         releaseExpiredEntries();

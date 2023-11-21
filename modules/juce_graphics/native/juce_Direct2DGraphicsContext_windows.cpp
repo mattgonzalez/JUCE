@@ -1008,7 +1008,7 @@ namespace juce
             //
             // Don't bother if the path would be invisible
             //
-            if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
+            if (currentState->fillType.isInvisible() || p.isEmpty())
             {
                 return;
             }
@@ -1050,7 +1050,7 @@ namespace juce
                 //
                 // Don't bother if the path would be invisible
                 //
-                if (currentState->fillType.isInvisible() || p.isEmpty() || p.getBounds().isEmpty())
+                if (currentState->fillType.isInvisible() || p.isEmpty())
                 {
                     return true;
                 }

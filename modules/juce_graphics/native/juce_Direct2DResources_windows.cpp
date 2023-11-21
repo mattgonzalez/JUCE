@@ -91,6 +91,173 @@ struct DeviceContext
     AffineTransform                 transform;
 };
 
+class GeometryCache
+{
+public:
+    void release()
+    {
+        hashMap.clear();
+        cache.clear();
+    }
+
+    ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
+    {
+        if (auto cachedGeometry = getCachedGeometry(path))
+        {
+            if (! cachedGeometry->filledGeometryRealisation)
+            {
+                if (auto geometry = direct2d::pathToPathGeometry(factory, path))
+                {
+                    auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
+                    auto hr = deviceContext->CreateFilledGeometryRealization(geometry, flatteningTolerance, cachedGeometry->filledGeometryRealisation.resetAndGetPointerAddress());
+
+                    if (hr == E_OUTOFMEMORY)
+                    {
+                        releaseOldestEntry();
+                    }
+                }
+            }
+
+            return cachedGeometry->filledGeometryRealisation;
+        }
+
+        return nullptr;
+    }
+
+    ID2D1GeometryRealization* getStrokedGeometryRealisation(const Path& path, const PathStrokeType& strokeType, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
+    {
+        if (auto cachedGeometry = getCachedGeometry(path))
+        {
+            if (!cachedGeometry->strokedGeometryRealisation)
+            {
+                if (auto geometry = direct2d::pathToPathGeometry(factory, path))
+                {
+                    if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
+                    {
+                        auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
+                        auto hr = deviceContext->CreateStrokedGeometryRealization(geometry,
+                            flatteningTolerance, strokeType.getStrokeThickness(), strokeStyle,
+                            cachedGeometry->strokedGeometryRealisation.resetAndGetPointerAddress());
+
+                        if (hr == E_OUTOFMEMORY)
+                        {
+                            releaseOldestEntry();
+                        }
+                    }
+                }
+            }
+
+            return cachedGeometry->strokedGeometryRealisation;
+        }
+
+        return nullptr;
+    }
+
+private:
+    struct CachedGeometry
+    {
+        CachedGeometry(size_t hash_) :
+            hash(hash_)
+        {
+        }
+
+        CachedGeometry(CachedGeometry&& other)  noexcept :
+            timestamp(other.timestamp),
+            hash(other.hash),
+            filledGeometryRealisation(other.filledGeometryRealisation),
+            strokedGeometryRealisation(other.strokedGeometryRealisation)
+        {
+        }
+
+        ~CachedGeometry() = default;
+
+        int64 timestamp = Time::getHighResolutionTicks();
+        size_t hash = 0;
+        ComSmartPtr<ID2D1GeometryRealization> filledGeometryRealisation;
+        ComSmartPtr<ID2D1GeometryRealization> strokedGeometryRealisation;
+
+        JUCE_DECLARE_WEAK_REFERENCEABLE(CachedGeometry)
+    };
+
+    std::deque<CachedGeometry> cache;
+    std::unordered_map<size_t, WeakReference<CachedGeometry>> hashMap;
+
+    static float findGeometryFlatteningTolerance(float dpiScaleFactor, /*const AffineTransform& transform,*/ float maxZoomFactor = 1.0f)
+    {
+        jassert(maxZoomFactor > 0.0f);
+
+        //
+        // Could use D2D1::ComputeFlatteningTolerance here, but that requires defining NTDDI_VERSION and it doesn't do anything special.
+        // 
+        // Direct2D default flattening tolerance is 0.25
+        //
+        //auto transformScaleFactor = std::sqrt(std::abs(transform.getDeterminant()));
+        return 0.25f / (/*transformScaleFactor **/ dpiScaleFactor * maxZoomFactor);
+    }
+
+    CachedGeometry* getCachedGeometry(const Path& path)
+    {
+        auto hash = path.calculateHash();
+        auto cachedGeometry = hashMap[hash];
+
+        releaseExpiredEntries();
+
+        if (cachedGeometry.get())
+        {
+            cachedGeometry->timestamp = Time::getHighResolutionTicks();
+            return cachedGeometry.get();
+        }
+
+        cache.emplace_back(CachedGeometry{ hash });
+        cachedGeometry = &cache.back();
+        hashMap[hash] = cachedGeometry;
+
+        auto check = hashMap[hash];
+        jassert(check);
+        jassert(check->hash == hash);
+        jassert(cachedGeometry->hash == hash);
+
+        return cachedGeometry;
+    }
+
+    void releaseExpiredEntries()
+    {
+        auto cutoff = Time::getHighResolutionTicks() - Time::secondsToHighResolutionTicks(5.0);
+
+        while (cache.size() > 0)
+        {
+            auto& front = cache.front();
+            if (front.timestamp > cutoff)
+            {
+                break;
+            }
+
+            front.filledGeometryRealisation = nullptr;
+            front.strokedGeometryRealisation = nullptr;
+
+            hashMap.erase(front.hash);
+            cache.pop_front();
+        }
+    }
+
+    void releaseOldestEntry()
+    {
+        if (cache.size() > 0)
+        {
+            auto& front = cache.front();
+            auto hash = front.hash;
+
+            front.filledGeometryRealisation = nullptr;
+            front.strokedGeometryRealisation = nullptr;
+
+            cache.pop_front();
+
+            hashMap.erase(hash);
+        }
+    }
+};
+
+
 //==============================================================================
 //
 // Device resources
@@ -147,6 +314,7 @@ public:
 
     void release()
     {
+        geometryCache.release();
         colourBrush = nullptr;
         deviceContext.release();
     }
@@ -158,6 +326,7 @@ public:
 
     DeviceContext                     deviceContext;
     ComSmartPtr<ID2D1SolidColorBrush> colourBrush;
+    GeometryCache                     geometryCache;
 };
 
 //==============================================================================

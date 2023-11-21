@@ -416,6 +416,7 @@ namespace juce
 
         virtual void teardown()
         {
+            geometryCache.release();
             deviceResources.release();
         }
 
@@ -613,6 +614,7 @@ namespace juce
         bool                                opaque = true;
         float                               targetAlpha = 1.0f;
         D2D1_COLOR_F                        backgroundColor{};
+        direct2d::GeometryCache geometryCache;
 
 #if JUCE_DIRECT2D_METRICS
         int64 paintStartTicks = 0;
@@ -1016,17 +1018,12 @@ namespace juce
             //
             // Use a cached geometry realisation?
             //
-#if 0
-            if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
+            if (auto geometryRealisation = getPimpl()->geometryCache.getFilledGeometryRealisation(p, factory, deviceContext, getPhysicalPixelScaleFactor()))
             {
-                if (auto geometryRealisation = pathData->getOrCreateFilledGeometryRealisation(p, factory, deviceContext, getPimpl()->getScaleFactor(), transform))
-                {
-                    updateDeviceContextTransform(transform);
-                    deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
-                    return;
-                }
+                updateDeviceContextTransform(transform);
+                deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+                return;
             }
-#endif
 
             //
             // Create and fill the geometry
@@ -1058,22 +1055,12 @@ namespace juce
                 //
                 // Use a cached geometry realisation?
                 //
-#if 0
-                if (auto pathData = dynamic_cast<Direct2DPathData*> (p.getPathData()))
+                if (auto geometryRealisation = getPimpl()->geometryCache.getStrokedGeometryRealisation(p, strokeType, factory, deviceContext, getPhysicalPixelScaleFactor()))
                 {
-                    if (auto geometryRealisation = pathData->getOrCreateStrokedGeometryRealisation(p, 
-                        strokeType, 
-                        factory, 
-                        deviceContext, 
-                        getPimpl()->getScaleFactor(), 
-                        transform))
-                    {
-                        updateDeviceContextTransform(transform);
-                        deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
-                        return true;
-                    }
+                    updateDeviceContextTransform(transform);
+                    deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+                    return true;
                 }
-#endif
 
                 //
                 // Create and draw a geometry

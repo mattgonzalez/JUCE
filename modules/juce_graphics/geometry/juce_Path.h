@@ -798,6 +798,8 @@ namespace juce
         */
         void restoreFromString(StringRef stringVersion);
 
+        size_t calculateHash() const;
+
     private:
         //==============================================================================
         friend class PathFlatteningIterator;

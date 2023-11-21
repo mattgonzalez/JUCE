@@ -157,6 +157,66 @@ static void pathToGeometrySink (const Path& path, ID2D1GeometrySink* sink, const
     }
 }
 
+static void pathToGeometrySink(const Path& path, ID2D1GeometrySink* sink)
+{
+    Path::Iterator it(path);
+    bool           figureStarted = false;
+
+    while (it.next())
+    {
+        switch (it.elementType)
+        {
+        case Path::Iterator::cubicTo:
+        {
+            jassert(figureStarted);
+            sink->AddBezier({ { it.x1, it.y1 }, { it.x2, it.y2 }, { it.x3, it.y3 } });
+            break;
+        }
+
+        case Path::Iterator::lineTo:
+        {
+            jassert(figureStarted);
+            sink->AddLine({ it.x1, it.y1 });
+            break;
+        }
+
+        case Path::Iterator::quadraticTo:
+        {
+            jassert(figureStarted);
+            sink->AddQuadraticBezier({ { it.x1, it.y1 }, { it.x2, it.y2 } });
+            break;
+        }
+
+        case Path::Iterator::closePath:
+        {
+            if (figureStarted)
+            {
+                sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+                figureStarted = false;
+            }
+            break;
+        }
+
+        case Path::Iterator::startNewSubPath:
+        {
+            if (figureStarted)
+            {
+                sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+            }
+            sink->BeginFigure({ it.x1, it.y1 }, D2D1_FIGURE_BEGIN_FILLED);
+            figureStarted = true;
+            break;
+        }
+        }
+    }
+
+    if (figureStarted)
+    {
+        sink->EndFigure(D2D1_FIGURE_END_OPEN);
+    }
+
+}
+
 static D2D1::Matrix3x2F transformToMatrix (const AffineTransform& transform)
 {
     return { transform.mat00, transform.mat10, transform.mat01, transform.mat11, transform.mat02, transform.mat12 };
@@ -238,6 +298,20 @@ ComSmartPtr<ID2D1Geometry> pathToPathGeometry (ID2D1Factory* factory, const Path
         direct2d::pathToGeometrySink (path, objects.sink, transform);
 
         return { (ID2D1Geometry*) objects.geometry };
+    }
+
+    return nullptr;
+}
+
+ComSmartPtr<ID2D1Geometry> pathToPathGeometry(ID2D1Factory* factory, const Path& path)
+{
+    ScopedGeometryWithSink objects{ factory, path.isUsingNonZeroWinding() ? D2D1_FILL_MODE_WINDING : D2D1_FILL_MODE_ALTERNATE };
+
+    if (objects.sink != nullptr)
+    {
+        direct2d::pathToGeometrySink(path, objects.sink);
+
+        return { (ID2D1Geometry*)objects.geometry };
     }
 
     return nullptr;

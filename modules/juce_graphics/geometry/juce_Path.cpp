@@ -1474,6 +1474,14 @@ namespace juce
         }
     }
 
+    size_t Path::calculateHash() const
+    {
+        auto bytePointer = reinterpret_cast<char const *>(data.getRawDataPointer());
+        auto numBytes = data.size() * sizeof(float);
+        std::string_view tempStringView{ bytePointer, numBytes };
+        return std::hash<std::string_view>{}(tempStringView);
+    }
+
     //==============================================================================
     Path::Iterator::Iterator(const Path& p) noexcept
         : elementType(startNewSubPath), path(p), index(path.data.begin())

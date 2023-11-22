@@ -798,7 +798,7 @@ namespace juce
         */
         void restoreFromString(StringRef stringVersion);
 
-        size_t calculateHash() const;
+        auto getModificationCount() const noexcept { return modificationCount; }
 
     private:
         //==============================================================================
@@ -828,6 +828,8 @@ namespace juce
 
         PathBounds bounds;
         bool useNonZeroWinding = true;
+
+        int modificationCount = 0;
 
         static constexpr float lineMarker = 100001.0f;
         static constexpr float moveMarker = 100002.0f;

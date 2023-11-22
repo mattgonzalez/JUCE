@@ -109,7 +109,8 @@ namespace juce
     Path::Path(const Path& other)
         : data(other.data),
         bounds(other.bounds),
-        useNonZeroWinding(other.useNonZeroWinding)
+        useNonZeroWinding(other.useNonZeroWinding),
+        modificationCount(other.modificationCount)
     {
     }
 
@@ -120,6 +121,7 @@ namespace juce
             data = other.data;
             bounds = other.bounds;
             useNonZeroWinding = other.useNonZeroWinding;
+            modificationCount = other.modificationCount;
         }
 
         return *this;
@@ -128,7 +130,8 @@ namespace juce
     Path::Path(Path&& other) noexcept
         : data(std::move(other.data)),
         bounds(other.bounds),
-        useNonZeroWinding(other.useNonZeroWinding)
+        useNonZeroWinding(other.useNonZeroWinding),
+        modificationCount(other.modificationCount)
     {
     }
 
@@ -137,6 +140,7 @@ namespace juce
         data = std::move(other.data);
         bounds = other.bounds;
         useNonZeroWinding = other.useNonZeroWinding;
+        modificationCount = other.modificationCount;
         return *this;
     }
 
@@ -147,6 +151,7 @@ namespace juce
     {
         data.clearQuick();
         bounds.reset();
+        modificationCount = 0;
     }
 
     void Path::swapWithPath(Path& other) noexcept
@@ -157,17 +162,20 @@ namespace juce
         std::swap(bounds.pathYMin, other.bounds.pathYMin);
         std::swap(bounds.pathYMax, other.bounds.pathYMax);
         std::swap(useNonZeroWinding, other.useNonZeroWinding);
+        std::swap(modificationCount, other.modificationCount);
     }
 
     //==============================================================================
     void Path::setUsingNonZeroWinding(const bool isNonZero) noexcept
     {
         useNonZeroWinding = isNonZero;
+        ++modificationCount;
     }
 
     void Path::scaleToFit(float x, float y, float w, float h, bool preserveProportions) noexcept
     {
         applyTransform(getTransformToScaleToFit(x, y, w, h, preserveProportions));
+        ++modificationCount;
     }
 
     //==============================================================================
@@ -218,6 +226,7 @@ namespace juce
                 bounds.extend(x, y);
 
         data.add(moveMarker, x, y);
+        ++modificationCount;
     }
 
     void Path::startNewSubPath(Point<float> start)
@@ -234,6 +243,7 @@ namespace juce
 
         data.add(lineMarker, x, y);
         bounds.extend(x, y);
+        ++modificationCount;
     }
 
     void Path::lineTo(Point<float> end)
@@ -252,6 +262,7 @@ namespace juce
 
         data.add(quadMarker, x1, y1, x2, y2);
         bounds.extend(x1, y1, x2, y2);
+        ++modificationCount;
     }
 
     void Path::quadraticTo(Point<float> controlPoint, Point<float> endPoint)
@@ -273,6 +284,7 @@ namespace juce
 
         data.add(cubicMarker, x1, y1, x2, y2, x3, y3);
         bounds.extend(x1, y1, x2, y2, x3, y3);
+        ++modificationCount;
     }
 
     void Path::cubicTo(Point<float> controlPoint1,
@@ -287,7 +299,10 @@ namespace juce
     void Path::closeSubPath()
     {
         if (!(data.isEmpty() || isMarker(data.getLast(), closeSubPathMarker)))
+        {
             data.add(closeSubPathMarker);
+            ++modificationCount;
+        }
     }
 
     Point<float> Path::getCurrentPosition() const
@@ -342,6 +357,8 @@ namespace juce
             lineMarker, x2, y1,
             lineMarker, x2, y2,
             closeSubPathMarker);
+
+        ++modificationCount;
     }
 
     void Path::addRoundedRectangle(float x, float y, float w, float h, float csx, float csy)
@@ -514,6 +531,8 @@ namespace juce
             }
 
             lineTo(centre.getPointOnCircumference(radiusX, radiusY, toRadians).transformedBy(rotation));
+
+            ++modificationCount;
         }
     }
 
@@ -757,6 +776,8 @@ namespace juce
                 jassertfalse;
             }
         }
+
+        ++modificationCount;
     }
 
     void Path::addPath(const Path& other,
@@ -812,6 +833,8 @@ namespace juce
                 }
             }
         }
+
+        ++modificationCount;
     }
 
     //==============================================================================
@@ -868,6 +891,8 @@ namespace juce
                 d += 6;
             }
         }
+
+        ++modificationCount;
     }
 
 
@@ -1223,6 +1248,8 @@ namespace juce
     //==============================================================================
     void Path::loadPathFromStream(InputStream& source)
     {
+        modificationCount = Random{}.nextInt();
+
         while (!source.isExhausted())
         {
             switch (source.readByte())
@@ -1472,14 +1499,6 @@ namespace juce
             default:    jassertfalse; break; // illegal string format?
             }
         }
-    }
-
-    size_t Path::calculateHash() const
-    {
-        auto bytePointer = reinterpret_cast<char const *>(data.getRawDataPointer());
-        auto numBytes = data.size() * sizeof(float);
-        std::string_view tempStringView{ bytePointer, numBytes };
-        return std::hash<std::string_view>{}(tempStringView);
     }
 
     //==============================================================================

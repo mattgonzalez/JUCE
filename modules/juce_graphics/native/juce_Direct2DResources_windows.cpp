@@ -102,25 +102,42 @@ public:
 
     ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
     {
-        Hasher hasher{ path, dpiScaleFactor };
-        auto hash = hasher.calculateHash();
-
-        if (auto cachedGeometry = getCachedGeometry(hash))
+        if (path.getModificationCount() == 0)
         {
-            if (! cachedGeometry->filledGeometryRealisation)
+            return nullptr;
+        }
+
+        auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
+        auto hash = calculateHash(path, flatteningTolerance);
+
+        if (auto cachedGeometry = getCachedGeometryRealisation(hash))
+        {
+            if (cachedGeometry->pathModificationCount != path.getModificationCount())
+            {
+                cachedGeometry->geometryRealisation = nullptr;
+                cachedGeometry->pathModificationCount = 0;
+            }
+
+            if (! cachedGeometry->geometryRealisation)
             {
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
-                    auto hr = deviceContext->CreateFilledGeometryRealization(geometry, hasher.flatteningTolerance, cachedGeometry->filledGeometryRealisation.resetAndGetPointerAddress());
-
-                    if (hr == E_OUTOFMEMORY)
+                    auto hr = deviceContext->CreateFilledGeometryRealization(geometry, flatteningTolerance, cachedGeometry->geometryRealisation.resetAndGetPointerAddress());
+                    
+                    switch (hr)
                     {
+                    case S_OK:
+                        cachedGeometry->pathModificationCount = path.getModificationCount();
+                        break;
+
+                    case E_OUTOFMEMORY:
                         releaseOldestEntry();
+                        break;
                     }
                 }
             }
 
-            return cachedGeometry->filledGeometryRealisation;
+            return cachedGeometry->geometryRealisation;
         }
 
         return nullptr;
@@ -128,20 +145,25 @@ public:
 
     ID2D1GeometryRealization* getStrokedGeometryRealisation(const Path& path, const PathStrokeType& strokeType, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
     {
-        Hasher hasher{ path, strokeType, dpiScaleFactor };
-        auto hash = hasher.calculateHash();
-
-        if (auto cachedGeometry = getCachedGeometry(hash))
+        if (path.getModificationCount() == 0)
         {
-            if (!cachedGeometry->strokedGeometryRealisation)
+            return nullptr;
+        }
+
+        auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
+        auto hash = calculateHash(path, strokeType, flatteningTolerance);
+
+        if (auto cachedGeometry = getCachedGeometryRealisation(hash))
+        {
+            if (!cachedGeometry->geometryRealisation)
             {
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
                     if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
                     {
-                        auto hr = deviceContext->CreateStrokedGeometryRealization(geometry, hasher.flatteningTolerance, 
+                        auto hr = deviceContext->CreateStrokedGeometryRealization(geometry, flatteningTolerance, 
                             strokeType.getStrokeThickness(), strokeStyle,
-                            cachedGeometry->strokedGeometryRealisation.resetAndGetPointerAddress());
+                            cachedGeometry->geometryRealisation.resetAndGetPointerAddress());
 
                         if (hr == E_OUTOFMEMORY)
                         {
@@ -151,7 +173,7 @@ public:
                 }
             }
 
-            return cachedGeometry->strokedGeometryRealisation;
+            return cachedGeometry->geometryRealisation;
         }
 
         return nullptr;
@@ -176,93 +198,105 @@ private:
     //
     // Hashing
     //
-    struct Hasher
+    static constexpr size_t fnvOffsetBasis = 0xcbf29ce484222325;
+    static constexpr size_t fnvPrime = 0x100000001b3;
+
+    static constexpr size_t fnv1aHash(uint8 const* data, size_t numBytes, size_t hash = fnvOffsetBasis)
     {
-        Hasher(Path const& path, float dpiScaleFactor) :
-            startingHash(path.calculateHash()),
-            flatteningTolerance(findGeometryFlatteningTolerance(dpiScaleFactor)),
-            nonZeroWinding(path.isUsingNonZeroWinding())
+        while (numBytes > 0)
         {
+            hash = (hash ^ *data++) * fnvPrime;
+            --numBytes;
         }
 
-        Hasher(Path const& path, PathStrokeType const& strokeType, float dpiScaleFactor) :
-            Hasher(path, dpiScaleFactor)
-        {
-            strokeThickness = strokeType.getStrokeThickness();
-            jointStyle = static_cast<int16>(strokeType.getJointStyle());
-            endCapStyle = static_cast<int16>(strokeType.getEndStyle());
-        }
+        return hash;
+    }
 
-        size_t calculateHash() const
-        {
-            std::string_view tempStringView{ reinterpret_cast<char const*>(this), sizeof(Hasher) };
-            return std::hash<std::string_view>{}(tempStringView);
-        }
+    static constexpr size_t fnv1aHash(float value, size_t hash = fnvOffsetBasis)
+    {
+        return fnv1aHash(reinterpret_cast<uint8 const*>(&value), sizeof(float), hash);
+    }
 
-        size_t startingHash = 0;
-        float strokeThickness = 0.0f;
-        float flatteningTolerance = 0.0f;
-        int16 jointStyle = 0;
-        int16 endCapStyle = 0;
-        int16 nonZeroWinding = 0;
-        int16 reserved = 0;
-    };
+    size_t calculateHash(Path const& path, float flatteningTolerance)
+    {
+        jassert(sizeof(size_t) == sizeof(void*));
+
+        return fnv1aHash(flatteningTolerance, (size_t)&path);
+    }
+
+    size_t calculateHash(Path const& path, PathStrokeType const& strokeType, float flatteningTolerance)
+    {
+        jassert(sizeof(size_t) == sizeof(void*));
+
+        struct 
+        {
+            float flatteningTolerance, strokeThickness;
+            int8 jointStyle, endStyle;
+        } extraHashData;
+
+        extraHashData.flatteningTolerance = flatteningTolerance;
+        extraHashData.strokeThickness = strokeType.getStrokeThickness();
+        extraHashData.jointStyle = (int8)strokeType.getJointStyle();
+        extraHashData.endStyle = (int8)strokeType.getEndStyle();
+     
+        return fnv1aHash(reinterpret_cast<uint8 const*>(&extraHashData), sizeof(extraHashData), (size_t)&path);
+    }
 
 
     //--------------------------------------------------------------------------
     //
     // Caching
     //
-    struct CachedGeometry
+    struct CachedGeometryRealisation
     {
-        CachedGeometry(size_t hash_) :
+        CachedGeometryRealisation(size_t hash_) :
             hash(hash_)
         {
         }
 
-        CachedGeometry(CachedGeometry&& other)  noexcept :
+        CachedGeometryRealisation(CachedGeometryRealisation&& other)  noexcept :
             timestamp(other.timestamp),
             hash(other.hash),
-            filledGeometryRealisation(other.filledGeometryRealisation),
-            strokedGeometryRealisation(other.strokedGeometryRealisation)
+            pathModificationCount(other.pathModificationCount),
+            geometryRealisation(other.geometryRealisation)
         {
         }
 
-        ~CachedGeometry() = default;
+        ~CachedGeometryRealisation() = default;
 
         int64 timestamp = Time::getHighResolutionTicks();
-        size_t hash = 0;
-        ComSmartPtr<ID2D1GeometryRealization> filledGeometryRealisation;
-        ComSmartPtr<ID2D1GeometryRealization> strokedGeometryRealisation;
+        size_t hash;
+        int pathModificationCount = 0;
+        ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
 
-        JUCE_DECLARE_WEAK_REFERENCEABLE(CachedGeometry)
+        JUCE_DECLARE_WEAK_REFERENCEABLE(CachedGeometryRealisation)
     };
 
-    std::deque<CachedGeometry> cache;
-    std::unordered_map<size_t, WeakReference<CachedGeometry>> hashMap;
+    std::deque<CachedGeometryRealisation> cache;
+    std::unordered_map<size_t, WeakReference<CachedGeometryRealisation>> hashMap;
 
-    CachedGeometry* getCachedGeometry(size_t hash)
+    CachedGeometryRealisation* getCachedGeometryRealisation(size_t hash)
     {
-        auto cachedGeometry = hashMap[hash];
+        auto cacheEntry = hashMap[hash];
 
         releaseExpiredEntries();
 
-        if (cachedGeometry.get())
+        if (cacheEntry.get())
         {
-            cachedGeometry->timestamp = Time::getHighResolutionTicks();
-            return cachedGeometry.get();
+            cacheEntry->timestamp = Time::getHighResolutionTicks();
+            return cacheEntry.get();
         }
 
-        cache.emplace_back(CachedGeometry{ hash });
-        cachedGeometry = &cache.back();
-        hashMap[hash] = cachedGeometry;
+        cache.emplace_back(CachedGeometryRealisation{ hash });
+        cacheEntry = &cache.back();
+        hashMap[hash] = cacheEntry;
 
         auto check = hashMap[hash];
         jassert(check);
         jassert(check->hash == hash);
-        jassert(cachedGeometry->hash == hash);
+        jassert(cacheEntry->hash == hash);
 
-        return cachedGeometry;
+        return cacheEntry;
     }
 
     void releaseExpiredEntries()
@@ -272,13 +306,12 @@ private:
         while (cache.size() > 0)
         {
             auto& front = cache.front();
-            if (front.timestamp > cutoff)
+            if (front.timestamp > cutoff && front.geometryRealisation)
             {
                 break;
             }
 
-            front.filledGeometryRealisation = nullptr;
-            front.strokedGeometryRealisation = nullptr;
+            front.geometryRealisation = nullptr;
 
             hashMap.erase(front.hash);
             cache.pop_front();
@@ -287,17 +320,23 @@ private:
 
     void releaseOldestEntry()
     {
-        if (cache.size() > 0)
+        //
+        // Dump any empty entries at the front of the queue
+        // Release the oldest entry with a valid geometry realisation and return
+        //
+        bool found = false;
+        while (cache.size() > 0 && !found)
         {
             auto& front = cache.front();
-            auto hash = front.hash;
 
-            front.filledGeometryRealisation = nullptr;
-            front.strokedGeometryRealisation = nullptr;
+            if (front.geometryRealisation)
+            {
+                front.geometryRealisation = nullptr;
+                found = true;
+            }
 
+            hashMap.erase(front.hash);
             cache.pop_front();
-
-            hashMap.erase(hash);
         }
     }
 };

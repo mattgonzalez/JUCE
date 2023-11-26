@@ -317,7 +317,7 @@ namespace juce
             // within the swap chain buffer.
             //
 #if JUCE_DIRECT2D_METRICS
-            direct2d::ScopedElapsedTime set{ owner.stats, direct2d::PaintStats::present1Duration };
+            direct2d::ScopedElapsedTime set{ owner.paintStats, direct2d::PaintStats::present1Duration };
 #endif
 
             //

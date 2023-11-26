@@ -1630,7 +1630,7 @@ public:
             exStyle &= ~WS_EX_LAYERED;
         }
 
-        DBG("setLayeredWindowStyle " << String::toHexString(exStyle));
+        //DBG("setLayeredWindowStyle " << String::toHexString(exStyle));
 
         SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
     }
@@ -2439,8 +2439,8 @@ protected:
         // You normally want these to match otherwise timer events and async messages will happen
         // in a different context to normal HWND messages which can cause issues with UI scaling.
 
-        DBG("CreateWindowEx  hwnd:" << String::toHexString((pointer_sized_int)hwnd) << "  parent:" << String::toHexString((pointer_sized_int)parentToAddTo));
-        DBG("           style:" << String::toHexString(type) << "   exstyle:" << String::toHexString(exstyle));
+        //DBG("CreateWindowEx  hwnd:" << String::toHexString((pointer_sized_int)hwnd) << "  parent:" << String::toHexString((pointer_sized_int)parentToAddTo));
+        //DBG("           style:" << String::toHexString(type) << "   exstyle:" << String::toHexString(exstyle));
 
         jassert (isPerMonitorDPIAwareWindow (hwnd) == isPerMonitorDPIAwareWindow (juce_messageWindowHandle)
                    || isInScopedDPIAwarenessDisabler());

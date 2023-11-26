@@ -179,10 +179,10 @@ private:
         HWNDComponentPeer::handlePaintMessage();
 
     #if JUCE_DIRECT2D_METRICS
-        if (lastPaintStartTicks > 0)
+        if (lastPaintStartTicks > 0 && direct2DContext)
         {
-            paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
-            paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
+            direct2DContext->paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+            direct2DContext->paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration, Time::getHighResolutionTicks() - paintStartTicks);
         }
         lastPaintStartTicks = paintStartTicks;
     #endif
@@ -232,11 +232,11 @@ private:
             direct2DContext->endFrame();
 
     #if JUCE_DIRECT2D_METRICS
-            if (lastPaintStartTicks > 0)
+            if (lastPaintStartTicks > 0 && direct2DContext->paintStats)
             {
-                paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration,
+                direct2DContext->paintStats->addValueTicks (direct2d::PaintStats::messageThreadPaintDuration,
                                            Time::getHighResolutionTicks() - paintStartTicks);
-                paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
+                direct2DContext->paintStats->addValueTicks (direct2d::PaintStats::frameInterval, paintStartTicks - lastPaintStartTicks);
             }
             lastPaintStartTicks = paintStartTicks;
     #endif
@@ -297,9 +297,6 @@ private:
             if (!direct2DContext)
             {
                 direct2DContext = std::make_unique<Direct2DHwndContext>(hwnd, (float)scaleFactor, component.isOpaque());
-#if JUCE_DIRECT2D_METRICS
-                direct2DContext->stats = paintStats;
-#endif
 
                 //
                 // Layered windows use the contents of the window back buffer to automatically determine mouse hit testing
@@ -323,6 +320,14 @@ private:
                     auto ok = SetLayeredWindowAttributes(hwnd, RGB(backgroundKeyColour.getRed(), backgroundKeyColour.getGreen(), backgroundKeyColour.getBlue()), 255, LWA_COLORKEY);
                     jassert(ok);
                 }
+
+#if JUCE_DIRECT2D_METRICS
+                {
+                    var direct2DVar{ new DynamicObject };
+                    direct2DVar.getDynamicObject()->setProperty("Metrics", direct2DContext->paintStats.get());
+                    component.getProperties().set("Direct2D", direct2DVar);
+                }
+#endif
             }
             break;
         }

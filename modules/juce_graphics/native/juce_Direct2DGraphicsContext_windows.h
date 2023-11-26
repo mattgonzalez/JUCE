@@ -35,6 +35,7 @@ typedef HWND__* HWND;
 
 namespace direct2d
 {
+
 struct PaintStats : public ReferenceCountedObject
 {
     enum
@@ -63,7 +64,8 @@ struct PaintStats : public ReferenceCountedObject
     int64        lastPaintStartTicks = 0;
     uint64       lockAcquireMaxTicks = 0;
 
-    ~PaintStats() {}
+    PaintStats() = default;
+    ~PaintStats() = default;
 
     void reset()
     {
@@ -109,7 +111,10 @@ struct ScopedElapsedTime
     ~ScopedElapsedTime()
     {
         auto finishTicks = Time::getHighResolutionTicks();
-        stats->addValueTicks (accumulatorIndex, finishTicks - startTicks);
+        if (stats)
+        {
+            stats->addValueTicks(accumulatorIndex, finishTicks - startTicks);
+        }
     }
 
     int64           startTicks = Time::getHighResolutionTicks();
@@ -226,7 +231,7 @@ public:
     }
 
 #if JUCE_DIRECT2D_METRICS
-    direct2d::PaintStats::Ptr stats;
+    direct2d::PaintStats::Ptr paintStats = new direct2d::PaintStats;
 #endif
 
     //==============================================================================

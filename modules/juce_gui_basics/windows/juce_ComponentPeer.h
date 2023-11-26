@@ -552,10 +552,6 @@ public:
     /** Returns the style requested for this app. */
     Style getAppStyle() const { return style; }
 
-#if JUCE_DIRECT2D && JUCE_DIRECT2D_METRICS
-    direct2d::PaintStats::Ptr paintStats = new direct2d::PaintStats{};
-#endif
-
 protected:
     //==============================================================================
     static void forceDisplayUpdate();

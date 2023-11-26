@@ -509,13 +509,13 @@ bool TextLayout::createNativeLayout ([[maybe_unused]] const AttributedString& te
     if (! canAllTypefacesAndFontsBeUsedInLayout (text))
         return false;
 
-    SharedResourcePointer<DirectXFactories> factories;
     jassert(MessageManager::getInstance()->currentThreadHasLockedMessageManager());
 
-    auto d2dFactory = factories->getDirect2DFactory();
-    auto directWriteFactory = factories->getDirectWriteFactory();
-    auto systemFonts = factories->getSystemFonts();
-    auto directWriteRenderTarget = factories->getDirectWriteRenderTarget();
+    auto directX = DirectX::getInstance();
+    auto d2dFactory = directX->direct2D.getFactory();
+    auto directWriteFactory = directX->directWrite.getFactory();
+    auto systemFonts = directX->directWrite.getSystemFonts();
+    auto directWriteRenderTarget = directX->direct2D.getDirectWriteRenderTarget();
     if (d2dFactory != nullptr
         && directWriteFactory
         && systemFonts

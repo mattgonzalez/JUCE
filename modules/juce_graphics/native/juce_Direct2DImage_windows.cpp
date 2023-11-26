@@ -261,10 +261,6 @@ namespace juce
         friend class Direct2DImageContext;
         friend struct Direct2ImageContext::ImagePimpl;
 
-        // keep a reference to the DirectXFactories to retain the DLLs & factories
-        // first data member, ensures that destructor runs after destructors of other data members
-        SharedResourcePointer<DirectXFactories> factories;
-
         direct2d::DPIScalableArea<int> area;
         const int                 pixelStride, lineStride;
         bool const                clearImage;

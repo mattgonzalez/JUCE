@@ -393,10 +393,9 @@ namespace juce
     {
     protected:
         Direct2DGraphicsContext& owner;
-        SharedResourcePointer<DirectXFactories> factories;
         float                                   dpiScalingFactor = 1.0f;
 
-        DXGIAdapter::Ptr adapter;
+        DirectX::DXGI::Adapter::Ptr adapter;
         direct2d::DeviceResources              deviceResources;
 
         std::stack<std::unique_ptr<Direct2DGraphicsContext::SavedState>> savedClientStates;
@@ -439,7 +438,7 @@ namespace juce
             setTargetAlpha(1.0f);
 
             D2D1_RECT_F rect{ 0.0f, 0.0f, 1.0f, 1.0f };
-            factories->getDirect2DFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
+            DirectX::getInstance()->direct2D.getFactory()->CreateRectangleGeometry(rect, rectangleGeometryUnitSize.resetAndGetPointerAddress());
         }
 
         virtual ~Pimpl()
@@ -595,17 +594,17 @@ namespace juce
 
         auto getDirect2DFactory()
         {
-            return factories->getDirect2DFactory();
+            return DirectX::getInstance()->direct2D.getFactory();
         }
 
         auto getDirectWriteFactory()
         {
-            return factories->getDirectWriteFactory();
+            return DirectX::getInstance()->directWrite.getFactory();
         }
 
         auto getSystemFonts()
         {
-            return factories->getSystemFonts();
+            return DirectX::getInstance()->directWrite.getSystemFonts();
         }
 
         HWND                                hwnd = nullptr;

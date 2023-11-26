@@ -36,8 +36,6 @@ struct DeviceContext
 
         if (hwndRenderTarget == nullptr)
         {
-            SharedResourcePointer<DirectXFactories> factories;
-
             D2D1_SIZE_U size{ 1, 1 };
 
             D2D1_RENDER_TARGET_PROPERTIES renderTargetProps{};
@@ -48,7 +46,7 @@ struct DeviceContext
             hwndRenderTargetProps.hwnd = hwnd;
             hwndRenderTargetProps.pixelSize = size;
             hwndRenderTargetProps.presentOptions = D2D1_PRESENT_OPTIONS_IMMEDIATELY | D2D1_PRESENT_OPTIONS_RETAIN_CONTENTS;
-            hr = factories->getDirect2DFactory()->CreateHwndRenderTarget(&renderTargetProps,
+            hr = DirectX::getInstance()->direct2D.getFactory()->CreateHwndRenderTarget(&renderTargetProps,
                 &hwndRenderTargetProps,
                 hwndRenderTarget.resetAndGetPointerAddress());
         }
@@ -360,7 +358,7 @@ public:
     //
     // Create a Direct2D device context for a DXGI adapter
     //
-    HRESULT create(DXGIAdapter::Ptr adapter, double dpiScalingFactor)
+    HRESULT create(DirectX::DXGI::Adapter::Ptr adapter, double dpiScalingFactor)
     {
         HRESULT hr = S_OK;
 
@@ -368,9 +366,7 @@ public:
 
         if (deviceContext.context == nullptr)
         {
-            SharedResourcePointer<DirectXFactories> factories;
-
-            hr = adapter->createDirect2DResources(factories->getDirect2DFactory());
+            hr = adapter->createDirect2DResources(DirectX::getInstance()->direct2D.getFactory());
             if (SUCCEEDED(hr))
             {
                 hr = adapter->direct2DDevice->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
@@ -428,12 +424,11 @@ public:
         release();
     }
 
-    HRESULT create(HWND hwnd, Rectangle<int> size, DXGIAdapter::Ptr adapter)
+    HRESULT create(HWND hwnd, Rectangle<int> size, DirectX::DXGI::Adapter::Ptr adapter)
     {
         if (!chain && hwnd)
         {
-            SharedResourcePointer<DirectXFactories> factories;
-            auto dxgiFactory = factories->getDXGIFactory();
+            auto dxgiFactory = DirectX::getInstance()->dxgi.getFactory();
 
             if (dxgiFactory == nullptr || adapter->direct3DDevice == nullptr)
             {

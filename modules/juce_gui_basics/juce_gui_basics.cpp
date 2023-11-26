@@ -178,7 +178,7 @@
 
 #elif JUCE_WINDOWS
  #include "../juce_graphics/native/juce_ETW_windows.h"
- #include "../juce_graphics/native/juce_DXGIAdapters_windows.h"
+ #include "../juce_graphics/native/juce_DirectX_windows.h"
  #include "native/accessibility/juce_ComInterfaces_windows.h"
  #include "native/accessibility/juce_WindowsUIAWrapper_windows.h"
  #include "native/accessibility/juce_AccessibilityElement_windows.h"

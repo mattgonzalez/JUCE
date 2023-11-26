@@ -158,7 +158,7 @@ namespace juce
             : Pimpl(owner_, opaque_),
             hwnd(hwnd_)
         {
-            adapter = DXGIAdapters::getInstance().getAdapterForHwnd(hwnd_);
+            adapter = DirectX::getInstance()->dxgi.adapters.getAdapterForHwnd(hwnd_);
         }
 
         ~HwndPimpl() override = default;
@@ -512,17 +512,17 @@ namespace juce
 
         auto getDirect2DFactory()
         {
-            return factories->getDirect2DFactory();
+            return DirectX::getInstance()->direct2D.getFactory();
         }
 
         auto getDirectWriteFactory()
         {
-            return factories->getDirectWriteFactory();
+            return DirectX::getInstance()->directWrite.getFactory();
         }
 
         auto getSystemFonts()
         {
-            return factories->getSystemFonts();
+            return DirectX::getInstance()->directWrite.getSystemFonts();
         }
 
         Image createSnapshot(direct2d::DPIScalableArea<int> scalableArea)

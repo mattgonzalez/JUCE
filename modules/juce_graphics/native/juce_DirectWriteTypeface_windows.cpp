@@ -85,187 +85,6 @@ namespace
     inline Point<float> convertPoint (D2D1_POINT_2F p) noexcept   { return Point<float> ((float) p.x, (float) p.y); }
 }
 
-class DirectXFactories
-{
-public:
-    DirectXFactories()
-    {
-        JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wlanguage-extension-token")
-
-        if (direct2dDll.open ("d2d1.dll"))
-        {
-            JUCE_LOAD_WINAPI_FUNCTION (direct2dDll, D2D1CreateFactory, d2d1CreateFactory,
-                                       HRESULT, (D2D1_FACTORY_TYPE, REFIID, D2D1_FACTORY_OPTIONS*, void**))
-
-            if (d2d1CreateFactory != nullptr)
-            {
-                D2D1_FACTORY_OPTIONS options;
-#if JUCE_DEBUG
-                options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-#else
-                options.debugLevel = D2D1_DEBUG_LEVEL_NONE;
-#endif
-                d2d1CreateFactory (D2D1_FACTORY_TYPE_MULTI_THREADED, __uuidof (ID2D1Factory1), &options,
-                                   (void**) d2dSharedFactory.resetAndGetPointerAddress());
-            }
-        }
-
-        if (directWriteDll.open ("DWrite.dll"))
-        {
-            JUCE_LOAD_WINAPI_FUNCTION (directWriteDll, DWriteCreateFactory, dWriteCreateFactory,
-                                       HRESULT, (DWRITE_FACTORY_TYPE, REFIID, IUnknown**))
-
-            if (dWriteCreateFactory != nullptr)
-            {
-                dWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory),
-                                     (IUnknown**) directWriteFactory.resetAndGetPointerAddress());
-
-                if (directWriteFactory != nullptr)
-                {
-                    directWriteFactory->GetSystemFontCollection (systemFonts.resetAndGetPointerAddress());
-            }
-            }
-
-            if (d2dSharedFactory != nullptr)
-            {
-                auto d2dRTProp = D2D1::RenderTargetProperties (D2D1_RENDER_TARGET_TYPE_SOFTWARE,
-                                                               D2D1::PixelFormat (DXGI_FORMAT_B8G8R8A8_UNORM,
-                                                                                  D2D1_ALPHA_MODE_IGNORE),
-                                                               0, 0,
-                                                               D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE,
-                                                               D2D1_FEATURE_LEVEL_DEFAULT);
-
-                d2dSharedFactory->CreateDCRenderTarget (&d2dRTProp, directWriteRenderTarget.resetAndGetPointerAddress());
-            }
-        }
-
-        DXGIAdapters::getInstance().updateAdapters();
-
-        JUCE_END_IGNORE_WARNINGS_GCC_LIKE
-    }
-
-    ~DirectXFactories()
-    {
-        DXGIAdapters::getInstance().clearAdapters();
-
-#if JUCE_DIRECT2D
-        if (directWriteFactory != nullptr)
-        {
-            //
-            // Unregister all the custom font stuff and then clear the array before releasing the factories
-            //
-            for (auto customFontCollectionLoader : customFontCollectionLoaders)
-            {
-                directWriteFactory->UnregisterFontCollectionLoader(customFontCollectionLoader);
-                directWriteFactory->UnregisterFontFileLoader(customFontCollectionLoader->getFontFileLoader());
-            }
-
-            customFontCollectionLoaders.clear();
-        }
-
-#endif
-        d2dSharedFactory = nullptr;  // (need to make sure these are released before deleting the DynamicLibrary objects)
-        directWriteFactory = nullptr;
-        systemFonts = nullptr;
-        directWriteRenderTarget = nullptr;
-    }
-
-#if JUCE_DIRECT2D
-    IDWriteFontFamily* getFontFamilyForRawData(const void* data, size_t dataSize)
-    {
-        //
-        // Hopefully the raw data here is pointing to a TrueType font file in memory. 
-        // This creates a custom font collection loader (one custom font per font collection)
-        //
-        if (directWriteFactory != nullptr)
-        {
-            DirectWriteCustomFontCollectionLoader* customFontCollectionLoader = nullptr;
-            for (auto loader : customFontCollectionLoaders)
-            {
-                if (loader->hasRawData(data, dataSize))
-                {
-                    customFontCollectionLoader = loader;
-                    break;
-                }
-            }
-
-            if (customFontCollectionLoader == nullptr)
-            {
-                customFontCollectionLoader = customFontCollectionLoaders.add(new DirectWriteCustomFontCollectionLoader{ data, dataSize });
-
-                directWriteFactory->RegisterFontFileLoader(customFontCollectionLoader->getFontFileLoader());
-                directWriteFactory->RegisterFontCollectionLoader(customFontCollectionLoader);
-
-                directWriteFactory->CreateCustomFontCollection(customFontCollectionLoader,
-                    &customFontCollectionLoader->key,
-                    sizeof(customFontCollectionLoader->key),
-                    customFontCollectionLoader->customFontCollection.resetAndGetPointerAddress());
-            }
-
-            if (customFontCollectionLoader != nullptr && customFontCollectionLoader->customFontCollection != nullptr)
-            {
-                IDWriteFontFamily* directWriteFontFamily = nullptr;
-                auto hr = customFontCollectionLoader->customFontCollection->GetFontFamily(0, &directWriteFontFamily);
-                if (SUCCEEDED(hr))
-                {
-                    return directWriteFontFamily;
-                }
-            }
-        }
-
-        return nullptr;
-    }
-
-    IDXGIFactory2* getDXGIFactory() const
-    {
-        jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
-        return DXGIAdapters::getInstance().getFactory();
-    }
-#endif
-
-    IDWriteFactory* getDirectWriteFactory() const
-    {
-        jassert(MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
-        return directWriteFactory;
-    }
-
-    IDWriteFontCollection* getSystemFonts() const
-    {
-        jassert (MessageManager::getInstance()->existsAndIsLockedByCurrentThread());
-        return systemFonts;
-    }
-
-#if JUCE_DIRECT2D
-    OwnedArray<DirectWriteCustomFontCollectionLoader>& getCustomFontCollectionLoaders()
-    {
-        jassert(MessageManager::getInstance()->isThisTheMessageThread());
-        return customFontCollectionLoaders;
-    }
-#endif
-
-    ID2D1DCRenderTarget* getDirectWriteRenderTarget() const
-    {
-        return directWriteRenderTarget;
-    }
-
-    ID2D1Factory2* getDirect2DFactory() const
-    {
-        return d2dSharedFactory;
-    }
-
-private:
-    ComSmartPtr<ID2D1Factory2> d2dSharedFactory;
-    ComSmartPtr<IDWriteFactory> directWriteFactory;
-    ComSmartPtr<IDWriteFontCollection> systemFonts;
-    ComSmartPtr<ID2D1DCRenderTarget> directWriteRenderTarget;
-
-    DynamicLibrary direct2dDll, directWriteDll;
-
-#if JUCE_DIRECT2D
-    OwnedArray<DirectWriteCustomFontCollectionLoader> customFontCollectionLoaders;
-#endif
-};
-
 //==============================================================================
 class WindowsDirectWriteTypeface  : public Typeface
 {
@@ -321,7 +140,7 @@ public:
         //
         // Get the DirectWrite font family for the raw data
         //
-        auto fontFamily = factories->getFontFamilyForRawData(data, dataSize);
+        auto fontFamily = DirectX::getInstance()->directWrite.getFontFamilyForRawData(data, dataSize);
         if (fontFamily == nullptr)
         {
             return;
@@ -445,7 +264,6 @@ public:
     float getUnitsToHeightScaleFactor() const noexcept      { return unitsToHeightScaleFactor; }
 
 private:
-    SharedResourcePointer<DirectXFactories> factories;
     ComSmartPtr<IDWriteFontFace> dwFontFace;
     float unitsToHeightScaleFactor = 1.0f, heightToPointsFactor = 1.0f, ascent = 0;
     int designUnitsPerEm = 0;

@@ -161,9 +161,7 @@
 #elif JUCE_WINDOWS
  #include "native/juce_ETW_windows.h"
  #include "native/juce_DirectX_windows.h"
- #if JUCE_DIRECT2D
-  #include "native/juce_DirectWriteCustomFontCollection_windows.cpp"
- #endif
+ #include "native/juce_DirectWriteCustomFontCollection_windows.cpp"
  #include "native/juce_DirectX_windows.cpp"
  #include "native/juce_DirectWriteTypeface_windows.cpp"
  #include "native/juce_DirectWriteTypeLayout_windows.cpp"

@@ -798,6 +798,7 @@ namespace juce
         */
         void restoreFromString(StringRef stringVersion);
 
+        size_t getUniqueID() const noexcept { return uniqueID; }
         auto getModificationCount() const noexcept { return modificationCount; }
 
     private:
@@ -830,6 +831,7 @@ namespace juce
         bool useNonZeroWinding = true;
 
         int modificationCount = 0;
+        size_t const uniqueID = Time::getHighResolutionTicks() ^ reinterpret_cast<size_t>(this);
 
         static constexpr float lineMarker = 100001.0f;
         static constexpr float moveMarker = 100002.0f;

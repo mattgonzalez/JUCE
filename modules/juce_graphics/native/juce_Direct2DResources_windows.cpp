@@ -219,7 +219,7 @@ private:
     {
         jassert(sizeof(size_t) == sizeof(void*));
 
-        return fnv1aHash(flatteningTolerance, (size_t)&path);
+        return fnv1aHash(flatteningTolerance, path.getUniqueID());
     }
 
     size_t calculateHash(Path const& path, PathStrokeType const& strokeType, float flatteningTolerance)
@@ -237,7 +237,7 @@ private:
         extraHashData.jointStyle = (int8)strokeType.getJointStyle();
         extraHashData.endStyle = (int8)strokeType.getEndStyle();
      
-        return fnv1aHash(reinterpret_cast<uint8 const*>(&extraHashData), sizeof(extraHashData), (size_t)&path);
+        return fnv1aHash(reinterpret_cast<uint8 const*>(&extraHashData), sizeof(extraHashData), path.getUniqueID());
     }
 
 

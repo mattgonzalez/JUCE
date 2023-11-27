@@ -446,6 +446,17 @@ static Displays::Display getDisplayFromScreen (NSScreen* s, CGFloat& mainScreenB
     NSSize dpi = [[[s deviceDescription] objectForKey: NSDeviceResolution] sizeValue];
     d.dpi = (dpi.width + dpi.height) / 2.0;
 
+   #if defined (MAC_OS_VERSION_12_0) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_12_0
+    if (@available (macOS 12.0, *))
+    {
+        const auto safeInsets = [s safeAreaInsets];
+        d.safeAreaInsets = detail::WindowingHelpers::roundToInt (BorderSize<double> { safeInsets.top,
+                                                                                      safeInsets.left,
+                                                                                      safeInsets.bottom,
+                                                                                      safeInsets.right }.multipliedBy (1.0 / (double) masterScale));
+    }
+   #endif
+
     return d;
 }
 
@@ -572,15 +583,6 @@ void SystemClipboard::copyTextToClipboard (const String& text)
 String SystemClipboard::getTextFromClipboard()
 {
     return nsStringToJuce ([[NSPasteboard generalPasteboard] stringForType: NSPasteboardTypeString]);
-}
-
-void Process::setDockIconVisible (bool isVisible)
-{
-    ProcessSerialNumber psn { 0, kCurrentProcess };
-
-    [[maybe_unused]] OSStatus err = TransformProcessType (&psn, isVisible ? kProcessTransformToForegroundApplication
-                                                                          : kProcessTransformToUIElementApplication);
-    jassert (err == 0);
 }
 
 } // namespace juce

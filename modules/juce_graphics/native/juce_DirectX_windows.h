@@ -97,7 +97,10 @@ struct DirectX : public DeletedAtShutdown
             adapters(factory)
         {
         }
-        ~DXGI() = default;
+        ~DXGI()
+        {
+            adapters.clearAdapterArray();
+        }
 
         struct Adapter : public ReferenceCountedObject
         {
@@ -113,6 +116,8 @@ struct DirectX : public DeletedAtShutdown
                     ++i;
                 }
             }
+
+            ~Adapter() = default;
 
             ComSmartPtr<IDXGIAdapter> dxgiAdapter;
             std::vector<ComSmartPtr<IDXGIOutput>> dxgiOutputs;

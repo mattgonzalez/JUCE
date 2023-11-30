@@ -158,6 +158,5 @@ namespace juce
  #include "native/juce_Direct2DGraphicsContext_windows.h"
  #include "native/juce_Direct2DHwndContext_windows.h"
  #include "native/juce_Direct2DImageContext_windows.h"
- #include "native/juce_Direct2DImage_windows.h"
  #endif
 

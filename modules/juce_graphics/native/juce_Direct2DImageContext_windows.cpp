@@ -45,7 +45,7 @@ namespace juce
 
     //==============================================================================
 
-    struct Direct2ImageContext::ImagePimpl : public Direct2DGraphicsContext::Pimpl
+    struct Direct2DImageContext::ImagePimpl : public Direct2DGraphicsContext::Pimpl
 
     {
     private:
@@ -146,7 +146,7 @@ namespace juce
         JUCE_DECLARE_WEAK_REFERENCEABLE(ImagePimpl)
 
     public:
-        ImagePimpl(Direct2ImageContext& owner_,
+        ImagePimpl(Direct2DImageContext& owner_,
             Direct2DPixelData::Ptr                direct2DPixelData_,
             Point<int>                            origin_,
             const RectangleList<int>& initialClip_)
@@ -172,14 +172,14 @@ namespace juce
     };
 
     //==============================================================================
-    Direct2ImageContext::Direct2ImageContext(Direct2DPixelData::Ptr direct2DPixelData_)
-        : Direct2ImageContext(direct2DPixelData_,
+    Direct2DImageContext::Direct2DImageContext(Direct2DPixelData::Ptr direct2DPixelData_)
+        : Direct2DImageContext(direct2DPixelData_,
             Point<int> {},
             Rectangle<int> { direct2DPixelData_->width, direct2DPixelData_->height })
     {
     }
 
-    Direct2ImageContext::Direct2ImageContext(Direct2DPixelData::Ptr    direct2DPixelData_,
+    Direct2DImageContext::Direct2DImageContext(Direct2DPixelData::Ptr    direct2DPixelData_,
         Point<int>                origin,
         const RectangleList<int>& initialClip,
         bool                      clearImage_)
@@ -191,17 +191,17 @@ namespace juce
         startFrame();
     }
 
-    Direct2ImageContext::~Direct2ImageContext()
+    Direct2DImageContext::~Direct2DImageContext()
     {
         endFrame();
     }
 
-    Direct2DGraphicsContext::Pimpl* Direct2ImageContext::getPimpl() const noexcept
+    Direct2DGraphicsContext::Pimpl* Direct2DImageContext::getPimpl() const noexcept
     {
         return pimpl.get();
     }
 
-    void Direct2ImageContext::clearTargetBuffer()
+    void Direct2DImageContext::clearTargetBuffer()
     {
         if (clearImage)
         {

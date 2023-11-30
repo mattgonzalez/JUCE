@@ -86,7 +86,7 @@ namespace juce
         {
             sendDataChangeMessage();
 
-            auto context = std::make_unique<Direct2ImageContext>(this, deviceIndependentClipArea.getPosition(), RectangleList<int> { deviceIndependentClipArea }, clearImage);
+            auto context = std::make_unique<Direct2DImageContext>(this, deviceIndependentClipArea.getPosition(), RectangleList<int> { deviceIndependentClipArea }, clearImage);
             context->clipToRectangle(deviceIndependentClipArea);
             context->setOrigin(deviceIndependentClipArea.getPosition());
             return context;
@@ -245,7 +245,7 @@ namespace juce
     private:
         friend class Direct2DGraphicsContext;
         friend class Direct2DImageContext;
-        friend struct Direct2ImageContext::ImagePimpl;
+        friend struct Direct2DImageContext::ImagePimpl;
 
         direct2d::DPIScalableArea<int> area;
         const int                 pixelStride, lineStride;

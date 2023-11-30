@@ -545,7 +545,7 @@ namespace juce
             bitmapProperties.dpiY = bitmapProperties.dpiX;
             bitmapProperties.pixelFormat = swap.buffer->GetPixelFormat();
             
-            auto size = direct2d::getPhysicalD2DSizeU(scalableArea);
+            auto size = scalableArea.getPhysicalAreaD2DSizeU();
 
             ComSmartPtr<ID2D1Bitmap1> snapshot;
             auto hr = deviceResources.deviceContext.context->CreateBitmap(size, nullptr, 0, bitmapProperties, snapshot.resetAndGetPointerAddress());

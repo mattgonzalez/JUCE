@@ -134,14 +134,7 @@ namespace juce
                     Rectangle<int> dipSourceRect{ x, y, width, height };
                     dipSourceRect = dipSourceRect.getIntersection(deviceIndependentClipArea);
                     auto scaledSourceRect = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(dipSourceRect, area.getDPIScalingFactor());
-                    auto physicalSourceRect = scaledSourceRect.getPhysicalArea();
-                    D2D1_RECT_U sourceRectU
-                    {
-                        (uint32)physicalSourceRect.getX(),
-                        (uint32)physicalSourceRect.getY(),
-                        (uint32)physicalSourceRect.getWidth(),
-                        (uint32)physicalSourceRect.getHeight()
-                    };
+                    auto sourceRectU = scaledSourceRect.getPhysicalAreaD2DRectU();
 
                     //
                     // Copy from the painted target bitmap to the mappable bitmap
@@ -182,14 +175,7 @@ namespace juce
             clone->createLowLevelContext();
 
             D2D1_POINT_2U destinationPoint{ 0, 0 };
-            auto sourceRectangle = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(deviceIndependentClipArea, area.getDPIScalingFactor()).getPhysicalArea();
-            D2D1_RECT_U sourceRectU
-            {
-                (uint32)sourceRectangle.getX(),
-                (uint32)sourceRectangle.getY(),
-                (uint32)sourceRectangle.getWidth(),
-                (uint32)sourceRectangle.getHeight()
-            };
+            auto sourceRectU = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(deviceIndependentClipArea, area.getDPIScalingFactor()).getPhysicalAreaD2DRectU();
             auto hr = clone->targetBitmap->CopyFromBitmap(&destinationPoint, targetBitmap, &sourceRectU);
             jassertquiet(SUCCEEDED(hr));
             if (SUCCEEDED(hr))

@@ -195,7 +195,7 @@ struct DirectX : public DeletedAtShutdown
                 if (factory == nullptr)
                     return;
 
-                adapterArray.clear();
+                //adapterArray.clear();
 
                 UINT i = 0;
                 ComSmartPtr<IDXGIAdapter> adapter;

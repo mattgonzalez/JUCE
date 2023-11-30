@@ -555,13 +555,7 @@ namespace juce
                 // Copy the swap chain buffer to the bitmap snapshot
                 //
                 D2D_POINT_2U p{ 0, 0 };
-                D2D_RECT_U  sourceRect
-                {
-                    (uint32)scalableArea.getPhysicalArea().getX(),
-                    (uint32)scalableArea.getPhysicalArea().getY(),
-                    (uint32)scalableArea.getPhysicalArea().getRight(),
-                    (uint32)scalableArea.getPhysicalArea().getBottom()
-                };
+                D2D_RECT_U  sourceRect = scalableArea.getPhysicalAreaD2DRectU();
                 if (hr = snapshot->CopyFromBitmap(&p, swap.buffer, &sourceRect); SUCCEEDED(hr))
                 {
                     auto pixelData = Direct2DPixelData::fromDirect2DBitmap(snapshot, scalableArea.withZeroOrigin());

@@ -245,25 +245,11 @@ namespace juce
             }
             else if (fillType.isTiledImage())
             {
-                D2D1_BRUSH_PROPERTIES brushProps = { fillType.getOpacity(), direct2d::transformToMatrix(fillType.transform) };
-                auto                  bmProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
-
-                auto image = fillType.image;
-
-                D2D1_SIZE_U size = { (UINT32)image.getWidth(), (UINT32)image.getHeight() };
-                auto        bp = D2D1::BitmapProperties();
-
-                image = image.convertedToFormat(Image::ARGB);
-                Image::BitmapData bd(image, Image::BitmapData::readOnly);
-                bp.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-                bp.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-
-                ComSmartPtr<ID2D1Bitmap> tiledImageBitmap;
-                auto hr = deviceContext.context->CreateBitmap(size, bd.data, bd.lineStride, bp, tiledImageBitmap.resetAndGetPointerAddress());
-                jassert(SUCCEEDED(hr));
-                if (SUCCEEDED(hr))
+                if (auto bitmap = direct2d::createDirect2DBitmap(fillType.image, deviceContext.context, Image::ARGB))
                 {
-                    hr = deviceContext.context->CreateBitmapBrush(tiledImageBitmap,
+                    D2D1_BRUSH_PROPERTIES brushProps = { fillType.getOpacity(), direct2d::transformToMatrix(fillType.transform) };
+                    auto                  bmProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
+                    auto hr = deviceContext.context->CreateBitmapBrush(bitmap,
                         bmProps,
                         brushProps,
                         bitmapBrush.resetAndGetPointerAddress());
@@ -816,21 +802,7 @@ namespace juce
                 //
                 // Convert sourceImage to single-channel alpha-only maskImage
                 //
-                auto const        maskImage = sourceImage.convertedToFormat(Image::SingleChannel);
-                Image::BitmapData bitmapData{ maskImage, Image::BitmapData::readOnly };
-
-                auto bitmapProperties = D2D1::BitmapProperties();
-                bitmapProperties.pixelFormat.format = DXGI_FORMAT_A8_UNORM;
-                bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-
-                //
-                // Convert maskImage to a Direct2D bitmap
-                //
-                hr = deviceContext->CreateBitmap(D2D1_SIZE_U{ (UINT32)maskImage.getWidth(), (UINT32)maskImage.getHeight() },
-                    bitmapData.data,
-                    bitmapData.lineStride,
-                    bitmapProperties,
-                    sourceBitmap.resetAndGetPointerAddress());
+                sourceBitmap = direct2d::createDirect2DBitmap(sourceImage, deviceContext, Image::SingleChannel);
             }
 
             if (SUCCEEDED(hr))
@@ -1109,18 +1081,7 @@ namespace juce
             //
             // Convert to Direct2D image
             //
-            auto              argbImage = image.convertedToFormat(Image::ARGB);
-            Image::BitmapData bitmapData{ argbImage, Image::BitmapData::readOnly };
-
-            auto bitmapProperties = D2D1::BitmapProperties();
-            bitmapProperties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-            bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-
-            D2D1_SIZE_U size = { (UINT32)image.getWidth(), (UINT32)image.getHeight() };
-
-            ComSmartPtr<ID2D1Bitmap> bitmap;
-            deviceContext->CreateBitmap(size, bitmapData.data, bitmapData.lineStride, bitmapProperties, bitmap.resetAndGetPointerAddress());
-            if (bitmap)
+            if (auto bitmap = direct2d::createDirect2DBitmap(image, deviceContext,Image::ARGB))
             {
                 deviceContext->DrawBitmap(bitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
             }

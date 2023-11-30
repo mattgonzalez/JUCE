@@ -89,6 +89,11 @@ struct DeviceContext
     AffineTransform                 transform;
 };
 
+//==============================================================================
+//
+// Geometry caching
+//
+
 class GeometryCache
 {
 public:

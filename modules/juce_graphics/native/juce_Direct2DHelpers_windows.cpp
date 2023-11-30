@@ -710,6 +710,24 @@ private:
     float dpiScalingFactor = 1.0f;
 };
 
+ComSmartPtr<ID2D1Bitmap1> createDirect2DBitmap(Image const& image, ID2D1DeviceContext1* deviceContext, Image::PixelFormat format)
+{
+    jassert(format == Image::PixelFormat::ARGB || format == Image::PixelFormat::SingleChannel);
+
+    auto              convertedImage = image.convertedToFormat(format);
+    Image::BitmapData bitmapData{ convertedImage, Image::BitmapData::readOnly };
+
+    D2D1_BITMAP_PROPERTIES1 bitmapProperties{};
+    bitmapProperties.pixelFormat.format = format == Image::PixelFormat::ARGB ? DXGI_FORMAT_B8G8R8A8_UNORM : DXGI_FORMAT_R8_UNORM;
+    bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+
+    D2D1_SIZE_U size = { (UINT32)image.getWidth(), (UINT32)image.getHeight() };
+
+    ComSmartPtr<ID2D1Bitmap1> bitmap;
+    deviceContext->CreateBitmap(size, bitmapData.data, bitmapData.lineStride, bitmapProperties, bitmap.resetAndGetPointerAddress());
+    return bitmap;
+}
+
 } // namespace direct2d
 
 #if JUCE_ETW_TRACELOGGING

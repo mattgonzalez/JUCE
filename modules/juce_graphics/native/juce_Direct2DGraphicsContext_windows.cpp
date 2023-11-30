@@ -795,7 +795,7 @@ namespace juce
 
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (sourceImage.getPixelData()))
             {
-                sourceBitmap = direct2DPixelData->targetBitmap;
+                sourceBitmap = direct2DPixelData->getTargetBitmap(getPimpl()->getDirect2DDeviceUniqueID());
             }
             else
             {
@@ -1065,10 +1065,10 @@ namespace juce
             //
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (image.getPixelData()))
             {
-                if (direct2DPixelData->targetBitmap && direct2DPixelData->direct2DDeviceUniqueID == getPimpl()->getDirect2DDeviceUniqueID())
+                if (auto bitmap = direct2DPixelData->getTargetBitmap(getPimpl()->getDirect2DDeviceUniqueID()))
                 {
                     D2D1_RECT_F sourceRectangle = direct2d::rectangleToRectF(direct2DPixelData->deviceIndependentClipArea);
-                    deviceContext->DrawBitmap(direct2DPixelData->targetBitmap,
+                    deviceContext->DrawBitmap(bitmap,
                         nullptr,
                         currentState->fillType.getOpacity(),
                         currentState->interpolationMode,

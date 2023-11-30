@@ -63,6 +63,7 @@ namespace juce
                 return hr;
             }
 
+#if 0
             auto& deviceContext = deviceResources.deviceContext.context;
 
             D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
@@ -83,6 +84,7 @@ namespace juce
                 static_cast<uint32>(frameSizePhysicalPixels.getWidth()),
                 static_cast<uint32>(frameSizePhysicalPixels.getHeight())
             };
+
             if (!direct2DPixelData->targetBitmap)
             {
                 bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
@@ -127,6 +129,8 @@ namespace juce
 
             jassert(SUCCEEDED(hr));
 
+#endif
+
             return hr;
         }
 
@@ -134,8 +138,8 @@ namespace juce
         {
             Pimpl::teardown();
 
-            direct2DPixelData->mappableBitmap = nullptr;
-            direct2DPixelData->targetBitmap = nullptr;
+//             direct2DPixelData->mappableBitmap = nullptr;
+//             direct2DPixelData->targetBitmap = nullptr;
         }
 
         void adjustPaintAreas(RectangleList<int>& paintAreas) override
@@ -156,6 +160,8 @@ namespace juce
             initialClip(initialClip_)
         {
             adapter = DirectX::getInstance()->dxgi.adapters.getDefaultAdapter();
+
+            prepare();
         }
 
         ~ImagePimpl() override {}
@@ -167,9 +173,46 @@ namespace juce
 
         ID2D1Image* getDeviceContextTarget() override
         {
-            return direct2DPixelData->targetBitmap;
+            return direct2DPixelData->getTargetBitmap(getDirect2DDeviceUniqueID());
         }
     };
+
+    //==============================================================================
+
+    class Direct2DImageContext::Bitmap
+    {
+    public:
+        Bitmap(ID2D1Bitmap1* bitmap_, Uuid direct2DDeviceID_) :
+            bitmap(bitmap_),
+            direct2DDeviceID(direct2DDeviceID_)
+        {
+        }
+
+        ComSmartPtr<ID2D1Bitmap1> bitmap;
+        Uuid const direct2DDeviceID;
+    };
+
+    Direct2DImageContext::Bitmap Direct2DImageContext::createBitmap(Image::PixelFormat format, Rectangle<int> size, float dpiScaleFactor, int lineStride)
+    {
+        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+        bitmapProperties.dpiX = dpiScaleFactor * USER_DEFAULT_SCREEN_DPI;;
+        bitmapProperties.dpiY = bitmapProperties.dpiX;
+        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        bitmapProperties.pixelFormat.format = format == Image::SingleChannel ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+        bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+
+        D2D_SIZE_U sizeU{ (uint32)size.getWidth(), (uint32)size.getHeight() };
+
+        ComSmartPtr<ID2D1Bitmap1> bitmap;
+        auto hr = getPimpl()->getDeviceContext()->CreateBitmap(
+            sizeU,
+            nullptr,
+            lineStride,
+            bitmapProperties,
+            bitmap.resetAndGetPointerAddress());
+        jassertquiet(SUCCEEDED(hr));
+        return { bitmap, getPimpl()->getDirect2DDeviceUniqueID() };
+    }
 
     //==============================================================================
     Direct2DImageContext::Direct2DImageContext(Direct2DPixelData::Ptr direct2DPixelData_)
@@ -187,8 +230,6 @@ namespace juce
         pimpl(new ImagePimpl{ *this, direct2DPixelData_, origin, initialClip })
     {
         setPhysicalPixelScaleFactor(direct2DPixelData_->getDPIScalingFactor());
-
-        startFrame();
     }
 
     Direct2DImageContext::~Direct2DImageContext()

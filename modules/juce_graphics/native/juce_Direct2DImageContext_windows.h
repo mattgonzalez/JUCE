@@ -25,7 +25,6 @@
 
 namespace juce
 {
-
     class Direct2DPixelData;
 
     class Direct2DImageContext : public Direct2DGraphicsContext
@@ -39,9 +38,10 @@ namespace juce
 
         ~Direct2DImageContext() override;
 
-    private:
-        friend class Direct2DPixelData;
+        class Bitmap;
+        Bitmap createBitmap(Image::PixelFormat format, Rectangle<int> size, float dpiScaleFactor, int lineStride);
 
+    private:
         bool clearImage = true;
 
         struct ImagePimpl;

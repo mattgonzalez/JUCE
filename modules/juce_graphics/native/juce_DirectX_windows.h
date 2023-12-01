@@ -99,12 +99,12 @@ struct DirectX : public DeletedAtShutdown
         }
         ~DXGI()
         {
-            adapters.clearAdapterArray();
+            adapters.releaseAdapters();
         }
 
         struct Adapter : public ReferenceCountedObject
         {
-            Adapter(IDXGIAdapter* dxgiAdapter_)
+            Adapter(IDXGIAdapter1* dxgiAdapter_)
                 : dxgiAdapter(dxgiAdapter_)
             {
                 uint32                    i = 0;
@@ -119,7 +119,7 @@ struct DirectX : public DeletedAtShutdown
 
             ~Adapter() override = default;
 
-            ComSmartPtr<IDXGIAdapter> dxgiAdapter;
+            ComSmartPtr<IDXGIAdapter1> dxgiAdapter;
             std::vector<ComSmartPtr<IDXGIOutput>> dxgiOutputs;
 
             using Ptr = ReferenceCountedObjectPtr<Adapter>;

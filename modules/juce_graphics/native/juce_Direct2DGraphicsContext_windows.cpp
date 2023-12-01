@@ -991,12 +991,14 @@ namespace juce
             //
             // Use a cached geometry realisation?
             //
+#if 0
             if (auto geometryRealisation = getPimpl()->geometryCache.getFilledGeometryRealisation(p, factory, deviceContext, getPhysicalPixelScaleFactor()))
             {
                 updateDeviceContextTransform(transform);
                 deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
                 return;
             }
+#endif
 
             //
             // Create and fill the geometry
@@ -1028,12 +1030,14 @@ namespace juce
                 //
                 // Use a cached geometry realisation?
                 //
+#if 0
                 if (auto geometryRealisation = getPimpl()->geometryCache.getStrokedGeometryRealisation(p, strokeType, factory, deviceContext, getPhysicalPixelScaleFactor()))
                 {
                     updateDeviceContextTransform(transform);
                     deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
                     return true;
                 }
+#endif
 
                 //
                 // Create and draw a geometry

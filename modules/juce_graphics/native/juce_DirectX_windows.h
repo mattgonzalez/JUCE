@@ -188,25 +188,31 @@ struct DirectX : public DeletedAtShutdown
                 updateAdapters();
             }
 
-            ~Adapters() = default;
+            ~Adapters()
+            {
+                releaseAdapters();
+            }
 
             void updateAdapters()
             {
                 if (factory == nullptr)
                     return;
 
-                //adapterArray.clear();
+                if (! factory->IsCurrent())
+                {
+                    releaseAdapters();
+                }
 
                 UINT i = 0;
-                ComSmartPtr<IDXGIAdapter> adapter;
+                ComSmartPtr<IDXGIAdapter1> adapter;
 
-                while (factory->EnumAdapters(i++, adapter.resetAndGetPointerAddress()) != DXGI_ERROR_NOT_FOUND)
+                while (factory->EnumAdapters1(i++, adapter.resetAndGetPointerAddress()) != DXGI_ERROR_NOT_FOUND)
                 {
                     adapterArray.add(new Adapter{ adapter });
                 }
             }
 
-            void clearAdapterArray()
+            void releaseAdapters()
             {
                 adapterArray.clear();
             }

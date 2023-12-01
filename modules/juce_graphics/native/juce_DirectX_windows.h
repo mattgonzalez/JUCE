@@ -117,7 +117,7 @@ struct DirectX : public DeletedAtShutdown
                 }
             }
 
-            ~Adapter() = default;
+            ~Adapter() override = default;
 
             ComSmartPtr<IDXGIAdapter> dxgiAdapter;
             std::vector<ComSmartPtr<IDXGIOutput>> dxgiOutputs;

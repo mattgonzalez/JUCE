@@ -45,102 +45,12 @@ namespace juce
 
     //==============================================================================
 
-    struct Direct2DImageContext::ImagePimpl : public Direct2DGraphicsContext::Pimpl
+    struct Direct2ImageContext::ImagePimpl : public Direct2DGraphicsContext::Pimpl
 
     {
     private:
-        Direct2DPixelData::Ptr    direct2DPixelData;
+        ComSmartPtr<ID2D1Bitmap1> targetBitmap;
         Point<int> const          origin;
-        Rectangle<int> frameSizePhysicalPixels;
-        RectangleList<int> const& initialClip;
-
-        HRESULT prepare() override
-        {
-            HRESULT hr = S_OK;
-
-            if (hr = Pimpl::prepare(); FAILED(hr))
-            {
-                return hr;
-            }
-
-#if 0
-            auto& deviceContext = deviceResources.deviceContext.context;
-
-            D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-            bitmapProperties.dpiX = dpiScalingFactor * USER_DEFAULT_SCREEN_DPI;;
-            bitmapProperties.dpiY = bitmapProperties.dpiX;
-            bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-            bitmapProperties.pixelFormat.format =
-                (direct2DPixelData->pixelFormat == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
-
-            frameSizePhysicalPixels =
-            {
-                detail::ceilAsInt(direct2DPixelData->width * dpiScalingFactor),
-                detail::ceilAsInt(direct2DPixelData->height * dpiScalingFactor)
-            };
-
-            D2D_SIZE_U size
-            {
-                static_cast<uint32>(frameSizePhysicalPixels.getWidth()),
-                static_cast<uint32>(frameSizePhysicalPixels.getHeight())
-            };
-
-            if (!direct2DPixelData->targetBitmap)
-            {
-                bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-                hr = deviceContext->CreateBitmap(
-                    size,
-                    nullptr,
-                    direct2DPixelData->lineStride,
-                    bitmapProperties,
-                    direct2DPixelData->targetBitmap.resetAndGetPointerAddress());
-
-                if (SUCCEEDED(hr))
-                {
-                    //
-                    // The bitmap may be slightly too large due
-                    // to DPI scaling, so fill it with transparent black
-                    //
-                    deviceContext->SetTarget(direct2DPixelData->targetBitmap);
-                    deviceContext->BeginDraw();
-                    deviceContext->Clear();
-                    deviceContext->EndDraw();
-                    deviceContext->SetTarget(nullptr);
-
-                    //
-                    // Store the unique ID for the Direct2D device
-                    //
-                    direct2DPixelData->direct2DDeviceUniqueID = getDirect2DDeviceUniqueID();
-                }
-
-                direct2DPixelData->mappableBitmap = nullptr;
-            }
-
-            if (!direct2DPixelData->mappableBitmap)
-            {
-                bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-                hr = deviceContext->CreateBitmap(
-                    size,
-                    nullptr,
-                    direct2DPixelData->lineStride,
-                    bitmapProperties,
-                    direct2DPixelData->mappableBitmap.resetAndGetPointerAddress());
-            }
-
-            jassert(SUCCEEDED(hr));
-
-#endif
-
-            return hr;
-        }
-
-        void teardown() override
-        {
-            Pimpl::teardown();
-
-//             direct2DPixelData->mappableBitmap = nullptr;
-//             direct2DPixelData->targetBitmap = nullptr;
-        }
 
         void adjustPaintAreas(RectangleList<int>& paintAreas) override
         {
@@ -150,99 +60,62 @@ namespace juce
         JUCE_DECLARE_WEAK_REFERENCEABLE(ImagePimpl)
 
     public:
-        ImagePimpl(Direct2DImageContext& owner_,
-            Direct2DPixelData::Ptr                direct2DPixelData_,
-            Point<int>                            origin_,
-            const RectangleList<int>& initialClip_)
-            : Pimpl(owner_, false /* opaque */),
-            direct2DPixelData(direct2DPixelData_),
-            origin(origin_),
-            initialClip(initialClip_)
+        ImagePimpl(Direct2ImageContext& owner_)
+            : Pimpl(owner_, false /* opaque */)
         {
             adapter = DirectX::getInstance()->dxgi.adapters.getDefaultAdapter();
-
-            prepare();
         }
 
         ~ImagePimpl() override {}
 
+        void setTargetBitmap(ID2D1Bitmap1* targetBitmap_)
+        {
+            targetBitmap = targetBitmap_;
+        }
+
         Rectangle<int> getFrameSize() override
         {
-            return { direct2DPixelData->width, direct2DPixelData->height };
+            if (targetBitmap)
+            {
+                auto size = targetBitmap->GetSize();
+                return Rectangle<float>{ size.width, size.height }.getSmallestIntegerContainer();
+            }
+
+            return {};
         }
 
         ID2D1Image* getDeviceContextTarget() override
         {
-            return direct2DPixelData->getTargetBitmap(getDirect2DDeviceUniqueID());
+            return targetBitmap;
         }
     };
 
     //==============================================================================
 
-    class Direct2DImageContext::Bitmap
-    {
-    public:
-        Bitmap(ID2D1Bitmap1* bitmap_, Uuid direct2DDeviceID_) :
-            bitmap(bitmap_),
-            direct2DDeviceID(direct2DDeviceID_)
-        {
-        }
-
-        ComSmartPtr<ID2D1Bitmap1> bitmap;
-        Uuid const direct2DDeviceID;
-    };
-
-    Direct2DImageContext::Bitmap Direct2DImageContext::createBitmap(Image::PixelFormat format, Rectangle<int> size, float dpiScaleFactor, int lineStride)
-    {
-        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
-        bitmapProperties.dpiX = dpiScaleFactor * USER_DEFAULT_SCREEN_DPI;;
-        bitmapProperties.dpiY = bitmapProperties.dpiX;
-        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        bitmapProperties.pixelFormat.format = format == Image::SingleChannel ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
-        bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-
-        D2D_SIZE_U sizeU{ (uint32)size.getWidth(), (uint32)size.getHeight() };
-
-        ComSmartPtr<ID2D1Bitmap1> bitmap;
-        auto hr = getPimpl()->getDeviceContext()->CreateBitmap(
-            sizeU,
-            nullptr,
-            lineStride,
-            bitmapProperties,
-            bitmap.resetAndGetPointerAddress());
-        jassertquiet(SUCCEEDED(hr));
-        return { bitmap, getPimpl()->getDirect2DDeviceUniqueID() };
-    }
-
-    //==============================================================================
-    Direct2DImageContext::Direct2DImageContext(Direct2DPixelData::Ptr direct2DPixelData_)
-        : Direct2DImageContext(direct2DPixelData_,
-            Point<int> {},
-            Rectangle<int> { direct2DPixelData_->width, direct2DPixelData_->height })
+    Direct2ImageContext::Direct2ImageContext(bool clearImage_) :
+        pimpl(new ImagePimpl{ *this }),
+        clearImage(clearImage_)
     {
     }
 
-    Direct2DImageContext::Direct2DImageContext(Direct2DPixelData::Ptr    direct2DPixelData_,
-        Point<int>                origin,
-        const RectangleList<int>& initialClip,
-        bool                      clearImage_)
-        : clearImage(clearImage_),
-        pimpl(new ImagePimpl{ *this, direct2DPixelData_, origin, initialClip })
-    {
-        setPhysicalPixelScaleFactor(direct2DPixelData_->getDPIScalingFactor());
-    }
-
-    Direct2DImageContext::~Direct2DImageContext()
+    Direct2ImageContext::~Direct2ImageContext()
     {
         endFrame();
     }
 
-    Direct2DGraphicsContext::Pimpl* Direct2DImageContext::getPimpl() const noexcept
+    Direct2DGraphicsContext::Pimpl* Direct2ImageContext::getPimpl() const noexcept
     {
         return pimpl.get();
     }
 
-    void Direct2DImageContext::clearTargetBuffer()
+    void Direct2ImageContext::startFrame(ID2D1Bitmap1* bitmap)
+    {
+        pimpl->setTargetBitmap(bitmap);
+
+        Direct2DGraphicsContext::startFrame();
+    }
+
+    void Direct2ImageContext::clearTargetBuffer()
     {
         if (clearImage)
         {

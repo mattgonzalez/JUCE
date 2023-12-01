@@ -25,21 +25,16 @@
 
 namespace juce
 {
-    class Direct2DPixelData;
 
-    class Direct2DImageContext : public Direct2DGraphicsContext
+    class Direct2ImageContext : public Direct2DGraphicsContext
     {
     public:
         /** Creates a context to render into an image. */
-        Direct2DImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_);
+        Direct2ImageContext(bool clearImage_);
 
-        /** Creates a context to render into a clipped subsection of an image. */
-        Direct2DImageContext(ReferenceCountedObjectPtr<Direct2DPixelData> direct2DPixelData_, Point<int> origin, const RectangleList<int>& initialClip, bool clearImage_ = true);
+        ~Direct2ImageContext() override;
 
-        ~Direct2DImageContext() override;
-
-        class Bitmap;
-        Bitmap createBitmap(Image::PixelFormat format, Rectangle<int> size, float dpiScaleFactor, int lineStride);
+        void startFrame(ID2D1Bitmap1* bitmap);
 
     private:
         bool clearImage = true;
@@ -50,7 +45,7 @@ namespace juce
         Pimpl* getPimpl() const noexcept override;
         void clearTargetBuffer() override;
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Direct2DImageContext)
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Direct2ImageContext)
     };
 
 } // namespace juce

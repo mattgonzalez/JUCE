@@ -558,7 +558,7 @@ namespace juce
                 D2D_RECT_U  sourceRect = scalableArea.getPhysicalAreaD2DRectU();
                 if (hr = snapshot->CopyFromBitmap(&p, swap.buffer, &sourceRect); SUCCEEDED(hr))
                 {
-                    auto pixelData = Direct2DPixelData::fromDirect2DBitmap(snapshot, scalableArea.withZeroOrigin());
+                    auto pixelData = Direct2DPixelData::fromDirect2DBitmap(snapshot, adapter, scalableArea.withZeroOrigin());
                     return Image{ pixelData };
                 }
             }

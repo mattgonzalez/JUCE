@@ -245,7 +245,8 @@ namespace juce
             }
             else if (fillType.isTiledImage())
             {
-                if (auto bitmap = direct2d::createDirect2DBitmap(fillType.image, deviceContext.context, Image::ARGB))
+                auto direct2DBitmap = direct2d::Direct2DBitmap::fromImage(fillType.image, deviceContext.context, Image::ARGB);
+                if (auto bitmap = direct2DBitmap.get())
                 {
                     D2D1_BRUSH_PROPERTIES brushProps = { fillType.getOpacity(), direct2d::transformToMatrix(fillType.transform) };
                     auto                  bmProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
@@ -795,14 +796,15 @@ namespace juce
 
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (sourceImage.getPixelData()))
             {
-                sourceBitmap = direct2DPixelData->getTargetBitmap(getPimpl()->getDirect2DDeviceUniqueID());
+                sourceBitmap = direct2DPixelData->getTargetBitmap();
             }
             else
             {
                 //
                 // Convert sourceImage to single-channel alpha-only maskImage
                 //
-                sourceBitmap = direct2d::createDirect2DBitmap(sourceImage, deviceContext, Image::SingleChannel);
+                direct2d::Direct2DBitmap direct2DBitmap = direct2d::Direct2DBitmap::fromImage(sourceImage, deviceContext, Image::SingleChannel);
+                sourceBitmap = direct2DBitmap.get();
             }
 
             if (SUCCEEDED(hr))
@@ -1065,7 +1067,7 @@ namespace juce
             //
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (image.getPixelData()))
             {
-                if (auto bitmap = direct2DPixelData->getTargetBitmap(getPimpl()->getDirect2DDeviceUniqueID()))
+                if (auto bitmap = direct2DPixelData->getTargetBitmap(/*getPimpl()->getDirect2DDeviceUniqueID()*/))
                 {
                     D2D1_RECT_F sourceRectangle = direct2d::rectangleToRectF(direct2DPixelData->deviceIndependentClipArea);
                     deviceContext->DrawBitmap(bitmap,
@@ -1081,7 +1083,8 @@ namespace juce
             //
             // Convert to Direct2D image
             //
-            if (auto bitmap = direct2d::createDirect2DBitmap(image, deviceContext,Image::ARGB))
+            auto direct2DBitmap = direct2d::Direct2DBitmap::fromImage(image, deviceContext, Image::ARGB);
+            if (auto bitmap = direct2DBitmap.get())
             {
                 deviceContext->DrawBitmap(bitmap, nullptr, currentState->fillType.getOpacity(), currentState->interpolationMode, nullptr, {});
             }

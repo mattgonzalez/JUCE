@@ -168,12 +168,13 @@
  #include "native/juce_Fonts_windows.cpp"
  #include "native/juce_IconHelpers_windows.cpp"
  #if JUCE_DIRECT2D
-  #include "native/juce_Direct2DImage_windows.h"
   #include "native/juce_Direct2DHelpers_windows.cpp"
   #include "native/juce_Direct2DSwapChainDispatcher_windows.cpp"
   #include "native/juce_Direct2DResources_windows.cpp"
+  #include "native/juce_Direct2DImage_windows.h"
   #include "native/juce_Direct2DGraphicsContext_windows.cpp"
   #include "native/juce_Direct2DHwndContext_windows.cpp"
+  #include "native/juce_Direct2DImageContext_windows.h"
   #include "native/juce_Direct2DImageContext_windows.cpp"
   #include "native/juce_Direct2DImage_windows.cpp"
 #endif

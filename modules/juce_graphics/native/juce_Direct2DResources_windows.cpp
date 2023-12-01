@@ -91,6 +91,80 @@ struct DeviceContext
 
 //==============================================================================
 //
+// Direct2D bitmap
+//
+
+class Direct2DBitmap
+{
+public:
+    Direct2DBitmap() = default;
+
+    ~Direct2DBitmap()
+    {
+        release();
+    }
+
+    static Direct2DBitmap fromImage(Image const& image, ID2D1DeviceContext1* deviceContext, Image::PixelFormat format)
+    {
+        auto              convertedImage = image.convertedToFormat(format);
+        Image::BitmapData bitmapData{ convertedImage, Image::BitmapData::readOnly };
+
+        D2D1_BITMAP_PROPERTIES1 bitmapProperties{};
+        bitmapProperties.pixelFormat.format = format == Image::PixelFormat::ARGB ? DXGI_FORMAT_B8G8R8A8_UNORM : DXGI_FORMAT_R8_UNORM;
+        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+
+        D2D1_SIZE_U size = { (UINT32)image.getWidth(), (UINT32)image.getHeight() };
+
+        Direct2DBitmap direct2DBitmap;
+        deviceContext->CreateBitmap(size, bitmapData.data, bitmapData.lineStride, bitmapProperties, direct2DBitmap.bitmap.resetAndGetPointerAddress());
+        return direct2DBitmap;
+    }
+
+    void createBitmap(ID2D1DeviceContext1* deviceContext,
+        Image::PixelFormat format,
+        D2D_SIZE_U size,
+        int lineStride,
+        float dpiScaleFactor,
+        D2D1_BITMAP_OPTIONS options)
+    {
+        D2D1_BITMAP_PROPERTIES1 bitmapProperties = {};
+        bitmapProperties.dpiX = dpiScaleFactor * USER_DEFAULT_SCREEN_DPI;;
+        bitmapProperties.dpiY = bitmapProperties.dpiX;
+        bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        bitmapProperties.pixelFormat.format =
+            (format == Image::SingleChannel) ? DXGI_FORMAT_A8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+        bitmapProperties.bitmapOptions = options;
+
+        deviceContext->CreateBitmap(
+            size,
+            nullptr,
+            lineStride,
+            bitmapProperties,
+            bitmap.resetAndGetPointerAddress());
+    }
+
+    void set(ID2D1Bitmap1* bitmap_, Uuid direct2DDeviceUniqueID_)
+    {
+        bitmap = bitmap_;
+        direct2DDeviceUniqueID = direct2DDeviceUniqueID_;
+    }
+
+    ID2D1Bitmap1* get() const noexcept
+    {
+        return bitmap;
+    }
+
+    void release()
+    {
+        bitmap = nullptr;
+    }
+
+protected:
+    ComSmartPtr<ID2D1Bitmap1> bitmap;
+    Uuid direct2DDeviceUniqueID;
+};
+//==============================================================================
+//
 // Geometry caching
 //
 

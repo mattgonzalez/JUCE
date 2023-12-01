@@ -153,14 +153,16 @@ namespace juce
 class Direct2DPixelData : public ImagePixelData
 {
 public:
-    Direct2DPixelData(Image::PixelFormat formatToUse, direct2d::DPIScalableArea<int> area_, bool clearImage_);
-    Direct2DPixelData(ReferenceCountedObjectPtr<Direct2DPixelData> source_, Rectangle<int> clipArea_);
+    Direct2DPixelData(Image::PixelFormat formatToUse, direct2d::DPIScalableArea<int> area_, bool clearImage_, DirectX::DXGI::Adapter::Ptr adapter_ = nullptr);
+    Direct2DPixelData(ReferenceCountedObjectPtr<Direct2DPixelData> source_, Rectangle<int> clipArea_, DirectX::DXGI::Adapter::Ptr adapter_ = nullptr);
 
-    static ReferenceCountedObjectPtr<Direct2DPixelData> fromDirect2DBitmap(ID2D1Bitmap1* const bitmap, direct2d::DPIScalableArea<int> area);
+    static ReferenceCountedObjectPtr<Direct2DPixelData> fromDirect2DBitmap(ID2D1Bitmap1* const bitmap, 
+		DirectX::DXGI::Adapter::Ptr adapter, 
+		direct2d::DPIScalableArea<int> area);
 
     ~Direct2DPixelData() override = default;
 
-    ID2D1Bitmap1* getTargetBitmap(Uuid const& expectedDirect2DDeviceID) const noexcept;
+	ID2D1Bitmap1* getTargetBitmap() const noexcept;
 
     std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() override;
     
@@ -190,13 +192,119 @@ public:
     Rectangle<int> const deviceIndependentClipArea;
 
 private:
+    DirectX::DXGI::Adapter::Ptr adapter;
+    direct2d::DeviceResources deviceResources;
     direct2d::DPIScalableArea<int> area;
     const int                 pixelStride, lineStride;
     bool const                clearImage;
-    ComSmartPtr<ID2D1Bitmap1> targetBitmap;
-    Uuid direct2DDeviceUniqueID;
-    ComSmartPtr<ID2D1Bitmap1> mappableBitmap;
-    D2D1_MAPPED_RECT          mappedRect{};
+
+    class TargetBitmap : public direct2d::Direct2DBitmap
+    {
+    public:
+        void create(ID2D1DeviceContext1* deviceContext_,
+            Uuid direct2DDeviceID_,
+            Image::PixelFormat format,
+            direct2d::DPIScalableArea<int> area_,
+            int lineStride)
+        {
+			createBitmap(deviceContext_,
+                format,
+                area_.getPhysicalAreaD2DSizeU(),
+                lineStride,
+                area_.getDPIScalingFactor(),
+                D2D1_BITMAP_OPTIONS_TARGET);
+            if (bitmap)
+            {
+                //
+                // The bitmap may be slightly too large due
+                // to DPI scaling, so fill it with transparent black
+                //
+                deviceContext_->SetTarget(bitmap);
+                deviceContext_->BeginDraw();
+                deviceContext_->Clear();
+                deviceContext_->EndDraw();
+                deviceContext_->SetTarget(nullptr);
+            }
+
+            direct2DDeviceUniqueID = direct2DDeviceID_;
+        }
+    } targetBitmap;
+
+    class MappableBitmap : public direct2d::Direct2DBitmap
+    {
+    public:
+        ID2D1Bitmap* createAndMap(ID2D1Bitmap1* sourceBitmap,
+            Rectangle<int> sourceRectangle,
+            ID2D1DeviceContext1* deviceContext_,
+            Uuid direct2DDeviceID_,
+            Image::PixelFormat format,
+			Rectangle<int> deviceIndependentClipArea,
+			float dpiScaleFactor,
+            int lineStride)
+        {
+			createBitmap(deviceContext_,
+                format,
+				sourceBitmap->GetPixelSize(),
+                lineStride,
+                dpiScaleFactor,
+                D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW);
+            direct2DDeviceUniqueID = direct2DDeviceID_;
+
+            if (bitmap)
+            {
+                D2D1_POINT_2U destPoint{ 0, 0 };
+                sourceRectangle = sourceRectangle.getIntersection(deviceIndependentClipArea);
+                auto scaledSourceRect = direct2d::DPIScalableArea<int>::fromDeviceIndependentArea(sourceRectangle, dpiScaleFactor);
+                auto sourceRectU = scaledSourceRect.getPhysicalAreaD2DRectU();
+
+                //
+                // Copy from the painted target bitmap to the mappable bitmap
+                //
+                if (auto hr = bitmap->CopyFromBitmap(&destPoint, sourceBitmap, &sourceRectU); FAILED(hr))
+                {
+                    return nullptr;
+                }
+
+                //
+                // Map the mappable bitmap to CPU memory; ID2D1Bitmap::Map will allocate memory and populate mappedRect
+                //
+                mappedRect = {};
+                if (auto hr = bitmap->Map(D2D1_MAP_OPTIONS_READ, &mappedRect); FAILED(hr))
+                {
+                    return nullptr;
+                }
+            }
+
+            return bitmap;
+        }
+
+		void unmap(ID2D1Bitmap1* targetBitmap, Image::BitmapData::ReadWriteMode mode)
+		{
+            //
+			// Unmap the mappable bitmap if it was mapped
+			//
+			// If the mappable bitmap was mapped, copy the mapped bitmap data to the target bitmap
+			//
+            if (mappedRect.bits && bitmap)
+            {
+                if (targetBitmap && mode != Image::BitmapData::readOnly)
+                {
+                    auto size = bitmap->GetPixelSize();
+
+                    D2D1_RECT_U rect{ 0, 0, size.width, size.height };
+                    targetBitmap->CopyFromMemory(&rect, mappedRect.bits, mappedRect.pitch);
+                }
+
+                bitmap->Unmap();
+            }
+
+            mappedRect = {};
+		}
+
+        D2D1_MAPPED_RECT          mappedRect{};
+    } mappableBitmap;
+
+	void createTargetBitmap();
 
     JUCE_LEAK_DETECTOR(Direct2DPixelData)
 };

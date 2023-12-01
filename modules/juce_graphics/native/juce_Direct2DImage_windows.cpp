@@ -90,7 +90,7 @@ namespace juce
 
         deviceResources.create(adapter, area.getDPIScalingFactor());
 
-        targetBitmap.create(deviceResources.deviceContext.context, adapter->direct2DDeviceUniqueID, pixelFormat, area, lineStride);
+        targetBitmap.create(deviceResources.deviceContext.context, pixelFormat, area, lineStride);
     }
 
     ReferenceCountedObjectPtr<Direct2DPixelData> Direct2DPixelData::fromDirect2DBitmap(ID2D1Bitmap1* const bitmap, 
@@ -98,7 +98,7 @@ namespace juce
         direct2d::DPIScalableArea<int> area)
     {
         Direct2DPixelData::Ptr pixelData = new Direct2DPixelData{ Image::ARGB, area, false };
-        pixelData->targetBitmap.set(bitmap, adapter->direct2DDeviceUniqueID);
+        pixelData->targetBitmap.set(bitmap);
         return pixelData;
     }
 
@@ -148,7 +148,6 @@ namespace juce
             mappableBitmap.createAndMap(sourceBitmap,
                 Rectangle<int>{ x, y, width, height },
                 deviceResources.deviceContext.context,
-                adapter->direct2DDeviceUniqueID,
                 pixelFormat,
                 deviceIndependentClipArea,
                 area.getDPIScalingFactor(),

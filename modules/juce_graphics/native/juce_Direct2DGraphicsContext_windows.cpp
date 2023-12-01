@@ -569,11 +569,6 @@ namespace juce
             return deviceResources.deviceContext.context;
         }
 
-        auto getDirect2DDeviceUniqueID() const noexcept
-        {
-            return adapter->direct2DDeviceUniqueID;
-        }
-
         void setDeviceContextTransform(AffineTransform transform)
         {
             deviceResources.deviceContext.setTransform(transform);
@@ -821,6 +816,7 @@ namespace juce
 
                 auto bitmapBrushProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_CLAMP, D2D1_EXTEND_MODE_CLAMP);
                 hr = deviceContext->CreateBitmapBrush(sourceBitmap, bitmapBrushProps, brushProps, brush.resetAndGetPointerAddress());
+
                 if (SUCCEEDED(hr))
                 {
                     //

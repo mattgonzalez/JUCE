@@ -202,7 +202,6 @@ private:
     {
     public:
         void create(ID2D1DeviceContext1* deviceContext_,
-            Uuid direct2DDeviceID_,
             Image::PixelFormat format,
             direct2d::DPIScalableArea<int> area_,
             int lineStride)
@@ -225,8 +224,6 @@ private:
                 deviceContext_->EndDraw();
                 deviceContext_->SetTarget(nullptr);
             }
-
-            direct2DDeviceUniqueID = direct2DDeviceID_;
         }
     } targetBitmap;
 
@@ -236,7 +233,6 @@ private:
         ID2D1Bitmap* createAndMap(ID2D1Bitmap1* sourceBitmap,
             Rectangle<int> sourceRectangle,
             ID2D1DeviceContext1* deviceContext_,
-            Uuid direct2DDeviceID_,
             Image::PixelFormat format,
 			Rectangle<int> deviceIndependentClipArea,
 			float dpiScaleFactor,
@@ -248,7 +244,6 @@ private:
                 lineStride,
                 dpiScaleFactor,
                 D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW);
-            direct2DDeviceUniqueID = direct2DDeviceID_;
 
             if (bitmap)
             {

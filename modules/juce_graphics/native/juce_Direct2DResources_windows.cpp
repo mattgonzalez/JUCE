@@ -143,10 +143,9 @@ public:
             bitmap.resetAndGetPointerAddress());
     }
 
-    void set(ID2D1Bitmap1* bitmap_, Uuid direct2DDeviceUniqueID_)
+    void set(ID2D1Bitmap1* bitmap_)
     {
         bitmap = bitmap_;
-        direct2DDeviceUniqueID = direct2DDeviceUniqueID_;
     }
 
     ID2D1Bitmap1* get() const noexcept
@@ -161,7 +160,6 @@ public:
 
 protected:
     ComSmartPtr<ID2D1Bitmap1> bitmap;
-    Uuid direct2DDeviceUniqueID;
 };
 //==============================================================================
 //

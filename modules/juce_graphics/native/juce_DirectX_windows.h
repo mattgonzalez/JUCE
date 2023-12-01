@@ -160,13 +160,7 @@ struct DirectX : public DeletedAtShutdown
 
                 if (SUCCEEDED(hr) && direct2DDevice == nullptr)
                 {
-                    direct2DDeviceUniqueID = Uuid::null();
-
                     hr = direct2DFactory->CreateDevice(dxgiDevice, direct2DDevice.resetAndGetPointerAddress());
-                    if (SUCCEEDED(hr))
-                    {
-                        direct2DDeviceUniqueID = Uuid{};
-                    }
                 }
 
                 return hr;
@@ -175,7 +169,6 @@ struct DirectX : public DeletedAtShutdown
             ComSmartPtr<ID3D11Device> direct3DDevice;
             ComSmartPtr<IDXGIDevice>  dxgiDevice;
             ComSmartPtr<ID2D1Device1> direct2DDevice;
-            Uuid                      direct2DDeviceUniqueID;
 #endif
         };
 

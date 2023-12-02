@@ -175,7 +175,12 @@ public:
         cache.clear();
     }
 
-    ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
+    ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, 
+        ID2D1Factory2* factory, 
+        ID2D1DeviceContext1* deviceContext, 
+        float dpiScaleFactor,
+        int64& geometryCreationTicks,
+        int64& geometryRealisationCreationTicks)
     {
         if (path.getModificationCount() == 0)
         {
@@ -195,10 +200,20 @@ public:
 
             if (! cachedGeometry->geometryRealisation)
             {
+                auto t1 = Time::getHighResolutionTicks();
+
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
+                    auto t2 = Time::getHighResolutionTicks();
+
                     auto hr = deviceContext->CreateFilledGeometryRealization(geometry, flatteningTolerance, cachedGeometry->geometryRealisation.resetAndGetPointerAddress());
-                    
+
+                    auto t3 = Time::getHighResolutionTicks();
+
+                    geometryCreationTicks = t2 - t1;
+                    geometryRealisationCreationTicks = t3 - t2;
+
+
                     switch (hr)
                     {
                     case S_OK:
@@ -218,7 +233,13 @@ public:
         return nullptr;
     }
 
-    ID2D1GeometryRealization* getStrokedGeometryRealisation(const Path& path, const PathStrokeType& strokeType, ID2D1Factory2* factory, ID2D1DeviceContext1* deviceContext, float dpiScaleFactor)
+    ID2D1GeometryRealization* getStrokedGeometryRealisation(const Path& path, 
+        const PathStrokeType& strokeType, 
+        ID2D1Factory2* factory, 
+        ID2D1DeviceContext1* deviceContext, 
+        float dpiScaleFactor,
+        int64& geometryCreationTicks,
+        int64& geometryRealisationCreationTicks)
     {
         if (path.getModificationCount() == 0)
         {
@@ -232,13 +253,20 @@ public:
         {
             if (!cachedGeometry->geometryRealisation)
             {
+                auto t1 = Time::getHighResolutionTicks();
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
+                    auto t2 = Time::getHighResolutionTicks();
                     if (auto strokeStyle = direct2d::pathStrokeTypeToStrokeStyle(factory, strokeType))
                     {
                         auto hr = deviceContext->CreateStrokedGeometryRealization(geometry, flatteningTolerance, 
                             strokeType.getStrokeThickness(), strokeStyle,
                             cachedGeometry->geometryRealisation.resetAndGetPointerAddress());
+
+                        auto t3 = Time::getHighResolutionTicks();
+
+                        geometryCreationTicks = t2 - t1;
+                        geometryRealisationCreationTicks = t3 - t2;
 
                         if (hr == E_OUTOFMEMORY)
                         {
@@ -327,6 +355,8 @@ private:
         CachedGeometryRealisation(size_t hash_) :
             hash(hash_)
         {
+            static int nextSerialNumber = 0;
+            serialNumber = nextSerialNumber++;
         }
 
         CachedGeometryRealisation(CachedGeometryRealisation&& other)  noexcept :
@@ -343,10 +373,12 @@ private:
         size_t hash;
         int pathModificationCount = 0;
         ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
+        int serialNumber = 0;
 
         JUCE_DECLARE_WEAK_REFERENCEABLE(CachedGeometryRealisation)
     };
 
+    static constexpr size_t maxCacheSize = 100;
     std::deque<CachedGeometryRealisation> cache;
     std::unordered_map<size_t, WeakReference<CachedGeometryRealisation>> hashMap;
 
@@ -354,7 +386,7 @@ private:
     {
         auto cacheEntry = hashMap[hash];
 
-        releaseExpiredEntries();
+        purge();
 
         if (cacheEntry.get())
         {
@@ -374,8 +406,21 @@ private:
         return cacheEntry;
     }
 
-    void releaseExpiredEntries()
+    void purge()
     {
+        //
+        // Cache too large?
+        //
+        while (cache.size() > maxCacheSize)
+        {
+            auto& front = cache.front();
+            hashMap.erase(front.hash);
+            cache.pop_front();
+        }
+
+        //
+        // Remove any expired entries
+        //
         auto cutoff = Time::getHighResolutionTicks() - Time::secondsToHighResolutionTicks(5.0);
 
         while (cache.size() > 0)
@@ -385,8 +430,6 @@ private:
             {
                 break;
             }
-
-            front.geometryRealisation = nullptr;
 
             hashMap.erase(front.hash);
             cache.pop_front();

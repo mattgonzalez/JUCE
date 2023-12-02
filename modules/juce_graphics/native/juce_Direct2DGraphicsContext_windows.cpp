@@ -987,14 +987,29 @@ namespace juce
             //
             // Use a cached geometry realisation?
             //
-#if 0
-            if (auto geometryRealisation = getPimpl()->geometryCache.getFilledGeometryRealisation(p, factory, deviceContext, getPhysicalPixelScaleFactor()))
+            int64 geometryTicks = 0, grTicks = 0;
+            if (auto geometryRealisation = getPimpl()->geometryCache.getFilledGeometryRealisation(p, 
+                factory, 
+                deviceContext, 
+                getPhysicalPixelScaleFactor(), 
+                geometryTicks, 
+                grTicks))
             {
                 updateDeviceContextTransform(transform);
                 deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+
+#if JUCE_DIRECT2D_METRICS
+                if (geometryTicks > 0 && paintStats)
+                {
+                    paintStats->addValueTicks(direct2d::PaintStats::createGeometryTime, geometryTicks);
+                }
+                if (grTicks > 0 && paintStats)
+                {
+                    paintStats->addValueTicks(direct2d::PaintStats::createFilledGRTime, grTicks);
+                }
+#endif
                 return;
             }
-#endif
 
             //
             // Create and fill the geometry
@@ -1026,14 +1041,30 @@ namespace juce
                 //
                 // Use a cached geometry realisation?
                 //
-#if 0
-                if (auto geometryRealisation = getPimpl()->geometryCache.getStrokedGeometryRealisation(p, strokeType, factory, deviceContext, getPhysicalPixelScaleFactor()))
+                int64 geometryTicks = 0, grTicks = 0;
+                if (auto geometryRealisation = getPimpl()->geometryCache.getStrokedGeometryRealisation(p, 
+                    strokeType, 
+                    factory, 
+                    deviceContext, 
+                    getPhysicalPixelScaleFactor(),
+                    geometryTicks,
+                    grTicks))
                 {
                     updateDeviceContextTransform(transform);
                     deviceContext->DrawGeometryRealization(geometryRealisation, currentState->currentBrush);
+
+#if JUCE_DIRECT2D_METRICS
+                    if (geometryTicks > 0 && paintStats)
+                    {
+                        paintStats->addValueTicks(direct2d::PaintStats::createGeometryTime, geometryTicks);
+                    }
+                    if (grTicks && paintStats)
+                    {
+                        paintStats->addValueTicks(direct2d::PaintStats::createStrokedGRTime, grTicks);
+                    }
+#endif
                     return true;
                 }
-#endif
 
                 //
                 // Create and draw a geometry
@@ -1048,8 +1079,6 @@ namespace juce
                 }
             }
         }
-
-
 
         return true;
     }

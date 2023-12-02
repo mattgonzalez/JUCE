@@ -48,13 +48,17 @@ struct PaintStats : public ReferenceCountedObject
         swapChainMessageTransitTime,
         swapChainMessageInterval,
         vblankToBeginDraw,
+        createGeometryTime,
+        createFilledGRTime,
+        createStrokedGRTime,
 
         numStats
     };
 
     StringArray const accumulatorNames { "messageThreadPaintDuration", "frameInterval",          "presentDuration",
                                          "present1Duration",           "swapChainEventInterval", "swapChainMessageTransitTime",
-                                         "swapChainMessageInterval",   "VBlank to BeginDraw" };
+                                         "swapChainMessageInterval",   "VBlank to BeginDraw",
+                                         "Create geometry", "Create filled GR", "Create stroked GR" };
 
     int64 const  creationTime        = Time::getMillisecondCounter();
     double const millisecondsPerTick = 1000.0 / (double) Time::getHighResolutionTicksPerSecond();

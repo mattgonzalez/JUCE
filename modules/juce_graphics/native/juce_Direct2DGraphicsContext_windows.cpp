@@ -402,7 +402,6 @@ namespace juce
 
         virtual void teardown()
         {
-            geometryCache.release();
             deviceResources.release();
         }
 
@@ -589,13 +588,17 @@ namespace juce
             return DirectX::getInstance()->directWrite.getSystemFonts();
         }
 
+        auto& getGeometryCache()
+        {
+            return deviceResources.geometryCache;
+        }
+
         HWND                                hwnd = nullptr;
         ComSmartPtr<ID2D1RectangleGeometry> rectangleGeometryUnitSize;
         direct2d::DirectWriteGlyphRun       glyphRun;
         bool                                opaque = true;
         float                               targetAlpha = 1.0f;
         D2D1_COLOR_F                        backgroundColor{};
-        direct2d::GeometryCache geometryCache;
 
 #if JUCE_DIRECT2D_METRICS
         int64 paintStartTicks = 0;
@@ -988,7 +991,7 @@ namespace juce
             // Use a cached geometry realisation?
             //
             int64 geometryTicks = 0, grTicks = 0;
-            if (auto geometryRealisation = getPimpl()->geometryCache.getFilledGeometryRealisation(p, 
+            if (auto geometryRealisation = getPimpl()->getGeometryCache().getFilledGeometryRealisation(p, 
                 factory, 
                 deviceContext, 
                 getPhysicalPixelScaleFactor(), 
@@ -1042,7 +1045,7 @@ namespace juce
                 // Use a cached geometry realisation?
                 //
                 int64 geometryTicks = 0, grTicks = 0;
-                if (auto geometryRealisation = getPimpl()->geometryCache.getStrokedGeometryRealisation(p, 
+                if (auto geometryRealisation = getPimpl()->getGeometryCache().getStrokedGeometryRealisation(p,
                     strokeType, 
                     factory, 
                     deviceContext, 

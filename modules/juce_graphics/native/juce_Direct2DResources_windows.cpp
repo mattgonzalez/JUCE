@@ -169,6 +169,11 @@ protected:
 class GeometryCache
 {
 public:
+    ~GeometryCache()
+    {
+        release();
+    }
+
     void release()
     {
         filledGeometryCache.clear();
@@ -253,6 +258,7 @@ public:
             if (!cachedGeometry->geometryRealisation)
             {
                 auto t1 = Time::getHighResolutionTicks();
+
                 if (auto geometry = direct2d::pathToPathGeometry(factory, path))
                 {
                     auto t2 = Time::getHighResolutionTicks();
@@ -354,8 +360,13 @@ private:
         CachedGeometryRealisation(size_t hash_) :
             hash(hash_)
         {
-            static int nextSerialNumber = 0;
-            serialNumber = nextSerialNumber++;
+        }
+
+        CachedGeometryRealisation(CachedGeometryRealisation& other) :
+            hash(other.hash),
+            pathModificationCount(other.pathModificationCount),
+            geometryRealisation(other.geometryRealisation)
+        {
         }
 
         CachedGeometryRealisation(CachedGeometryRealisation&& other)  noexcept :
@@ -366,13 +377,21 @@ private:
         {
         }
 
-        ~CachedGeometryRealisation() = default;
+        ~CachedGeometryRealisation()
+        {
+            clear();
+        }
+
+        void clear()
+        {
+            hash = 0;
+            geometryRealisation = nullptr;
+        }
 
         int64 timestamp = Time::getHighResolutionTicks();
         size_t hash;
         int pathModificationCount = 0;
         ComSmartPtr<ID2D1GeometryRealization> geometryRealisation;
-        int serialNumber = 0;
 
         JUCE_DECLARE_WEAK_REFERENCEABLE(CachedGeometryRealisation)
     };
@@ -382,34 +401,43 @@ private:
     class Cache
     {
     public:
+        ~Cache()
+        {
+            clear();
+        }
+
         void clear()
         {
             hashMap.clear();
-            queue.clear();
+            cache.clear();
         }
 
         CachedGeometryRealisation* getCachedGeometryRealisation(size_t hash)
         {
-            auto cacheEntry = hashMap[hash];
+            auto& cacheEntryWeakRef = hashMap[hash];
 
             removeStaleEntries();
 
-            if (cacheEntry.get())
+            if (auto cacheEntry = cacheEntryWeakRef.get())
             {
-                cacheEntry->timestamp = Time::getHighResolutionTicks();
-                return cacheEntry.get();
+                //
+                // Cache hit - copy this entry to the back of the queue 
+                //
+                cache.emplace_back(CachedGeometryRealisation{ *cacheEntry });
+                cacheEntry->clear();
+            }
+            else
+            {
+                //
+                // Cache miss - make a new entry
+                //
+                cache.emplace_back(CachedGeometryRealisation{ hash });
+                ++numCacheEntries;
             }
 
-            queue.emplace_back(CachedGeometryRealisation{ hash });
-            cacheEntry = &queue.back();
-            hashMap[hash] = cacheEntry;
-
-            auto check = hashMap[hash];
-            jassert(check);
-            jassert(check->hash == hash);
-            jassert(cacheEntry->hash == hash);
-
-            return cacheEntry;
+            cacheEntryWeakRef = &cache.back();
+            hashMap[hash] = cacheEntryWeakRef;
+            return cacheEntryWeakRef;
         }
 
         void removeStaleEntries()
@@ -417,11 +445,17 @@ private:
             //
             // Cache too large?
             //
-            while (queue.size() > maxCacheSize)
+            jassert((size_t)numCacheEntries <= cache.size());
+            while (numCacheEntries > maxCacheSize && cache.size() > 0)
             {
-                auto& front = queue.front();
-                hashMap.erase(front.hash);
-                queue.pop_front();
+                auto& front = cache.front();
+                if (front.hash)
+                {
+                    hashMap.erase(front.hash);
+                    --numCacheEntries;
+                }
+
+                cache.pop_front();
             }
 
             //
@@ -429,16 +463,21 @@ private:
             //
             auto cutoff = Time::getHighResolutionTicks() - Time::secondsToHighResolutionTicks(5.0);
 
-            while (queue.size() > 0)
+            while (numCacheEntries > maxCacheSize && cache.size() > 0)
             {
-                auto& front = queue.front();
+                auto& front = cache.front();
                 if (front.timestamp > cutoff && front.geometryRealisation)
                 {
                     break;
                 }
 
-                hashMap.erase(front.hash);
-                queue.pop_front();
+                if (front.hash)
+                {
+                    hashMap.erase(front.hash);
+                    --numCacheEntries;
+                }
+
+                cache.pop_front();
             }
         }
 
@@ -449,9 +488,9 @@ private:
             // Release the oldest entry with a valid geometry realisation and return
             //
             bool found = false;
-            while (queue.size() > 0 && !found)
+            while (cache.size() > 0 && !found)
             {
-                auto& front = queue.front();
+                auto& front = cache.front();
 
                 if (front.geometryRealisation)
                 {
@@ -459,14 +498,19 @@ private:
                     found = true;
                 }
 
-                hashMap.erase(front.hash);
-                queue.pop_front();
+                if (front.hash)
+                {
+                    hashMap.erase(front.hash);
+                    --numCacheEntries;
+                }
+
+                cache.pop_front();
             }
         }
-
     private:
-        std::deque<CachedGeometryRealisation> queue;
+        std::deque<CachedGeometryRealisation> cache;
         std::unordered_map<size_t, WeakReference<CachedGeometryRealisation>> hashMap;
+        int numCacheEntries = 0;
     } filledGeometryCache, strokedGeometryCache;
 };
 

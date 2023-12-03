@@ -171,8 +171,8 @@ class GeometryCache
 public:
     void release()
     {
-        hashMap.clear();
-        cache.clear();
+        filledGeometryCache.clear();
+        strokedGeometryCache.clear();
     }
 
     ID2D1GeometryRealization* getFilledGeometryRealisation(const Path& path, 
@@ -190,7 +190,7 @@ public:
         auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
         auto hash = calculateHash(path, flatteningTolerance);
 
-        if (auto cachedGeometry = getCachedGeometryRealisation(hash))
+        if (auto cachedGeometry = filledGeometryCache.getCachedGeometryRealisation(hash))
         {
             if (cachedGeometry->pathModificationCount != path.getModificationCount())
             {
@@ -213,7 +213,6 @@ public:
                     geometryCreationTicks = t2 - t1;
                     geometryRealisationCreationTicks = t3 - t2;
 
-
                     switch (hr)
                     {
                     case S_OK:
@@ -221,7 +220,7 @@ public:
                         break;
 
                     case E_OUTOFMEMORY:
-                        releaseOldestEntry();
+                        filledGeometryCache.releaseOldestEntry();
                         break;
                     }
                 }
@@ -249,7 +248,7 @@ public:
         auto flatteningTolerance = findGeometryFlatteningTolerance(dpiScaleFactor);
         auto hash = calculateHash(path, strokeType, flatteningTolerance);
 
-        if (auto cachedGeometry = getCachedGeometryRealisation(hash))
+        if (auto cachedGeometry = strokedGeometryCache.getCachedGeometryRealisation(hash))
         {
             if (!cachedGeometry->geometryRealisation)
             {
@@ -270,7 +269,7 @@ public:
 
                         if (hr == E_OUTOFMEMORY)
                         {
-                            releaseOldestEntry();
+                            strokedGeometryCache.releaseOldestEntry();
                         }
                     }
                 }
@@ -379,84 +378,96 @@ private:
     };
 
     static constexpr size_t maxCacheSize = 100;
-    std::deque<CachedGeometryRealisation> cache;
-    std::unordered_map<size_t, WeakReference<CachedGeometryRealisation>> hashMap;
-
-    CachedGeometryRealisation* getCachedGeometryRealisation(size_t hash)
+    
+    class Cache
     {
-        auto cacheEntry = hashMap[hash];
-
-        purge();
-
-        if (cacheEntry.get())
+    public:
+        void clear()
         {
-            cacheEntry->timestamp = Time::getHighResolutionTicks();
-            return cacheEntry.get();
+            hashMap.clear();
+            queue.clear();
         }
 
-        cache.emplace_back(CachedGeometryRealisation{ hash });
-        cacheEntry = &cache.back();
-        hashMap[hash] = cacheEntry;
-
-        auto check = hashMap[hash];
-        jassert(check);
-        jassert(check->hash == hash);
-        jassert(cacheEntry->hash == hash);
-
-        return cacheEntry;
-    }
-
-    void purge()
-    {
-        //
-        // Cache too large?
-        //
-        while (cache.size() > maxCacheSize)
+        CachedGeometryRealisation* getCachedGeometryRealisation(size_t hash)
         {
-            auto& front = cache.front();
-            hashMap.erase(front.hash);
-            cache.pop_front();
-        }
+            auto cacheEntry = hashMap[hash];
 
-        //
-        // Remove any expired entries
-        //
-        auto cutoff = Time::getHighResolutionTicks() - Time::secondsToHighResolutionTicks(5.0);
+            removeStaleEntries();
 
-        while (cache.size() > 0)
-        {
-            auto& front = cache.front();
-            if (front.timestamp > cutoff && front.geometryRealisation)
+            if (cacheEntry.get())
             {
-                break;
+                cacheEntry->timestamp = Time::getHighResolutionTicks();
+                return cacheEntry.get();
             }
 
-            hashMap.erase(front.hash);
-            cache.pop_front();
+            queue.emplace_back(CachedGeometryRealisation{ hash });
+            cacheEntry = &queue.back();
+            hashMap[hash] = cacheEntry;
+
+            auto check = hashMap[hash];
+            jassert(check);
+            jassert(check->hash == hash);
+            jassert(cacheEntry->hash == hash);
+
+            return cacheEntry;
         }
-    }
 
-    void releaseOldestEntry()
-    {
-        //
-        // Dump any empty entries at the front of the queue
-        // Release the oldest entry with a valid geometry realisation and return
-        //
-        bool found = false;
-        while (cache.size() > 0 && !found)
+        void removeStaleEntries()
         {
-            auto& front = cache.front();
-
-            if (front.geometryRealisation)
+            //
+            // Cache too large?
+            //
+            while (queue.size() > maxCacheSize)
             {
-                front.geometryRealisation = nullptr;
-                found = true;
+                auto& front = queue.front();
+                hashMap.erase(front.hash);
+                queue.pop_front();
             }
 
-            hashMap.erase(front.hash);
-            cache.pop_front();
+            //
+            // Remove any expired entries
+            //
+            auto cutoff = Time::getHighResolutionTicks() - Time::secondsToHighResolutionTicks(5.0);
+
+            while (queue.size() > 0)
+            {
+                auto& front = queue.front();
+                if (front.timestamp > cutoff && front.geometryRealisation)
+                {
+                    break;
+                }
+
+                hashMap.erase(front.hash);
+                queue.pop_front();
+            }
         }
-    }
+
+        void releaseOldestEntry()
+        {
+            //
+            // Dump any empty entries at the front of the queue
+            // Release the oldest entry with a valid geometry realisation and return
+            //
+            bool found = false;
+            while (queue.size() > 0 && !found)
+            {
+                auto& front = queue.front();
+
+                if (front.geometryRealisation)
+                {
+                    front.geometryRealisation = nullptr;
+                    found = true;
+                }
+
+                hashMap.erase(front.hash);
+                queue.pop_front();
+            }
+        }
+
+    private:
+        std::deque<CachedGeometryRealisation> queue;
+        std::unordered_map<size_t, WeakReference<CachedGeometryRealisation>> hashMap;
+    } filledGeometryCache, strokedGeometryCache;
 };
 
 

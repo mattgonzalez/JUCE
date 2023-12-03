@@ -415,16 +415,19 @@ private:
         CachedGeometryRealisation* getCachedGeometryRealisation(size_t hash)
         {
             auto& cacheEntryWeakRef = hashMap[hash];
+            auto cacheEntry = cacheEntryWeakRef.get();
 
             removeStaleEntries();
 
-            if (auto cacheEntry = cacheEntryWeakRef.get())
+            if (cacheEntry)
             {
                 //
-                // Cache hit - copy this entry to the back of the queue 
+                // Cache hit - copy this entry to the back of the queue
                 //
                 cache.emplace_back(CachedGeometryRealisation{ *cacheEntry });
                 cacheEntry->clear();
+
+                cacheEntry = &cache.back();
             }
             else
             {
@@ -433,11 +436,13 @@ private:
                 //
                 cache.emplace_back(CachedGeometryRealisation{ hash });
                 ++numCacheEntries;
+
+                cacheEntry = nullptr;
             }
 
-            cacheEntryWeakRef = &cache.back();
-            hashMap[hash] = cacheEntryWeakRef;
-            return cacheEntryWeakRef;
+            hashMap[hash] = &cache.back();
+
+            return cacheEntry;
         }
 
         void removeStaleEntries()

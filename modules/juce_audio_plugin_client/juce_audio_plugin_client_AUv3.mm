@@ -68,7 +68,7 @@ JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wnullability-completeness")
 
 using namespace juce;
 
-struct AudioProcessorHolder  : public ReferenceCountedObject
+struct AudioProcessorHolder final : public ReferenceCountedObject
 {
     AudioProcessorHolder() = default;
     explicit AudioProcessorHolder (std::unique_ptr<AudioProcessor> p) : processor (std::move (p)) {}
@@ -103,9 +103,9 @@ private:
 //==============================================================================
 //=========================== The actual AudioUnit =============================
 //==============================================================================
-class JuceAudioUnitv3  : public AudioProcessorListener,
-                         public AudioPlayHead,
-                         private AudioProcessorParameter::Listener
+class JuceAudioUnitv3 final : public AudioProcessorListener,
+                              public AudioPlayHead,
+                              private AudioProcessorParameter::Listener
 {
 public:
     JuceAudioUnitv3 (const AudioProcessorHolder::Ptr& processor,
@@ -741,7 +741,7 @@ public:
     AUAudioUnit* getAudioUnit() const { return au; }
 
 private:
-    struct Class  : public ObjCClass<AUAudioUnit>
+    struct Class final : public ObjCClass<AUAudioUnit>
     {
         Class() : ObjCClass<AUAudioUnit> ("AUAudioUnit_")
         {
@@ -758,7 +758,7 @@ private:
                 AUAudioUnit* self = _self;
 
                 self = ObjCMsgSendSuper<AUAudioUnit, AUAudioUnit*, AudioComponentDescription,
-                                        AudioComponentInstantiationOptions, NSError**> (self, @selector(initWithComponentDescription:options:error:), descr, options, error);
+                                        AudioComponentInstantiationOptions, NSError**> (self, @selector (initWithComponentDescription:options:error:), descr, options, error);
 
                 setThis (self, juceAU);
                 return self;
@@ -789,7 +789,7 @@ private:
                 {
                     WaitableEvent deletionEvent;
 
-                    struct AUDeleter  : public CallbackMessage
+                    struct AUDeleter final : public CallbackMessage
                     {
                         AUDeleter (id selfToDelete, WaitableEvent& event)
                             : parentSelf (selfToDelete), parentDeletionEvent (event)
@@ -1183,16 +1183,16 @@ private:
         @try
         {
             // Create methods in AUParameterTree return unretained objects (!) -> see Apple header AUAudioUnitImplementation.h
-            param.reset([[AUParameterTree createParameterWithIdentifier: juceStringToNS (getParameterIdentifier())
-                                                                   name: juceStringToNS (name)
-                                                                address: address
-                                                                    min: 0.0f
-                                                                    max: getMaximumParameterValue (parameter)
-                                                                   unit: unit
-                                                               unitName: nullptr
-                                                                  flags: flags
-                                                           valueStrings: valueStrings.get()
-                                                    dependentParameters: nullptr]
+            param.reset ([[AUParameterTree createParameterWithIdentifier: juceStringToNS (getParameterIdentifier())
+                                                                    name: juceStringToNS (name)
+                                                                 address: address
+                                                                     min: 0.0f
+                                                                     max: getMaximumParameterValue (parameter)
+                                                                    unit: unit
+                                                                unitName: nullptr
+                                                                   flags: flags
+                                                            valueStrings: valueStrings.get()
+                                                     dependentParameters: nullptr]
                          retain]);
         }
 

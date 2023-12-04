@@ -261,14 +261,6 @@ void Project::updateDeprecatedProjectSettings()
         exporter->updateDeprecatedSettings();
 }
 
-void Project::updateDeprecatedProjectSettingsInteractively()
-{
-    jassert (! ProjucerApplication::getApp().isRunningCommandLine);
-
-    for (ExporterIterator exporter (*this); exporter.next();)
-        exporter->updateDeprecatedSettingsInteractively();
-}
-
 void Project::initialiseMainGroup()
 {
     // Create main file group if missing
@@ -340,7 +332,7 @@ void Project::initialiseAudioPluginValues()
 
     pluginFormatsValue.referTo               (projectRoot, Ids::pluginFormats,              getUndoManager(),
                                               Array<var> (Ids::buildVST3.toString(), Ids::buildAU.toString(), Ids::buildStandalone.toString()), ",");
-    pluginCharacteristicsValue.referTo       (projectRoot, Ids::pluginCharacteristicsValue, getUndoManager(), Array<var> (), ",");
+    pluginCharacteristicsValue.referTo       (projectRoot, Ids::pluginCharacteristicsValue, getUndoManager(), Array<var>(), ",");
 
     pluginNameValue.referTo                  (projectRoot, Ids::pluginName,                 getUndoManager(), getProjectNameString());
     pluginDescriptionValue.referTo           (projectRoot, Ids::pluginDesc,                 getUndoManager(), getProjectNameString());
@@ -462,8 +454,8 @@ void Project::removeDefunctExporters()
             warningMessage << "\n"
                            << TRANS ("These exporters have been removed from the project. If you save the project they will be also erased from the .jucer file.");
 
-            auto options = MessageBoxOptions::makeOptionsOk (MessageBoxIconType::WarningIcon, warningTitle, warningMessage);
-            messageBox = AlertWindow::showScopedAsync (options, nullptr);
+            exporterRemovalMessageBoxOptions = MessageBoxOptions::makeOptionsOk (MessageBoxIconType::WarningIcon, warningTitle, warningMessage);
+            messageBoxQueueListenerScope = messageBoxQueue.addListener (*this);
         }
     }
 }
@@ -1169,6 +1161,14 @@ void Project::valueTreeChildAddedOrRemoved (ValueTree& parent, ValueTree& child)
     changed();
 }
 
+void Project::canCreateMessageBox (CreatorFunction f)
+{
+    messageBox = f (*exporterRemovalMessageBoxOptions, [this] (auto)
+                                                       {
+                                                           messageBoxQueueListenerScope.reset();
+                                                       });
+}
+
 void Project::valueTreeChildAdded (ValueTree& parent, ValueTree& child)
 {
     valueTreeChildAddedOrRemoved (parent, child);
@@ -1415,8 +1415,8 @@ void Project::createPropertyEditors (PropertyListBuilder& props)
 
         for (int i = 0; i < types.size(); ++i)
         {
-            projectTypeNames.add (types.getUnchecked(i)->getDescription());
-            projectTypeCodes.add (types.getUnchecked(i)->getType());
+            projectTypeNames.add (types.getUnchecked (i)->getDescription());
+            projectTypeCodes.add (types.getUnchecked (i)->getType());
         }
 
         props.add (new ChoicePropertyComponent (projectTypeValue, "Project Type", projectTypeNames, projectTypeCodes),
@@ -1698,7 +1698,7 @@ Project::Item Project::Item::findItemWithID (const String& targetId) const
     {
         for (auto i = getNumChildren(); --i >= 0;)
         {
-            auto found = getChild(i).findItemWithID (targetId);
+            auto found = getChild (i).findItemWithID (targetId);
 
             if (found.isValid())
                 return found;
@@ -1819,7 +1819,7 @@ Project::Item Project::Item::findItemForFile (const File& file) const
     {
         for (auto i = getNumChildren(); --i >= 0;)
         {
-            auto found = getChild(i).findItemForFile (file);
+            auto found = getChild (i).findItemForFile (file);
 
             if (found.isValid())
                 return found;
@@ -1836,7 +1836,7 @@ File Project::Item::determineGroupFolder() const
 
     for (int i = 0; i < getNumChildren(); ++i)
     {
-        f = getChild(i).getFile();
+        f = getChild (i).getFile();
 
         if (f.exists())
             return f.getParentDirectory();
@@ -1873,7 +1873,7 @@ void Project::Item::initialiseMissingProperties()
     else if (isGroup())
     {
         for (auto i = getNumChildren(); --i >= 0;)
-            getChild(i).initialiseMissingProperties();
+            getChild (i).initialiseMissingProperties();
     }
 }
 
@@ -1960,7 +1960,7 @@ void Project::Item::sortAlphabetically (bool keepGroupsAtStart, bool recursive)
 
     if (recursive)
         for (auto i = getNumChildren(); --i >= 0;)
-            getChild(i).sortAlphabetically (keepGroupsAtStart, true);
+            getChild (i).sortAlphabetically (keepGroupsAtStart, true);
 }
 
 Project::Item Project::Item::getOrCreateSubGroup (const String& name)
@@ -2326,7 +2326,8 @@ int Project::getARAContentTypes() const noexcept
 {
     int res = 0;
 
-    if (auto* arr = pluginARAAnalyzableContentValue.get().getArray())
+    if (const auto analyzableContent = pluginARAAnalyzableContentValue.get();
+        auto* arr = analyzableContent.getArray())
     {
         for (auto c : *arr)
             res |= (int) c;
@@ -2339,7 +2340,8 @@ int Project::getARATransformationFlags() const noexcept
 {
     int res = 0;
 
-    if (auto* arr = pluginARATransformFlagsValue.get().getArray())
+    if (const auto transformFlags = pluginARATransformFlagsValue.get();
+        auto* arr = transformFlags.getArray())
     {
         for (auto c : *arr)
             res |= (int) c;
@@ -2831,9 +2833,9 @@ StringPairArray Project::getAudioPluginFlags() const
     flags.set ("JucePlugin_VSTNumMidiOutputs",           getVSTNumMIDIOutputsString());
     flags.set ("JucePlugin_ARAContentTypes",             String (getARAContentTypes()));
     flags.set ("JucePlugin_ARATransformationFlags",      String (getARATransformationFlags()));
-    flags.set ("JucePlugin_ARAFactoryID",                toStringLiteral(getARAFactoryIDString()));
-    flags.set ("JucePlugin_ARADocumentArchiveID",        toStringLiteral(getARADocumentArchiveIDString()));
-    flags.set ("JucePlugin_ARACompatibleArchiveIDs",     toStringLiteral(getARACompatibleArchiveIDStrings()));
+    flags.set ("JucePlugin_ARAFactoryID",                toStringLiteral (getARAFactoryIDString()));
+    flags.set ("JucePlugin_ARADocumentArchiveID",        toStringLiteral (getARADocumentArchiveIDString()));
+    flags.set ("JucePlugin_ARACompatibleArchiveIDs",     toStringLiteral (getARACompatibleArchiveIDStrings()));
 
     {
         String plugInChannelConfig = getPluginChannelConfigsString();

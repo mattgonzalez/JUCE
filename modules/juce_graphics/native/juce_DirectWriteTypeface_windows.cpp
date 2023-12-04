@@ -86,7 +86,7 @@ namespace
 }
 
 //==============================================================================
-class WindowsDirectWriteTypeface  : public Typeface
+class WindowsDirectWriteTypeface final : public Typeface
 {
 public:
     WindowsDirectWriteTypeface (const Font& font, IDWriteFontCollection* fontCollection)
@@ -129,7 +129,7 @@ public:
 
         initializeFromFontFace();
     }
-   
+
 #if JUCE_DIRECT2D
     //
     // Alternate constructor for WindowsDirectWriteTypeface to create the typeface from TTF data in memory
@@ -162,9 +162,9 @@ public:
 
         //
         // Get the JUCE typeface style from the DirectWrite font and get the font face
-        // 
+        //
         // Only supports one font per family
-        // 
+        //
         {
             ComSmartPtr<IDWriteFont> directWriteFont;
             auto hr = fontFamily->GetFont(0, directWriteFont.resetAndGetPointerAddress());

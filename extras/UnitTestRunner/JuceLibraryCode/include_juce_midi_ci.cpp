@@ -5,4 +5,4 @@
 
 */
 
-#include <juce_video/juce_video.mm>
+#include <juce_midi_ci/juce_midi_ci.cpp>

@@ -726,7 +726,7 @@ void GlyphArrangement::draw (const Graphics& g) const
     draw (g, {});
 }
 
-void GlyphArrangement::draw (const Graphics& g, AffineTransform transform) const
+void GlyphArrangement::draw(const Graphics& g, AffineTransform transform) const
 {
     auto& context = g.getInternalContext();
     auto originalFont = context.getFont();
@@ -759,7 +759,7 @@ void GlyphArrangement::draw (const Graphics& g, AffineTransform transform) const
         int numGlyphs = index - start;
         if (numGlyphs > 0)
         {
-            auto underlineArea = getUnderlineArea (lastFont, glyphs[0], glyphs[index + start - 1]);
+            auto underlineArea = getUnderlineArea(lastFont, glyphs[0], glyphs[index + start - 1]);
             context.drawGlyphRun(glyphs, start, numGlyphs, transform, underlineArea);
         }
 
@@ -770,39 +770,39 @@ void GlyphArrangement::draw (const Graphics& g, AffineTransform transform) const
         //
         // Send one glyph at a time to the low-level graphics context
         // 
-    bool needToRestore = false;
+        bool needToRestore = false;
 
-    for (int i = 0; i < glyphs.size(); ++i)
-    {
-        auto& pg = glyphs.getReference (i);
-
-        if (pg.font.isUnderlined())
-            drawGlyphUnderline (g, pg, i, transform);
-
-        if (! pg.isWhitespace())
+        for (int i = 0; i < glyphs.size(); ++i)
         {
-            if (lastFont != pg.font)
+            auto& pg = glyphs.getReference(i);
+
+            if (pg.font.isUnderlined())
+                drawGlyphUnderline(g, pg, i, transform);
+
+            if (!pg.isWhitespace())
             {
-                lastFont = pg.font;
-
-                if (! needToRestore)
+                if (lastFont != pg.font)
                 {
-                    needToRestore = true;
-                    context.saveState();
-                }
+                    lastFont = pg.font;
 
-                context.setFont (lastFont);
-            }
+                    if (!needToRestore)
+                    {
+                        needToRestore = true;
+                        context.saveState();
+                    }
+
+                    context.setFont(lastFont);
+                }
 
                 auto tx = AffineTransform::translation(pg.x, pg.y)
                     .followedBy(transform);
 
                 context.drawGlyph(pg.glyph, tx);
+            }
         }
-    }
 
-    if (needToRestore)
-        context.restoreState();
+        if (needToRestore)
+            context.restoreState();
     }
 }
 

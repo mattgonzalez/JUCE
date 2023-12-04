@@ -64,7 +64,7 @@
 
   /* If you hit a compile error trying to include these files, you may need to update
      your version of the Windows SDK to the latest one. The DirectWrite and Direct2D
-     headers are in the version 7 SDKs.
+     headers are in the version 8 SDKs.
   */
   #include <d2d1_2.h>
   #include <d3d11_1.h>

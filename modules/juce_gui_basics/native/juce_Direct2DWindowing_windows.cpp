@@ -34,7 +34,6 @@
     #include <d3d11_1.h>
     #include <dcomp.h>
     #include <dwrite.h>
-#include <dwmapi.h>
     #include <juce_core/juce_core.h>
     #include <juce_graphics/juce_graphics.h>
     #include <juce_gui_basics/juce_gui_basics.h>

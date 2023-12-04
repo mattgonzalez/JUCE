@@ -120,7 +120,6 @@
  #include <shlwapi.h>
  #include <mmsystem.h>
  #include <winioctl.h>
-#include <dwmapi.h>
 
  #if JUCE_MINGW
   #include <basetyps.h>
@@ -153,7 +152,6 @@
   #pragma comment (lib, "version.lib")
   #pragma comment (lib, "shlwapi.lib")
   #pragma comment (lib, "winmm.lib")
-#pragma comment (lib, "dwmapi.lib")
 
   #ifdef _NATIVE_WCHAR_T_DEFINED
    #ifdef _DEBUG

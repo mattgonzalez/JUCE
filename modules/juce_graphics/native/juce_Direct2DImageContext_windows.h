@@ -34,7 +34,7 @@ namespace juce
 
         ~Direct2ImageContext() override;
 
-        void startFrame(ID2D1Bitmap1* bitmap);
+        void startFrame(ID2D1Bitmap1* bitmap, float dpiScaleFactor);
 
     private:
         bool clearImage = true;

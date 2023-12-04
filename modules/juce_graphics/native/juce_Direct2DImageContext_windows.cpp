@@ -46,7 +46,6 @@ namespace juce
     //==============================================================================
 
     struct Direct2ImageContext::ImagePimpl : public Direct2DGraphicsContext::Pimpl
-
     {
     private:
         ComSmartPtr<ID2D1Bitmap1> targetBitmap;
@@ -71,6 +70,17 @@ namespace juce
         void setTargetBitmap(ID2D1Bitmap1* targetBitmap_)
         {
             targetBitmap = targetBitmap_;
+        }
+
+        void setScaleFactor(float scale_) override
+        {
+            Pimpl::setScaleFactor(scale_);
+
+            if (deviceResources.deviceContext.context)
+            {
+                auto dpi = USER_DEFAULT_SCREEN_DPI * dpiScalingFactor;
+                deviceResources.deviceContext.context->SetDpi(dpi, dpi);
+            }
         }
 
         Rectangle<int> getFrameSize() override
@@ -109,9 +119,10 @@ namespace juce
         return pimpl.get();
     }
 
-    void Direct2ImageContext::startFrame(ID2D1Bitmap1* bitmap)
+    void Direct2ImageContext::startFrame(ID2D1Bitmap1* bitmap, float dpiScaleFactor)
     {
         pimpl->setTargetBitmap(bitmap);
+        pimpl->setScaleFactor(dpiScaleFactor);
 
         Direct2DGraphicsContext::startFrame();
     }

@@ -107,8 +107,7 @@ namespace juce
         sendDataChangeMessage();
 
         auto context = std::make_unique<Direct2ImageContext>(clearImage);
-        context->startFrame(targetBitmap.get());
-        context->setPhysicalPixelScaleFactor(getDPIScalingFactor());
+        context->startFrame(targetBitmap.get(), getDPIScalingFactor());
         context->clipToRectangle(deviceIndependentClipArea);
         context->setOrigin(deviceIndependentClipArea.getPosition());
         return context;

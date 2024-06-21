@@ -193,7 +193,6 @@ public:
                 DxgiAdapter::Ptr& adapterIn,
                 Direct2DDeviceResources& deviceResourcesIn)
         : owner (ownerIn),
-          currentBrush (colourBrushIn),
           colourBrush (colourBrushIn),
           adapter (adapterIn),
           deviceResources (deviceResourcesIn),
@@ -260,71 +259,6 @@ public:
         linearGradient = nullptr;
         radialGradient = nullptr;
         bitmapBrush = nullptr;
-        currentBrush = nullptr;
-    }
-
-    /** Translate a JUCE FillType to a Direct2D brush */
-    void updateCurrentBrush()
-    {
-        if (fillType.isColour())
-        {
-            // Reuse the same colour brush
-            currentBrush = colourBrush;
-        }
-        else if (fillType.isTiledImage())
-        {
-            if (fillType.image.isNull())
-                return;
-
-            const auto d2d1Bitmap = [&]
-            {
-                if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (fillType.image.getPixelData()))
-                    if (auto bitmap = direct2DPixelData->getAdapterD2D1Bitmap())
-                        if (bitmap->GetPixelFormat().format == DXGI_FORMAT_B8G8R8A8_UNORM)
-                            return bitmap;
-
-                JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
-
-                return Direct2DBitmap::fromImage (fillType.image, deviceResources.deviceContext.context, Image::ARGB);
-            }();
-
-            if (d2d1Bitmap != nullptr)
-            {
-                D2D1_BRUSH_PROPERTIES brushProps { fillType.getOpacity(), D2DUtilities::transformToMatrix (fillType.transform) };
-                auto bmProps = D2D1::BitmapBrushProperties (D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
-                if (const auto hr = deviceResources.deviceContext.context->CreateBitmapBrush (d2d1Bitmap,
-                                                                                              bmProps,
-                                                                                              brushProps,
-                                                                                              bitmapBrush.resetAndGetPointerAddress()); SUCCEEDED (hr))
-                {
-                    currentBrush = bitmapBrush;
-                }
-            }
-        }
-        else if (fillType.isGradient())
-        {
-            if (fillType.gradient->isRadial)
-            {
-                radialGradient = deviceResources.radialGradientCache.get (*fillType.gradient, deviceResources.deviceContext.context, owner.metrics.get());
-                currentBrush = radialGradient;
-            }
-            else
-            {
-                linearGradient = deviceResources.linearGradientCache.get (*fillType.gradient, deviceResources.deviceContext.context, owner.metrics.get());
-                currentBrush = linearGradient;
-            }
-        }
-
-        updateColourBrush();
-    }
-
-    void updateColourBrush()
-    {
-        if (colourBrush && fillType.isColour())
-        {
-            auto colour = D2DUtilities::toCOLOR_F (fillType.colour);
-            colourBrush->SetColor (colour);
-        }
     }
 
     enum BrushTransformFlags
@@ -336,65 +270,133 @@ public:
         applyWorldAndFillTypeTransforms = applyFillTypeTransform | applyWorldTransform
     };
 
-    ComSmartPtr<ID2D1Brush> getBrush (int flags = applyWorldAndFillTypeTransforms)
+    ComSmartPtr<ID2D1Brush> getBrush(int flags = applyWorldAndFillTypeTransforms)
     {
         if (fillType.isInvisible())
             return nullptr;
 
-        if (! fillType.isGradient() && ! fillType.isTiledImage())
-            return currentBrush;
+        if (fillType.isColour())
+        {
+            auto brushColour = colourBrush->GetColor();
+            auto fillColour = D2DUtilities::toCOLOR_F (fillType.colour);
+            if (!approximatelyEqual(brushColour.a, fillColour.a) ||
+                !approximatelyEqual(brushColour.r, fillColour.r) ||
+                !approximatelyEqual(brushColour.g, fillColour.g) ||
+                !approximatelyEqual(brushColour.b, fillColour.b))
+                colourBrush->SetColor(fillColour);
+
+            return colourBrush;
+        }
 
         Point<float> translation{};
         AffineTransform transform{};
-
-        if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
-        {
-            if (currentTransform.isOnlyTranslated)
-                translation = currentTransform.offset.toFloat();
-            else
-                transform = currentTransform.getTransform();
-        }
-
-        if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
-        {
-            if (fillType.transform.isOnlyTranslation())
-                translation += Point<float> (fillType.transform.getTranslationX(), fillType.transform.getTranslationY());
-            else
-                transform = transform.followedBy (fillType.transform);
-        }
-
-        if ((flags & BrushTransformFlags::applyInverseWorldTransform) != 0)
-        {
-            if (currentTransform.isOnlyTranslated)
-                translation -= currentTransform.offset.toFloat();
-            else
-                transform = transform.followedBy (currentTransform.getTransform().inverted());
-        }
+        ComSmartPtr<ID2D1Brush> currentBrush = nullptr;
 
         if (fillType.isGradient())
         {
+            if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
+            {
+                if (currentTransform.isOnlyTranslated)
+                    translation = currentTransform.offset.toFloat();
+                else
+                    transform = currentTransform.getTransform();
+            }
+
+            if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
+            {
+                if (fillType.transform.isOnlyTranslation())
+                    translation += Point<float>(fillType.transform.getTranslationX(), fillType.transform.getTranslationY());
+                else
+                    transform = transform.followedBy(fillType.transform);
+            }
+
+            if ((flags & BrushTransformFlags::applyInverseWorldTransform) != 0)
+            {
+                if (currentTransform.isOnlyTranslated)
+                    translation -= currentTransform.offset.toFloat();
+                else
+                    transform = transform.followedBy(currentTransform.getTransform().inverted());
+            }
+
             const auto p1 = fillType.gradient->point1 + translation;
             const auto p2 = fillType.gradient->point2 + translation;
 
             if (fillType.gradient->isRadial)
             {
-                const auto radius = p2.getDistanceFrom (p1);
-                radialGradient->SetRadiusX (radius);
-                radialGradient->SetRadiusY (radius);
-                radialGradient->SetCenter ({ p1.x, p1.y });
+                radialGradient = deviceResources.radialGradientCache.get(*fillType.gradient, deviceResources.deviceContext.context, owner.metrics.get());
+
+                const auto radius = p2.getDistanceFrom(p1);
+                radialGradient->SetRadiusX(radius);
+                radialGradient->SetRadiusY(radius);
+                radialGradient->SetCenter({ p1.x, p1.y });
+
+                currentBrush = radialGradient;
             }
             else
             {
-                linearGradient->SetStartPoint ({ p1.x, p1.y });
-                linearGradient->SetEndPoint ({ p2.x, p2.y });
+                linearGradient = deviceResources.linearGradientCache.get(*fillType.gradient, deviceResources.deviceContext.context, owner.metrics.get());
+
+                linearGradient->SetStartPoint({ p1.x, p1.y });
+                linearGradient->SetEndPoint({ p2.x, p2.y });
+
+                currentBrush = linearGradient;
             }
         }
+        else if (fillType.isTiledImage())
+        {
+            if (fillType.image.isNull())
+                return nullptr;
 
-        currentBrush->SetTransform (D2DUtilities::transformToMatrix (transform));
-        currentBrush->SetOpacity (fillType.getOpacity());
+            if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
+            {
+                transform = currentTransform.getTransform();
+            }
+
+            if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
+            {
+                transform = transform.followedBy(fillType.transform);
+            }
+
+            if ((flags & BrushTransformFlags::applyInverseWorldTransform) != 0)
+            {
+                transform = transform.followedBy(currentTransform.getTransform().inverted());
+            }
+
+            const auto d2d1Bitmap = [&]
+                {
+                    if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (fillType.image.getPixelData()))
+                        if (auto bitmap = direct2DPixelData->getAdapterD2D1Bitmap())
+                            if (bitmap->GetPixelFormat().format == DXGI_FORMAT_B8G8R8A8_UNORM)
+                                return bitmap;
+
+                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
+
+                    return Direct2DBitmap::fromImage(fillType.image, deviceResources.deviceContext.context, Image::ARGB);
+                }();
+
+            if (d2d1Bitmap != nullptr)
+            {
+                D2D1_BRUSH_PROPERTIES brushProps{ fillType.getOpacity(), D2DUtilities::transformToMatrix(fillType.transform) };
+                auto bmProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
+                auto hr = deviceResources.deviceContext.context->CreateBitmapBrush(d2d1Bitmap,
+                    bmProps,
+                    brushProps,
+                    bitmapBrush.resetAndGetPointerAddress());
+                jassert(SUCCEEDED(hr));
+            }
+
+            currentBrush = bitmapBrush;
+        }
+
+        if (currentBrush)
+        {
+            currentBrush->SetTransform(D2DUtilities::transformToMatrix(transform));
+            currentBrush->SetOpacity(fillType.getOpacity());
+        }
 
         return currentBrush;
     }
+
 
     bool doesIntersectClipList (Rectangle<int> r) const noexcept
     {
@@ -434,7 +436,6 @@ public:
 
     Direct2DGraphicsContext& owner;
 
-    ComSmartPtr<ID2D1Brush> currentBrush = nullptr;
     ComSmartPtr<ID2D1SolidColorBrush>& colourBrush; // reference to shared colour brush
     ComSmartPtr<ID2D1BitmapBrush> bitmapBrush;
     ComSmartPtr<ID2D1LinearGradientBrush> linearGradient;
@@ -832,7 +833,6 @@ bool Direct2DGraphicsContext::startFrame (float dpiScale)
 
         // Init font & brush
         setFont (currentState->font);
-        currentState->updateCurrentBrush();
 
         addTransform (AffineTransform::scale (dpiScale));
     }
@@ -1174,7 +1174,6 @@ void Direct2DGraphicsContext::restoreState()
 
     currentState = getPimpl()->popSavedState();
 
-    currentState->updateColourBrush();
     jassert (currentState);
 
     resetPendingClipList();
@@ -1205,7 +1204,6 @@ void Direct2DGraphicsContext::setFill (const FillType& fillType)
     if (auto deviceContext = getPimpl()->getDeviceContext())
     {
         currentState->fillType = fillType;
-        currentState->updateCurrentBrush();
     }
 }
 
@@ -1214,9 +1212,6 @@ void Direct2DGraphicsContext::setOpacity (float newOpacity)
     JUCE_SCOPED_TRACE_EVENT_FRAME (etw::setOpacity, etw::direct2dKeyword, getFrameId());
 
     currentState->setOpacity (newOpacity);
-
-    if (auto deviceContext = getPimpl()->getDeviceContext())
-        currentState->updateCurrentBrush();
 }
 
 void Direct2DGraphicsContext::setInterpolationQuality (Graphics::ResamplingQuality quality)

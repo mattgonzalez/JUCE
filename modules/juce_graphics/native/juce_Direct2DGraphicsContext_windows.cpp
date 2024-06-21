@@ -283,7 +283,11 @@ public:
                 !approximatelyEqual(brushColour.r, fillColour.r) ||
                 !approximatelyEqual(brushColour.g, fillColour.g) ||
                 !approximatelyEqual(brushColour.b, fillColour.b))
+            {
+                JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(owner.metrics, setColourTime)
+
                 colourBrush->SetColor(fillColour);
+            }
 
             return colourBrush;
         }

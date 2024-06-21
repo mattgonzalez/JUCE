@@ -49,6 +49,7 @@ struct Direct2DMetrics : public ReferenceCountedObject
     DIRECT2D_PAINT_STAT (frameInterval)                   \
     DIRECT2D_PAINT_STAT (endDrawDuration)                 \
     DIRECT2D_PAINT_STAT (present1Duration)                \
+    DIRECT2D_PAINT_STAT (setColourTime)                   \
     DIRECT2D_PAINT_STAT (createGeometryTime)              \
     DIRECT2D_PAINT_STAT (drawGeometryTime)                \
     DIRECT2D_PAINT_STAT (fillGeometryTime)                \

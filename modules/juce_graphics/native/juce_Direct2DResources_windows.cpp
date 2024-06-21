@@ -290,97 +290,88 @@ public:
     }
 
     template <typename TransformRectangle>
-    void fillRectangles (ComSmartPtr<ID2D1DeviceContext1> deviceContext,
-                         const RectangleList<float>& rectangles,
-                         const Colour colour,
-                         TransformRectangle&& transformRectangle,
-                         [[maybe_unused]] Direct2DMetrics* metrics)
+    void fillRectangles(ComSmartPtr<ID2D1DeviceContext1> deviceContext,
+        const RectangleList<float>& rectangles,
+        const Colour colour,
+        TransformRectangle&& transformRectangle,
+        [[maybe_unused]] Direct2DMetrics* metrics)
     {
         if (rectangles.isEmpty())
             return;
 
-        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, spriteBatchTime)
+        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, spriteBatchTime)
 
-        auto numRectanglesPainted = 0;
-        while (numRectanglesPainted < rectangles.getNumRectangles())
+        auto spriteBatchSize = rectangles.getNumRectangles();
+
+        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, spriteBatchSetupTime);
+
+        if (destinationsCapacity < (size_t)spriteBatchSize)
         {
-            auto numRectanglesRemaining = rectangles.getNumRectangles() - numRectanglesPainted;
-            auto spriteBatchSize = isPowerOfTwo (numRectanglesRemaining) ? numRectanglesRemaining : (nextPowerOfTwo (numRectanglesRemaining) >> 1);
+            destinations.calloc(spriteBatchSize);
+            destinationsCapacity = (size_t)spriteBatchSize;
+        }
 
+        auto destination = destinations.getData();
+
+        for (int i = 0; i < spriteBatchSize; ++i)
+        {
+            auto r = rectangles.getRectangle(i);
+            r = transformRectangle(r);
+            *destination = D2DUtilities::toRECT_F(r);
+            ++destination;
+        }
+
+        if (!whiteRectangle)
+        {
+            JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, createSpriteSourceTime);
+
+            auto hr = deviceContext->CreateCompatibleRenderTarget(D2D1_SIZE_F{ (float)rectangleSize, (float)rectangleSize },
+                D2D1_SIZE_U{ rectangleSize, rectangleSize },
+                D2D1_PIXEL_FORMAT{ DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED },
+                whiteRectangle.resetAndGetPointerAddress());
+            if (FAILED(hr))
+                return;
+
+            whiteRectangle->BeginDraw();
+            whiteRectangle->Clear(D2D1_COLOR_F{ 1.0f, 1.0f, 1.0f, 1.0f });
+            whiteRectangle->EndDraw();
+        }
+
+        ComSmartPtr<ID2D1Bitmap> bitmap;
+        if (auto hr = whiteRectangle->GetBitmap(bitmap.resetAndGetPointerAddress()); SUCCEEDED(hr))
+        {
+            ComSmartPtr<ID2D1DeviceContext3> deviceContext3;
+            if (hr = deviceContext->QueryInterface<ID2D1DeviceContext3>(deviceContext3.resetAndGetPointerAddress()); SUCCEEDED(hr))
             {
-                JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, spriteBatchSetupTime);
+                auto d2dColour = D2DUtilities::toCOLOR_F(colour);
+                auto spriteBatch = getSpriteBatch(*deviceContext3, (uint32)spriteBatchSize);
 
-                if (destinationsCapacity < (size_t) spriteBatchSize)
-                {
-                    destinations.calloc (spriteBatchSize);
-                    destinationsCapacity = (size_t) spriteBatchSize;
-                }
-
-                auto destination = destinations.getData();
-
-                for (int i = numRectanglesPainted; i < numRectanglesPainted + spriteBatchSize; ++i)
-                {
-                    auto r = rectangles.getRectangle (i);
-                    r = transformRectangle (r);
-                    *destination = D2DUtilities::toRECT_F (r);
-                    ++destination;
-                }
-            }
-
-            if (! whiteRectangle)
-            {
-                JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, createSpriteSourceTime);
-
-                auto hr = deviceContext->CreateCompatibleRenderTarget (D2D1_SIZE_F { (float) rectangleSize, (float) rectangleSize },
-                                                                       D2D1_SIZE_U { rectangleSize, rectangleSize },
-                                                                       D2D1_PIXEL_FORMAT { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED },
-                                                                       whiteRectangle.resetAndGetPointerAddress());
-                if (FAILED (hr))
+                if (spriteBatch == nullptr)
                     return;
 
-                whiteRectangle->BeginDraw();
-                whiteRectangle->Clear (D2D1_COLOR_F { 1.0f, 1.0f, 1.0f, 1.0f });
-                whiteRectangle->EndDraw();
-            }
+                auto setCount = jmin((uint32)spriteBatchSize, spriteBatch->GetSpriteCount());
+                auto addCount = (uint32)spriteBatchSize > setCount ? (uint32)spriteBatchSize - setCount : 0;
 
-            ComSmartPtr<ID2D1Bitmap> bitmap;
-            if (auto hr = whiteRectangle->GetBitmap (bitmap.resetAndGetPointerAddress()); SUCCEEDED (hr))
-            {
-                ComSmartPtr<ID2D1DeviceContext3> deviceContext3;
-                if (hr = deviceContext->QueryInterface<ID2D1DeviceContext3> (deviceContext3.resetAndGetPointerAddress()); SUCCEEDED (hr))
+                if (setCount != 0)
                 {
-                    auto d2dColour = D2DUtilities::toCOLOR_F (colour);
-                    auto spriteBatch = getSpriteBatch (*deviceContext3, (uint32) spriteBatchSize);
+                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, setSpritesTime);
 
-                    if (spriteBatch == nullptr)
-                        return;
-
-                    auto setCount = jmin ((uint32) spriteBatchSize, spriteBatch->GetSpriteCount());
-                    auto addCount = (uint32) spriteBatchSize > setCount ? (uint32) spriteBatchSize - setCount : 0;
-
-                    if (setCount != 0)
-                    {
-                        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, setSpritesTime);
-
-                        spriteBatch->SetSprites (0, setCount, destinations.getData(), nullptr, &d2dColour, nullptr, sizeof (D2D1_RECT_F), 0, 0, 0);
-                    }
-
-                    if (addCount != 0)
-                    {
-                        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, addSpritesTime);
-
-                        spriteBatch->AddSprites (addCount, destinations.getData() + setCount, nullptr, &d2dColour, nullptr, sizeof (D2D1_RECT_F), 0, 0, 0);
-                    }
-
-                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, drawSpritesTime);
-
-                    deviceContext3->SetAntialiasMode (D2D1_ANTIALIAS_MODE_ALIASED);
-                    deviceContext3->DrawSpriteBatch (spriteBatch, bitmap);
-                    deviceContext3->SetAntialiasMode (D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                    spriteBatch->SetSprites(0, setCount, destinations.getData(), nullptr, &d2dColour, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
                 }
-            }
 
-            numRectanglesPainted += spriteBatchSize;
+                if (addCount != 0)
+                {
+                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, addSpritesTime);
+
+                    spriteBatch->AddSprites(addCount, destinations.getData() + setCount, nullptr, &d2dColour, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
+                }
+
+                JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, drawSpritesTime);
+
+                deviceContext3->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+                deviceContext3->DrawSpriteBatch(spriteBatch, bitmap);
+                deviceContext3->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+            }
         }
     }
 
@@ -401,7 +392,7 @@ private:
     ComSmartPtr<ID2D1BitmapRenderTarget> whiteRectangle;
     HeapBlock<D2D1_RECT_F> destinations;
     size_t destinationsCapacity = 0;
-    LruCache<uint32, ComSmartPtr<ID2D1SpriteBatch>, 8> spriteBatches;
+    LruCache<uint32, ComSmartPtr<ID2D1SpriteBatch>, 16> spriteBatches;
 };
 
 class Direct2DDeviceResources

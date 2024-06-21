@@ -378,7 +378,7 @@ public:
             {
                 D2D1_BRUSH_PROPERTIES brushProps{ fillType.getOpacity(), D2DUtilities::transformToMatrix(fillType.transform) };
                 auto bmProps = D2D1::BitmapBrushProperties(D2D1_EXTEND_MODE_WRAP, D2D1_EXTEND_MODE_WRAP);
-                auto hr = deviceResources.deviceContext.context->CreateBitmapBrush(d2d1Bitmap,
+                [[maybe_unused]] auto hr = deviceResources.deviceContext.context->CreateBitmapBrush(d2d1Bitmap,
                     bmProps,
                     brushProps,
                     bitmapBrush.resetAndGetPointerAddress());

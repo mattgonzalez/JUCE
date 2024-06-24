@@ -41,6 +41,14 @@ DropShadow::DropShadow (Colour shadowColour, const int r, Point<int> o) noexcept
     jassert (radius > 0);
 }
 
+DropShadow& DropShadow::operator=(const DropShadow& other)
+{
+    colour = other.colour;
+    radius = other.radius;
+    offset = other.offset;
+    return *this;
+}
+
 void DropShadow::drawForImage (Graphics& g, const Image& srcImage) const
 {
     jassert (radius > 0);
@@ -48,9 +56,9 @@ void DropShadow::drawForImage (Graphics& g, const Image& srcImage) const
     if (! srcImage.isValid())
         return;
 
-    Image blurred;
+    auto blurred = scratchpad->get(0, Image::SingleChannel, srcImage.getWidth(), srcImage.getHeight());
     ImageEffects::applySingleChannelBoxBlurEffect (radius,
-                                                   srcImage.convertedToFormat (Image::SingleChannel),
+                                                   srcImage,//.convertedToFormat (Image::SingleChannel),
                                                    blurred);
 
     g.setColour (colour);
@@ -67,16 +75,17 @@ void DropShadow::drawForPath (Graphics& g, const Path& path) const
 
     if (area.getWidth() > 2 && area.getHeight() > 2)
     {
-        Image pathImage { Image::SingleChannel, area.getWidth(), area.getHeight(), true };
-
+        auto pathImage = scratchpad->get(0, Image::SingleChannel, area.getWidth(), area.getHeight());
         {
             Graphics g2 (pathImage);
+            g2.setColour(Colours::transparentBlack);
+            g2.getInternalContext().fillRect(pathImage.getBounds(), true);
             g2.setColour (Colours::white);
             g2.fillPath (path, AffineTransform::translation ((float) (offset.x - area.getX()),
                                                              (float) (offset.y - area.getY())));
         }
 
-        Image blurred;
+        auto blurred = scratchpad->get(1, Image::SingleChannel, area.getWidth(), area.getHeight());
         ImageEffects::applySingleChannelBoxBlurEffect (radius, pathImage, blurred);
 
         g.setColour (colour);

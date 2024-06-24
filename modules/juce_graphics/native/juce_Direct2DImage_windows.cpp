@@ -375,6 +375,7 @@ void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& resu
         return;
     }
 
+#if 0
     constexpr FLOAT kernel[] { 1.0f / 9.0f, 2.0f / 9.0f, 3.0f / 9.0f, 2.0f / 9.0f, 1.0f / 9.0f };
 
     ComSmartPtr<ID2D1Effect> begin, end;
@@ -415,6 +416,18 @@ void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& resu
     }
 
     begin->SetInput (0, getAdapterD2D1Bitmap());
+#else
+    ComSmartPtr<ID2D1Effect> effect;
+    if (auto hr = context->CreateEffect(CLSID_D2D1GaussianBlur, effect.resetAndGetPointerAddress()))
+    {
+        result = {};
+        return;
+    }
+
+    effect->SetInput(0, getAdapterD2D1Bitmap());
+    effect->SetValue(D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, radius / 3.0f);
+    auto end = effect;
+#endif
 
     const auto originalPixelData = dynamic_cast<Direct2DPixelData*> (result.getPixelData());
 

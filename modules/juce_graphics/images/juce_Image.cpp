@@ -820,6 +820,8 @@ void ImageEffects::applySingleChannelBoxBlurEffect (int radius, const Image& inp
         return;
     }
 
+    auto singleChannelInput = input.convertedToFormat(Image::SingleChannel);
+
     const auto inputConfig = std::tuple (Image::SingleChannel, input.getWidth(), input.getHeight());
     const auto outputConfig = std::tuple (result.getFormat(), result.getWidth(), result.getHeight());
 
@@ -827,7 +829,7 @@ void ImageEffects::applySingleChannelBoxBlurEffect (int radius, const Image& inp
         result = Image { Image::SingleChannel, input.getWidth(), input.getHeight(), false };
 
     {
-        Image::BitmapData source { input, Image::BitmapData::readOnly };
+        Image::BitmapData source { singleChannelInput, Image::BitmapData::readOnly };
         Image::BitmapData dest { result, Image::BitmapData::writeOnly };
         BitmapDataDetail::convert (source, dest);
     }
@@ -847,5 +849,20 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 JUCE_END_IGNORE_WARNINGS_MSVC
 
 #endif
+
+Image ImageScratchpad::get(int index, Image::PixelFormat format, int width, int height)
+{
+    if (scratchpadImages.size() <= (size_t)index)
+        scratchpadImages.resize(index + 1);
+
+    auto& image = scratchpadImages[index];
+    if (image.getFormat() == format && image.getWidth() >= width && image.getHeight() >= height)
+    {
+        return image.getClippedImage({ 0, 0, width, height });
+    }
+
+    image = Image{ format, width, height, false };
+    return image;
+}
 
 } // namespace juce

@@ -627,4 +627,13 @@ struct ImageEffects
     static void applySingleChannelBoxBlurEffect (int radius, const Image& input, Image& result);
 };
 
+class ImageScratchpad
+{
+public:
+    Image get(int index, Image::PixelFormat format, int width, int height);
+
+private:
+    std::vector<Image> scratchpadImages;
+};
+
 } // namespace juce

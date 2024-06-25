@@ -105,11 +105,11 @@ public:
                                                 ComSmartPtr<ID2D1DeviceContext1> deviceContext,
                                                 Image::PixelFormat outputFormat)
     {
-        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
+        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, convertBitmapTime);
 
         jassert (outputFormat == Image::ARGB || outputFormat == Image::SingleChannel);
 
-        JUCE_TRACE_LOG_D2D_PAINT_CALL (etw::createDirect2DBitmapFromImage, etw::graphicsKeyword);
+        JUCE_TRACE_LOG_CREATE_BITMAP(etw::createDirect2DBitmapFromImage, outputFormat, size.width, size.height);
 
         // Calling Image::convertedToFormat could cause unchecked recursion since convertedToFormat
         // calls Graphics::drawImageAt which calls Direct2DGraphicsContext::drawImage which calls this function...
@@ -153,7 +153,7 @@ public:
                                                    int lineStride,
                                                    D2D1_BITMAP_OPTIONS options)
     {
-        JUCE_TRACE_LOG_D2D_PAINT_CALL (etw::createDirect2DBitmap, etw::graphicsKeyword);
+        JUCE_TRACE_LOG_CREATE_BITMAP(etw::createDirect2DBitmap, format, size.width, size.height);
 
         JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
 

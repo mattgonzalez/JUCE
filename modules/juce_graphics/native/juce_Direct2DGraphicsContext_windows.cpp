@@ -373,7 +373,7 @@ public:
                             if (bitmap->GetPixelFormat().format == DXGI_FORMAT_B8G8R8A8_UNORM)
                                 return bitmap;
 
-                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
+                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, createTiledBitmapBrush);
 
                     return Direct2DBitmap::fromImage(fillType.image, deviceResources.deviceContext.context, Image::ARGB);
                 }();
@@ -1384,7 +1384,7 @@ void Direct2DGraphicsContext::drawImage (const Image& image, const AffineTransfo
 
         if (! d2d1Bitmap || d2d1Bitmap->GetPixelFormat().format != DXGI_FORMAT_B8G8R8A8_UNORM)
         {
-            JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, createBitmapTime);
+            JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (Direct2DMetricsHub::getInstance()->imageContextMetrics, convertDrawImage);
 
             d2d1Bitmap = Direct2DBitmap::fromImage (image, deviceContext, Image::ARGB);
             imageClipArea = image.getBounds();

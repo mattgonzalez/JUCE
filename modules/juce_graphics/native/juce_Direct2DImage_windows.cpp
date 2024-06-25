@@ -322,6 +322,8 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
         return;
     }
 
+    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, effectTime);
+
     ComSmartPtr<ID2D1Effect> effect;
     if (const auto hr = context->CreateEffect (CLSID_D2D1GaussianBlur, effect.resetAndGetPointerAddress());
         FAILED (hr) || effect == nullptr)
@@ -375,48 +377,8 @@ void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& resu
         return;
     }
 
-#if 0
-    constexpr FLOAT kernel[] { 1.0f / 9.0f, 2.0f / 9.0f, 3.0f / 9.0f, 2.0f / 9.0f, 1.0f / 9.0f };
+    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, effectTime);
 
-    ComSmartPtr<ID2D1Effect> begin, end;
-
-    for (auto horizontal : { false, true })
-    {
-        for (auto i = 0; i < radius; ++i)
-        {
-            ComSmartPtr<ID2D1Effect> effect;
-            if (const auto hr = context->CreateEffect (CLSID_D2D1ConvolveMatrix, effect.resetAndGetPointerAddress());
-                    FAILED (hr) || effect == nullptr)
-            {
-                result = {};
-                return;
-            }
-
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_SIZE_X, (UINT32) (horizontal ? std::size (kernel) : 1));
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_SIZE_Y, (UINT32) (horizontal ? 1 : std::size (kernel)));
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_MATRIX, kernel);
-
-            if (begin == nullptr)
-            {
-                begin = effect;
-                end = effect;
-            }
-            else
-            {
-                effect->SetInputEffect (0, end);
-                end = effect;
-            }
-        }
-    }
-
-    if (begin == nullptr)
-    {
-        result = {};
-        return;
-    }
-
-    begin->SetInput (0, getAdapterD2D1Bitmap());
-#else
     ComSmartPtr<ID2D1Effect> effect;
     if (auto hr = context->CreateEffect(CLSID_D2D1GaussianBlur, effect.resetAndGetPointerAddress()))
     {
@@ -427,7 +389,6 @@ void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& resu
     effect->SetInput(0, getAdapterD2D1Bitmap());
     effect->SetValue(D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, radius / 3.0f);
     auto end = effect;
-#endif
 
     const auto originalPixelData = dynamic_cast<Direct2DPixelData*> (result.getPixelData());
 

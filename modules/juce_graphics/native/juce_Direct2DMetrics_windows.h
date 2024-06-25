@@ -51,12 +51,10 @@ struct Direct2DMetrics : public ReferenceCountedObject
     DIRECT2D_PAINT_STAT (present1Duration)                \
     DIRECT2D_PAINT_STAT (setFillTime)                     \
     DIRECT2D_PAINT_STAT (setColourTime)                   \
+    DIRECT2D_PAINT_STAT (createTiledBitmapBrush)          \
     DIRECT2D_PAINT_STAT (createGeometryTime)              \
     DIRECT2D_PAINT_STAT (drawGeometryTime)                \
     DIRECT2D_PAINT_STAT (fillGeometryTime)                \
-    DIRECT2D_PAINT_STAT (createFilledGRTime)              \
-    DIRECT2D_PAINT_STAT (createStrokedGRTime)             \
-    DIRECT2D_PAINT_STAT (drawGRTime)                      \
     DIRECT2D_PAINT_STAT (createGradientTime)              \
     DIRECT2D_PAINT_STAT (pushAliasedAxisAlignedLayerTime) \
     DIRECT2D_PAINT_STAT (pushGeometryLayerTime)           \
@@ -65,6 +63,7 @@ struct Direct2DMetrics : public ReferenceCountedObject
     DIRECT2D_PAINT_STAT (fillTransformedRectTime)         \
     DIRECT2D_PAINT_STAT (fillRectListTime)                \
     DIRECT2D_PAINT_STAT (drawImageTime)                   \
+    DIRECT2D_PAINT_STAT (convertDrawImage)                \
     DIRECT2D_PAINT_STAT (spriteBatchTime)                 \
     DIRECT2D_PAINT_STAT (spriteBatchSetupTime)            \
     DIRECT2D_PAINT_STAT (createSpriteSourceTime)          \
@@ -74,6 +73,8 @@ struct Direct2DMetrics : public ReferenceCountedObject
     DIRECT2D_PAINT_STAT (drawSpritesTime)                 \
     DIRECT2D_PAINT_STAT (drawGlyphRunTime)                \
     DIRECT2D_PAINT_STAT (createBitmapTime)                \
+    DIRECT2D_PAINT_STAT (convertBitmapTime)               \
+    DIRECT2D_PAINT_STAT (effectTime)                      \
     DIRECT2D_PAINT_STAT (mapBitmapTime)                   \
     DIRECT2D_LAST_PAINT_STAT (unmapBitmapTime)
 

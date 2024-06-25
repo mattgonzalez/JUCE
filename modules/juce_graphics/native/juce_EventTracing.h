@@ -105,7 +105,6 @@ enum : uint64_t
     waitForVBlankDone,
     callVBlankListeners,
     resize,
-    createResource,
     presentIdleFrame,
     direct2dImagePaintStart,
     direct2dImagePaintEnd,
@@ -278,6 +277,9 @@ auto toVector (const RectangleList<Number>& list)
 
 #define JUCE_TRACE_LOG_D2D_IMAGE_UNMAP_DATA \
     JUCE_WRITE_TRACE_LOG (etw::unmapBitmap, etw::direct2dKeyword)
+
+#define JUCE_TRACE_LOG_CREATE_BITMAP(code, format, width, height) \
+    JUCE_WRITE_TRACE_LOG_VA (code, etw::paintKeyword, TraceLoggingInt32 (format, "format"), TraceLoggingValue(width, "width"), TraceLoggingValue(height, "height"))
 
 #define JUCE_TRACE_LOG_PAINT_COMPONENT_AND_CHILDREN(depth) \
     JUCE_WRITE_TRACE_LOG_VA (etw::paintComponentAndChildren, etw::paintKeyword, TraceLoggingValue (depth, "depth"))

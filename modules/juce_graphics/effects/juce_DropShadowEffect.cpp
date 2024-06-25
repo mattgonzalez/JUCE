@@ -57,8 +57,8 @@ void DropShadow::drawForImage (Graphics& g, const Image& srcImage) const
         return;
 
     auto blurred = scratchpad->get(0, Image::SingleChannel, srcImage.getWidth(), srcImage.getHeight());
-    ImageEffects::applySingleChannelBoxBlurEffect (radius,
-                                                   srcImage,//.convertedToFormat (Image::SingleChannel),
+    ImageEffects::applyGaussianBlurEffect((float)radius,
+                                                   srcImage,
                                                    blurred);
 
     g.setColour (colour);
@@ -86,7 +86,7 @@ void DropShadow::drawForPath (Graphics& g, const Path& path) const
         }
 
         auto blurred = scratchpad->get(1, Image::SingleChannel, area.getWidth(), area.getHeight());
-        ImageEffects::applySingleChannelBoxBlurEffect (radius, pathImage, blurred);
+        ImageEffects::applyGaussianBlurEffect((float)radius, pathImage, blurred);
 
         g.setColour (colour);
         g.drawImageAt (blurred, area.getX(), area.getY(), true);

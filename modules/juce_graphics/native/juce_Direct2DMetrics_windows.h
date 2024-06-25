@@ -238,7 +238,8 @@ public:
     enum
     {
         getValuesRequest,
-        resetValuesRequest
+        resetValuesRequest,
+        getDescriptionsRequest
     };
 
     struct MetricValues
@@ -256,6 +257,16 @@ public:
         int responseType;
         void* windowHandle;
         MetricValues values[Direct2DMetrics::numStats];
+    };
+
+    struct GetDescriptionsResponse
+    {
+        int responseType;
+        int numDescriptions;
+
+        static constexpr size_t maxStringLength = 64;
+        using name = char[maxStringLength];
+        std::array<name, Direct2DMetrics::numStats> names;
     };
 
     CriticalSection lock;

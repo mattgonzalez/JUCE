@@ -48,6 +48,35 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
     int requestType = *(int*) message.getData();
     switch (requestType)
     {
+        case getDescriptionsRequest:
+        {
+            juce::StringArray const names
+            {
+
+    #define DIRECT2D_PAINT_STAT(name) # name,
+    #define DIRECT2D_LAST_PAINT_STAT(name) # name
+
+                DIRECT2D_PAINT_STAT_LIST
+    #undef DIRECT2D_PAINT_STAT
+    #undef DIRECT2D_LAST_PAINT_STAT
+            };
+
+            MemoryBlock block { sizeof (GetDescriptionsResponse), true };
+            auto response = (GetDescriptionsResponse*) block.getData();
+            response->responseType = getDescriptionsRequest;
+            response->numDescriptions = Direct2DMetrics::numStats;
+
+            size_t i = 0;
+            for (auto const& name : names)
+            {
+                name.copyToUTF8(response->names[i], GetDescriptionsResponse::maxStringLength - 1);
+                ++i;
+            }
+
+            sendMessage(block);
+            break;
+        }
+
         case getValuesRequest:
         {
             ScopedLock locker { owner.lock };

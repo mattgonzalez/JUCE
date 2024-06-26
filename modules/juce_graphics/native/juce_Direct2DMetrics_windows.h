@@ -104,6 +104,8 @@ struct Direct2DMetrics : public ReferenceCountedObject
     int present1Count = 0;
     int64 lastPaintStartTicks = 0;
     uint64 lockAcquireMaxTicks = 0;
+    int64 requestedMaxTextureMemory = 0;
+    int64 currentMaxTextureMemory = 0;
 
     Direct2DMetrics (CriticalSection& lockIn, String nameIn, void* windowHandleIn)
         : lock (lockIn),
@@ -239,7 +241,8 @@ public:
     {
         getValuesRequest,
         resetValuesRequest,
-        getDescriptionsRequest
+        getDescriptionsRequest,
+        setRenderControlsRequest
     };
 
     struct MetricValues
@@ -252,10 +255,21 @@ public:
         double stdDev;
     };
 
+    struct RenderControls
+    {
+        int64 maximumTextureMemory = 1024LL * 1024LL * 512LL;
+        int32 tileWidth = 1024;
+        int32 tileHeight = 1024;
+        bool effectsEnabled = true;
+        bool fillRectListEnabled = true;
+        bool drawImageEnabled = true;
+    };
+
     struct GetValuesResponse
     {
         int responseType;
         void* windowHandle;
+        RenderControls controls;
         MetricValues values[Direct2DMetrics::numStats];
     };
 
@@ -269,10 +283,28 @@ public:
         std::array<name, Direct2DMetrics::numStats> names;
     };
 
+    struct SetRenderControlsRequest
+    {
+        int requestType;
+        RenderControls controls;
+    };
+
     CriticalSection lock;
     Direct2DMetrics::Ptr imageContextMetrics;
 
     static constexpr int magicNumber = 0xd2d1;
+
+    enum class Control
+    {
+        maximumTextureMemory,
+        tileWidth,
+        tileHeight,
+        effectsEnabled,
+        fillRectListEnabled,
+        drawImageEnabled
+    };
+
+    var getControl (Control control) const;
 
     JUCE_DECLARE_SINGLETON (Direct2DMetricsHub, false)
 
@@ -311,6 +343,7 @@ private:
     HubPipeServer hubPipeServer { *this };
     ReferenceCountedArray<Direct2DMetrics> metricsArray;
     Direct2DMetrics* lastMetrics = nullptr;
+    RenderControls controls;
 };
 
 } // namespace juce

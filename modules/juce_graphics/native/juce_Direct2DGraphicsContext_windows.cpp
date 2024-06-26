@@ -547,9 +547,19 @@ public:
         if (! checkPaintReady())
             return nullptr;
 
-       #if JUCE_DIRECT2D_METRICS
-        owner.metrics->startFrame();
-       #endif
+        #if JUCE_DIRECT2D_METRICS
+        {
+            if (owner.metrics->requestedMaxTextureMemory > 0)
+            {
+                adapter->direct2DDevice->SetMaximumTextureMemory(owner.metrics->requestedMaxTextureMemory);
+            }
+
+            auto actualMaxTextureMemory = adapter->direct2DDevice->GetMaximumTextureMemory();
+
+            owner.metrics->currentMaxTextureMemory = actualMaxTextureMemory;
+            owner.metrics->startFrame();
+        }
+        #endif
 
         JUCE_TRACE_EVENT_INT_RECT_LIST (etw::startD2DFrame, etw::direct2dKeyword, owner.getFrameId(), paintAreas);
 
@@ -1277,6 +1287,11 @@ void Direct2DGraphicsContext::fillRect (const Rectangle<float>& r)
 
 void Direct2DGraphicsContext::fillRectList (const RectangleList<float>& list)
 {
+#if JUCE_DIRECT2D_METRICS
+    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::fillRectListEnabled))
+        return;
+#endif
+
     if (getPimpl()->fillSpriteBatch (list))
         return;
 

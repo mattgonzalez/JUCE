@@ -45,6 +45,36 @@ String Direct2DMetricsHub::getProcessString() noexcept
 
 void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& message)
 {
+    auto findActiveMetrics = [&]() -> Direct2DMetrics::Ptr
+        {
+            auto foregroundWindow = GetForegroundWindow();
+            Direct2DMetrics::Ptr metrics = nullptr;
+            for (int i = 0; i < owner.metricsArray.size(); ++i)
+            {
+                auto arrayEntry = owner.metricsArray[i];
+                if (arrayEntry->windowHandle && arrayEntry->windowHandle == foregroundWindow)
+                {
+                    metrics = arrayEntry;
+                    break;
+                }
+            }
+
+            if (!metrics)
+            {
+                if (owner.lastMetrics && owner.metricsArray.contains(owner.lastMetrics))
+                    metrics = owner.lastMetrics;
+            }
+
+            return metrics;
+        };
+
+    ScopedLock locker{ owner.lock };
+
+    if (message.getSize() < sizeof(int))
+    {
+        return;
+    }
+
     int requestType = *(int*) message.getData();
     switch (requestType)
     {
@@ -74,44 +104,30 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
             }
 
             sendMessage(block);
-            break;
         }
+        break;
 
         case getValuesRequest:
         {
-            ScopedLock locker { owner.lock };
-
-            auto foregroundWindow = GetForegroundWindow();
-            Direct2DMetrics::Ptr metrics = nullptr;
-            for (int i = 0; i < owner.metricsArray.size(); ++i)
+            if (auto metrics = findActiveMetrics())
             {
-                auto arrayEntry = owner.metricsArray[i];
-                if (arrayEntry->windowHandle && arrayEntry->windowHandle == foregroundWindow)
-                {
-                    metrics = arrayEntry;
-                    break;
-                }
-            }
+                MemoryBlock block{ sizeof(GetValuesResponse), true };
 
-            if (! metrics)
-            {
-                if (owner.lastMetrics && owner.metricsArray.contains (owner.lastMetrics))
-                    metrics = owner.lastMetrics;
-            }
-
-            if (metrics)
-            {
-                MemoryBlock block { sizeof (GetValuesResponse), true };
-
-                auto* response = (GetValuesResponse*) block.getData();
+                auto* response = (GetValuesResponse*)block.getData();
                 response->responseType = getValuesRequest;
                 response->windowHandle = metrics->windowHandle;
+                response->controls.maximumTextureMemory = metrics->currentMaxTextureMemory;
+                response->controls.tileWidth = 0;
+                response->controls.tileHeight = 0;
+                response->controls.effectsEnabled = owner.controls.effectsEnabled;
+                response->controls.fillRectListEnabled = owner.controls.fillRectListEnabled;
+                response->controls.drawImageEnabled = owner.controls.drawImageEnabled;
 
                 for (size_t i = 0; i <= Direct2DMetrics::drawGlyphRunTime; ++i)
                 {
-                    auto& accumulator = metrics->getAccumulator (i);
+                    auto& accumulator = metrics->getAccumulator(i);
                     response->values[i].count = accumulator.getCount();
-                    response->values[i].total = metrics->getSum (i);
+                    response->values[i].total = metrics->getSum(i);
                     response->values[i].average = accumulator.getAverage();
                     response->values[i].minimum = accumulator.getMinValue();
                     response->values[i].maximum = accumulator.getMaxValue();
@@ -121,27 +137,42 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
                 // Track bitmap operations common to all device contexts
                 for (size_t i = Direct2DMetrics::createBitmapTime; i <= Direct2DMetrics::unmapBitmapTime; ++i)
                 {
-                    auto& accumulator = owner.imageContextMetrics->getAccumulator (i);
+                    auto& accumulator = owner.imageContextMetrics->getAccumulator(i);
                     response->values[i].count = accumulator.getCount();
-                    response->values[i].total = metrics->getSum (i);
+                    response->values[i].total = metrics->getSum(i);
                     response->values[i].average = accumulator.getAverage();
                     response->values[i].minimum = accumulator.getMinValue();
                     response->values[i].maximum = accumulator.getMaxValue();
                     response->values[i].stdDev = accumulator.getStandardDeviation();
                 }
 
-                sendMessage (block);
+                sendMessage(block);
 
                 owner.lastMetrics = metrics.get();
             }
-            break;
         }
+        break;
+
+        case setRenderControlsRequest:
+        {
+            if (message.getSize() < sizeof(SetRenderControlsRequest))
+                return;
+
+            auto request = (SetRenderControlsRequest*)message.getData();
+            owner.controls = request->controls;
+
+            for (auto metrics : owner.metricsArray)
+            {
+                metrics->requestedMaxTextureMemory = request->controls.maximumTextureMemory;
+            }
+        }
+        break;
 
         case resetValuesRequest:
         {
             owner.resetAll();
-            break;
         }
+        break;
     }
 }
 
@@ -154,6 +185,32 @@ void Direct2DMetricsHub::resetAll()
     {
         metrics->reset();
     }
+}
+
+juce::var Direct2DMetricsHub::getControl(Control control) const
+{
+    switch (control)
+    {
+    case Control::maximumTextureMemory:
+        return (int64_t)controls.maximumTextureMemory;
+
+    case Control::tileWidth:
+        return (int32_t)controls.tileWidth;
+
+    case Control::tileHeight:
+        return (int32_t)controls.tileHeight;
+
+    case Control::effectsEnabled:
+        return controls.effectsEnabled;
+
+    case Control::fillRectListEnabled:
+        return controls.fillRectListEnabled;
+
+    case Control::drawImageEnabled:
+        return controls.drawImageEnabled;
+    }
+
+    return {};
 }
 
 } // namespace juce

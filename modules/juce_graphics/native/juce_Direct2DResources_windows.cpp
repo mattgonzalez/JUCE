@@ -283,7 +283,7 @@ public:
 
     void release()
     {
-        whiteRectangle = nullptr;
+        sourceRectangle = nullptr;
         spriteBatches = {};
         destinations.free();
         destinationsCapacity = 0;
@@ -321,29 +321,28 @@ public:
             ++destination;
         }
 
-        if (!whiteRectangle)
+        if (!sourceRectangle)
         {
             JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, createSpriteSourceTime);
 
             auto hr = deviceContext->CreateCompatibleRenderTarget(D2D1_SIZE_F{ (float)rectangleSize, (float)rectangleSize },
                 D2D1_SIZE_U{ rectangleSize, rectangleSize },
                 D2D1_PIXEL_FORMAT{ DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED },
-                whiteRectangle.resetAndGetPointerAddress());
+                sourceRectangle.resetAndGetPointerAddress());
             if (FAILED(hr))
                 return;
-
-            whiteRectangle->BeginDraw();
-            whiteRectangle->Clear(D2D1_COLOR_F{ 1.0f, 1.0f, 1.0f, 1.0f });
-            whiteRectangle->EndDraw();
         }
 
+        sourceRectangle->BeginDraw();
+        sourceRectangle->Clear(D2DUtilities::toCOLOR_F(colour));
+        sourceRectangle->EndDraw();
+
         ComSmartPtr<ID2D1Bitmap> bitmap;
-        if (auto hr = whiteRectangle->GetBitmap(bitmap.resetAndGetPointerAddress()); SUCCEEDED(hr))
+        if (auto hr = sourceRectangle->GetBitmap(bitmap.resetAndGetPointerAddress()); SUCCEEDED(hr))
         {
             ComSmartPtr<ID2D1DeviceContext3> deviceContext3;
             if (hr = deviceContext->QueryInterface<ID2D1DeviceContext3>(deviceContext3.resetAndGetPointerAddress()); SUCCEEDED(hr))
             {
-                auto d2dColour = D2DUtilities::toCOLOR_F(colour);
                 auto spriteBatch = getSpriteBatch(*deviceContext3, (uint32)spriteBatchSize);
 
                 if (spriteBatch == nullptr)
@@ -356,14 +355,14 @@ public:
                 {
                     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, setSpritesTime);
 
-                    spriteBatch->SetSprites(0, setCount, destinations.getData(), nullptr, &d2dColour, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
+                    spriteBatch->SetSprites(0, setCount, destinations.getData(), nullptr, nullptr, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
                 }
 
                 if (addCount != 0)
                 {
                     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, addSpritesTime);
 
-                    spriteBatch->AddSprites(addCount, destinations.getData() + setCount, nullptr, &d2dColour, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
+                    spriteBatch->AddSprites(addCount, destinations.getData() + setCount, nullptr, nullptr, nullptr, sizeof(D2D1_RECT_F), 0, 0, 0);
                 }
 
                 JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, drawSpritesTime);
@@ -389,7 +388,7 @@ private:
     }
 
     static constexpr uint32 rectangleSize = 32;
-    ComSmartPtr<ID2D1BitmapRenderTarget> whiteRectangle;
+    ComSmartPtr<ID2D1BitmapRenderTarget> sourceRectangle;
     HeapBlock<D2D1_RECT_F> destinations;
     size_t destinationsCapacity = 0;
     LruCache<uint32, ComSmartPtr<ID2D1SpriteBatch>, 16> spriteBatches;

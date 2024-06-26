@@ -109,7 +109,7 @@ public:
 
         jassert (outputFormat == Image::ARGB || outputFormat == Image::SingleChannel);
 
-        JUCE_TRACE_LOG_CREATE_BITMAP(etw::createDirect2DBitmapFromImage, outputFormat, size.width, size.height);
+        JUCE_TRACE_LOG_CREATE_BITMAP(etw::createDirect2DBitmapFromImage, outputFormat, image.getWidth(), image.getHeight());
 
         // Calling Image::convertedToFormat could cause unchecked recursion since convertedToFormat
         // calls Graphics::drawImageAt which calls Direct2DGraphicsContext::drawImage which calls this function...

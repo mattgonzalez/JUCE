@@ -111,6 +111,11 @@ public:
         return *newImage.getPixelData();
     }
 
+    ImagePixelData::Ptr clip(Rectangle<int>) override
+    {
+        return nullptr;
+    }
+
     std::unique_ptr<ImageType> createType() const override { return sourceImage->createType(); }
 
     /* as we always hold a reference to image, don't double count */
@@ -212,6 +217,11 @@ public:
         return *s;
     }
 
+    ImagePixelData::Ptr clip(const Rectangle<int>) override
+    {
+        return nullptr;
+    }
+
     std::unique_ptr<ImageType> createType() const override    { return std::make_unique<SoftwareImageType>(); }
 
 private:
@@ -262,7 +272,14 @@ Image Image::getClippedImage (const Rectangle<int>& area) const
     if (validArea.isEmpty())
         return {};
 
-    return Image { ImagePixelData::Ptr { new SubsectionPixelData { image, validArea } } };
+    auto clipped = getPixelData()->clip (validArea);
+    if (clipped)
+    {
+        return Image { clipped };
+    }
+
+    clipped = ImagePixelData::Ptr { new SubsectionPixelData { image, validArea } };
+    return Image{ clipped };
 }
 
 //==============================================================================

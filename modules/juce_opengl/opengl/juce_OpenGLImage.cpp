@@ -77,6 +77,11 @@ public:
         return ImagePixelData::Ptr (newImage.getPixelData());
     }
 
+    ImagePixelData::Ptr clip(const Rectangle<int>) override
+    {
+        return nullptr;
+    }
+
     void initialiseBitmapData (Image::BitmapData& bitmapData, int x, int y, Image::BitmapData::ReadWriteMode mode) override
     {
         bitmapData.pixelFormat = pixelFormat;

@@ -56,6 +56,7 @@ public:
     void initialiseBitmapData (Image::BitmapData& bitmap, int x, int y, Image::BitmapData::ReadWriteMode mode) override;
 
     ImagePixelData::Ptr clone() override;
+    ImagePixelData::Ptr clip(Rectangle<int> area) override;
 
     void applyGaussianBlurEffect (float radius, Image& result) override;
     void applySingleChannelBoxBlurEffect (int radius, Image& result) override;

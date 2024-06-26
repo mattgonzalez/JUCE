@@ -463,6 +463,8 @@ public:
     virtual std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() = 0;
     /** Creates a copy of this image. */
     virtual Ptr clone() = 0;
+    /** Creates an ImagePixelData that refers to a subsection of the same original data. */
+    virtual Ptr clip(const Rectangle<int> area) = 0;
     /** Creates an instance of the type of this image. */
     virtual std::unique_ptr<ImageType> createType() const = 0;
     /** Initialises a BitmapData object. */

@@ -43,7 +43,7 @@ public:
                                 int w,
                                 int h,
                                 ComSmartPtr<ID2D1DeviceContext1> deviceContextIn,
-                                ComSmartPtr<ID2D1Bitmap1> sourceBitmap,
+                                ComSmartPtr<ID2D1Bitmap1> sourceRenderTarget,
                                 Point<int> offset)
         : bitmap (Direct2DBitmap::createBitmap (deviceContextIn,
                                                 pixelFormat,
@@ -55,7 +55,7 @@ public:
         const Rectangle fullRect { w, h };
         const auto sourceRect = D2DUtilities::toRECT_U (fullRect.getIntersection (fullRect.withPosition (offset)));
 
-        if (auto hr = bitmap->CopyFromBitmap (&destPoint, sourceBitmap, &sourceRect); FAILED (hr))
+        if (auto hr = bitmap->CopyFromBitmap (&destPoint, sourceRenderTarget, &sourceRect); FAILED (hr))
             return;
 
         D2D1_MAPPED_RECT mappedRect{};
@@ -309,6 +309,32 @@ ImagePixelData::Ptr Direct2DPixelData::clone()
     }
 
     return cloned;
+}
+
+ImagePixelData::Ptr Direct2DPixelData::clip(Rectangle<int> sourceArea)
+{
+    auto clipped = make(pixelFormat, sourceArea.getWidth(), sourceArea.getHeight(), false, nullptr);
+
+    if (clipped == nullptr)
+        return {};
+
+    clipped->backup = backup.createCopy();
+
+    const D2D1_POINT_2U destinationPoint{ 0, 0 };
+    const auto sourceRectU = D2DUtilities::toRECT_U(sourceArea);
+    const auto sourceD2D1Bitmap = getAdapterD2D1Bitmap();
+    const auto destinationD2D1Bitmap = clipped->getAdapterD2D1Bitmap();
+
+    if (sourceD2D1Bitmap == nullptr || destinationD2D1Bitmap == nullptr)
+        return {};
+
+    if (const auto hr = destinationD2D1Bitmap->CopyFromBitmap(&destinationPoint, sourceD2D1Bitmap, &sourceRectU); FAILED(hr))
+    {
+        jassertfalse;
+        return {};
+    }
+
+    return clipped;
 }
 
 void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)

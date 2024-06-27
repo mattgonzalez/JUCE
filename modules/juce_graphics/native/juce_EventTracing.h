@@ -230,6 +230,13 @@ auto toVector (const RectangleList<Number>& list)
             JUCE_WRITE_TRACE_LOG_VA (code, keyword, TraceLoggingValue (ticks), TraceLoggingValue (frame)); \
         } };
 
+    #define JUCE_SCOPED_TRACE_EVENT_SET_FILL(keyword, frameNumber, fillType) \
+        const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), colour = fillType.colour.getARGB(), isGradient = fillType.isGradient(), isImage = fillType.isTiledImage()] \
+        {                                                    \
+            const auto ticks = ::juce::Time::getHighResolutionTicks() - start; \
+            JUCE_WRITE_TRACE_LOG_VA (etw::setFill, keyword, TraceLoggingValue (ticks), TraceLoggingValue (frame), TraceLoggingInt32 (colour), TraceLoggingBool(isGradient), TraceLoggingBool(isImage)); \
+        } };
+
     #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn) \
         const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn)] \
         { \
@@ -255,6 +262,7 @@ auto toVector (const RectangleList<Number>& list)
         } };
 #else
     #define JUCE_SCOPED_TRACE_EVENT_FRAME(code, keyword, frameNumber)
+    #define JUCE_SCOPED_TRACE_EVENT_SET_FILL(code, keyword, frameNumber, colour, isGradient, isImage)
     #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn)
     #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32(code, keyword, frameNumber, rectIn)
 #endif

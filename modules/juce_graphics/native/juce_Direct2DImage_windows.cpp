@@ -51,6 +51,8 @@ public:
                                                 lineStride,
                                                 D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW))
     {
+        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, mapBitmapTime)
+
         const D2D1_POINT_2U destPoint { 0, 0 };
         const Rectangle fullRect { w, h };
         const auto sourceRect = D2DUtilities::toRECT_U (fullRect.getIntersection (fullRect.withPosition (offset)));
@@ -66,6 +68,8 @@ public:
 
     ~NativeReadOnlyDataReleaser() override
     {
+        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, unmapBitmapTime)
+
         bitmap->Unmap();
     }
 
@@ -282,6 +286,11 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap, int x, 
 
 void Direct2DPixelData::flushToSoftwareBackup()
 {
+#if JUCE_DIRECT2D_METRICS
+    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::softwareImageBackupEnabled))
+        return;
+#endif
+
     backup = SoftwareImageType{}.convert (Image { this });
 }
 
@@ -339,6 +348,11 @@ ImagePixelData::Ptr Direct2DPixelData::clip(Rectangle<int> sourceArea)
 
 void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
 {
+#if JUCE_DIRECT2D_METRICS
+    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::effectsEnabled))
+        return;
+#endif
+
     // The result must be a separate image!
     jassert (result.getPixelData() != this);
 
@@ -394,6 +408,11 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
 
 void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& result)
 {
+#if JUCE_DIRECT2D_METRICS
+    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::effectsEnabled))
+        return;
+#endif
+
     // The result must be a separate image!
     jassert (result.getPixelData() != this);
 

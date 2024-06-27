@@ -1380,6 +1380,11 @@ void Direct2DGraphicsContext::drawImage (const Image& image, const AffineTransfo
 
     JUCE_SCOPED_TRACE_EVENT_FRAME (etw::drawImage, etw::direct2dKeyword, getFrameId());
 
+#if JUCE_DIRECT2D_METRICS
+    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::drawImageEnabled))
+        return;
+#endif
+
     if (image.isNull())
         return;
 

@@ -70,8 +70,8 @@ public:
     {
         const auto result = Pimpl::finishFrame();
 
-//         if (target != nullptr)
-//             target->flushToSoftwareBackup();
+         if (target != nullptr)
+             target->flushToSoftwareBackup();
 
         return result;
     }

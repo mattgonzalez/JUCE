@@ -122,6 +122,7 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
                 response->controls.effectsEnabled = owner.controls.effectsEnabled;
                 response->controls.fillRectListEnabled = owner.controls.fillRectListEnabled;
                 response->controls.drawImageEnabled = owner.controls.drawImageEnabled;
+                response->controls.softwareImageBackupEnabled = owner.controls.softwareImageBackupEnabled;
 
                 for (size_t i = 0; i <= Direct2DMetrics::drawGlyphRunTime; ++i)
                 {
@@ -208,6 +209,9 @@ juce::var Direct2DMetricsHub::getControl(Control control) const
 
     case Control::drawImageEnabled:
         return controls.drawImageEnabled;
+
+    case Control::softwareImageBackupEnabled:
+        return controls.softwareImageBackupEnabled;
     }
 
     return {};

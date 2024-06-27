@@ -118,8 +118,6 @@ struct Direct2DMetrics : public ReferenceCountedObject
 
     void startFrame()
     {
-        ScopedLock locker { lock };
-        zerostruct (sums);
     }
 
     void finishFrame()
@@ -132,6 +130,8 @@ struct Direct2DMetrics : public ReferenceCountedObject
 
         for (auto& accumulator : runningAccumulators)
             accumulator.reset();
+
+        zerostruct(sums);
 
         lastPaintStartTicks = 0;
         paintCount = 0;
@@ -263,6 +263,7 @@ public:
         bool effectsEnabled = true;
         bool fillRectListEnabled = true;
         bool drawImageEnabled = true;
+        bool softwareImageBackupEnabled = true;
     };
 
     struct GetValuesResponse
@@ -301,7 +302,8 @@ public:
         tileHeight,
         effectsEnabled,
         fillRectListEnabled,
-        drawImageEnabled
+        drawImageEnabled,
+        softwareImageBackupEnabled
     };
 
     var getControl (Control control) const;

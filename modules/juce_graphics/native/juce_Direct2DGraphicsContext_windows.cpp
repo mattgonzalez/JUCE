@@ -1213,9 +1213,7 @@ void Direct2DGraphicsContext::endTransparencyLayer()
 
 void Direct2DGraphicsContext::setFill (const FillType& fillType)
 {
-    JUCE_SCOPED_TRACE_EVENT_FRAME (fillType.isColour() ? 
-        etw::setFill_Colour : (fillType.isGradient() ? etw::setFill_Gradient : etw::setFill_Image),
-        etw::direct2dKeyword, getFrameId());
+    JUCE_SCOPED_TRACE_EVENT_FRAME (etw::setFill, etw::direct2dKeyword, getFrameId());
 
     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, setFillTime)
 

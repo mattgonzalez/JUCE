@@ -298,6 +298,11 @@ public:
 
         if (fillType.isGradient())
         {
+#if JUCE_DIRECT2D_METRICS
+            if (! Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::gradientEnabled])
+                return nullptr;
+#endif
+
             if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
             {
                 if (currentTransform.isOnlyTranslated)
@@ -561,7 +566,7 @@ public:
         }
         #endif
 
-        JUCE_TRACE_EVENT_INT_RECT_LIST (etw::startD2DFrame, etw::direct2dKeyword, owner.getFrameId(), paintAreas);
+        JUCE_TRACE_EVENT_INT_RECT_LIST (etw::startD2DFrame, etw::direct2dKeyword, owner.getFrameId(), paintAreas, paintAreas.getNumRectangles());
 
         // Init device context transform
         deviceResources.deviceContext.resetTransform();
@@ -886,7 +891,7 @@ bool Direct2DGraphicsContext::clipToRectangle (const Rectangle<int>& r)
     const auto& transform = currentState->currentTransform;
     auto& deviceSpaceClipList = currentState->deviceSpaceClipList;
 
-    JUCE_TRACE_EVENT_INT_RECT_LIST (etw::clipToRectangle, etw::direct2dKeyword, getFrameId(), r);
+    JUCE_TRACE_EVENT_INT_RECT_LIST (etw::clipToRectangle, etw::direct2dKeyword, getFrameId(), r, 1);
 
     // The renderer needs to keep track of the aggregate clip rectangles in order to correctly report the
     // clip region to the caller. The renderer also needs to push Direct2D clip layers to the device context
@@ -931,7 +936,7 @@ bool Direct2DGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 
 bool Direct2DGraphicsContext::clipToRectangleList (const RectangleList<int>& newClipList)
 {
-    JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32 (etw::clipToRectangleList, etw::direct2dKeyword, getFrameId(), newClipList)
+    JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32 (etw::clipToRectangleList, etw::direct2dKeyword, getFrameId(), newClipList, newClipList.getNumRectangles())
 
     const auto& transform = currentState->currentTransform;
     auto& deviceSpaceClipList = currentState->deviceSpaceClipList;
@@ -978,7 +983,7 @@ bool Direct2DGraphicsContext::clipToRectangleList (const RectangleList<int>& new
 
 void Direct2DGraphicsContext::excludeClipRectangle (const Rectangle<int>& userSpaceExcludedRectangle)
 {
-    JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32 (etw::excludeClipRectangle, etw::direct2dKeyword, getFrameId(), userSpaceExcludedRectangle)
+    JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32 (etw::excludeClipRectangle, etw::direct2dKeyword, getFrameId(), userSpaceExcludedRectangle, 1)
 
     applyPendingClipList();
 
@@ -1288,7 +1293,7 @@ void Direct2DGraphicsContext::fillRect (const Rectangle<float>& r)
 void Direct2DGraphicsContext::fillRectList (const RectangleList<float>& list)
 {
 #if JUCE_DIRECT2D_METRICS
-    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::fillRectListEnabled))
+    if (!Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::fillRectListEnabled])
         return;
 #endif
 
@@ -1381,7 +1386,7 @@ void Direct2DGraphicsContext::drawImage (const Image& image, const AffineTransfo
     JUCE_SCOPED_TRACE_EVENT_FRAME (etw::drawImage, etw::direct2dKeyword, getFrameId());
 
 #if JUCE_DIRECT2D_METRICS
-    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::drawImageEnabled))
+    if (!Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::drawImageEnabled])
         return;
 #endif
 

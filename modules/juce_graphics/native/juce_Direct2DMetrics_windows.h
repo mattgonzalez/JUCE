@@ -106,6 +106,8 @@ struct Direct2DMetrics : public ReferenceCountedObject
     uint64 lockAcquireMaxTicks = 0;
     int64 requestedMaxTextureMemory = 0;
     int64 currentMaxTextureMemory = 0;
+    float minRectangleWidth = 1.0f;
+    float minRectangleHeight = 1.0f;
 
     Direct2DMetrics (CriticalSection& lockIn, String nameIn, void* windowHandleIn)
         : lock (lockIn),
@@ -258,12 +260,20 @@ public:
     struct RenderControls
     {
         int64 maximumTextureMemory = 1024LL * 1024LL * 512LL;
+        float minRectangleWidth = 1.0f;
+        float minRectangleHeight = 1.0f;
         int32 tileWidth = 1024;
         int32 tileHeight = 1024;
-        bool effectsEnabled = true;
-        bool fillRectListEnabled = true;
-        bool drawImageEnabled = true;
-        bool softwareImageBackupEnabled = true;
+        std::array<bool, 5> flags;
+
+        enum
+        {
+            effectsEnabled,
+            fillRectListEnabled,
+            drawImageEnabled,
+            softwareImageBackupEnabled,
+            gradientEnabled
+        };
     };
 
     struct GetValuesResponse
@@ -290,23 +300,15 @@ public:
         RenderControls controls;
     };
 
+    RenderControls const& getControls() const
+    {
+        return controls;
+    }
+
     CriticalSection lock;
     Direct2DMetrics::Ptr imageContextMetrics;
 
     static constexpr int magicNumber = 0xd2d1;
-
-    enum class Control
-    {
-        maximumTextureMemory,
-        tileWidth,
-        tileHeight,
-        effectsEnabled,
-        fillRectListEnabled,
-        drawImageEnabled,
-        softwareImageBackupEnabled
-    };
-
-    var getControl (Control control) const;
 
     JUCE_DECLARE_SINGLETON (Direct2DMetricsHub, false)
 

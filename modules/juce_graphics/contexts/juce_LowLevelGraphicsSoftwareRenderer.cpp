@@ -48,7 +48,7 @@ LowLevelGraphicsSoftwareRenderer::LowLevelGraphicsSoftwareRenderer (const Image&
         (new RenderingHelpers::SoftwareRendererSavedState (image, initialClip, origin))
 {
 
-    JUCE_TRACE_EVENT_INT_RECT_LIST (etw::startGDIFrame, etw::softwareRendererKeyword, getFrameId(), initialClip);
+    JUCE_TRACE_EVENT_INT_RECT_LIST (etw::startGDIFrame, etw::softwareRendererKeyword, getFrameId(), initialClip, initialClip.getNumRectangles());
 }
 
 LowLevelGraphicsSoftwareRenderer::~LowLevelGraphicsSoftwareRenderer()

@@ -116,13 +116,7 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
                 auto* response = (GetValuesResponse*)block.getData();
                 response->responseType = getValuesRequest;
                 response->windowHandle = metrics->windowHandle;
-                response->controls.maximumTextureMemory = metrics->currentMaxTextureMemory;
-                response->controls.tileWidth = 0;
-                response->controls.tileHeight = 0;
-                response->controls.effectsEnabled = owner.controls.effectsEnabled;
-                response->controls.fillRectListEnabled = owner.controls.fillRectListEnabled;
-                response->controls.drawImageEnabled = owner.controls.drawImageEnabled;
-                response->controls.softwareImageBackupEnabled = owner.controls.softwareImageBackupEnabled;
+                response->controls = owner.controls;
 
                 for (size_t i = 0; i <= Direct2DMetrics::drawGlyphRunTime; ++i)
                 {
@@ -165,6 +159,8 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
             for (auto metrics : owner.metricsArray)
             {
                 metrics->requestedMaxTextureMemory = request->controls.maximumTextureMemory;
+                metrics->minRectangleWidth = request->controls.minRectangleWidth;
+                metrics->minRectangleHeight = request->controls.minRectangleHeight;
             }
         }
         break;
@@ -186,35 +182,6 @@ void Direct2DMetricsHub::resetAll()
     {
         metrics->reset();
     }
-}
-
-juce::var Direct2DMetricsHub::getControl(Control control) const
-{
-    switch (control)
-    {
-    case Control::maximumTextureMemory:
-        return (int64_t)controls.maximumTextureMemory;
-
-    case Control::tileWidth:
-        return (int32_t)controls.tileWidth;
-
-    case Control::tileHeight:
-        return (int32_t)controls.tileHeight;
-
-    case Control::effectsEnabled:
-        return controls.effectsEnabled;
-
-    case Control::fillRectListEnabled:
-        return controls.fillRectListEnabled;
-
-    case Control::drawImageEnabled:
-        return controls.drawImageEnabled;
-
-    case Control::softwareImageBackupEnabled:
-        return controls.softwareImageBackupEnabled;
-    }
-
-    return {};
 }
 
 } // namespace juce

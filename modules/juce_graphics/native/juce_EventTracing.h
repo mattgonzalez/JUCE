@@ -205,20 +205,31 @@ enum : uint64_t
 #endif
 
 template <typename Number>
-auto toVector (const Rectangle<Number>& r)
+auto convert (const Rectangle<Number>& r)
 {
-    return std::vector { r.getX(), r.getY(), r.getWidth(), r.getHeight() };
+    static std::array<Number, 4> result;
+
+    result[0] = r.getX();
+    result[1] = r.getY();
+    result[2] = r.getWidth();
+    result[3] = r.getHeight();
+
+    return result.data();
 }
 
 template <typename Number>
-auto toVector (const RectangleList<Number>& list)
+auto convert (const RectangleList<Number>& list)
 {
-    std::vector<Number> result;
+    static std::vector<Number> result;
 
+    size_t vectorSize = (size_t)4 * (size_t)list.getNumRectangles();
+    result.reserve(vectorSize);
+
+    result.clear();
     for (const auto& r : list)
         result.insert (result.end(), { r.getX(), r.getY(), r.getWidth(), r.getHeight() });
 
-    return result;
+    return result.data();
 }
 
 //==============================================================================
@@ -237,34 +248,36 @@ auto toVector (const RectangleList<Number>& list)
             JUCE_WRITE_TRACE_LOG_VA (etw::setFill, keyword, TraceLoggingValue (ticks), TraceLoggingValue (frame), TraceLoggingInt32 (colour), TraceLoggingBool(isGradient), TraceLoggingBool(isImage)); \
         } };
 
-    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn) \
-        const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn)] \
+    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn, numRectangles) \
+        const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn), count  = (numRectangles)] \
         { \
             const auto ticks = ::juce::Time::getHighResolutionTicks() - start;       \
-            const std::vector<float> vec = ::juce::etw::toVector (rect); \
+            const auto data = ::juce::etw::convert (rect); \
             JUCE_WRITE_TRACE_LOG_VA (code,                                             \
                                      keyword,                                          \
                                      TraceLoggingValue (ticks),                        \
                                      TraceLoggingValue (frame),                        \
-                                     TraceLoggingFloat32Array (vec.data(), (UINT16) vec.size(), "rect")); \
+                                     TraceLoggingValue (count));                        \
+                                     /*TraceLoggingFloat32Array (data, (UINT16) (count * 4), "rect"));*/ \
         } };
 
-    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32(code, keyword, frameNumber, rectIn) \
-        const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn)] \
+    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32(code, keyword, frameNumber, rectIn, numRectangles) \
+        const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn), count = (numRectangles)] \
         { \
             const auto ticks = ::juce::Time::getHighResolutionTicks() - start;       \
-            const std::vector<INT32> vec = ::juce::etw::toVector (rect); \
+            const auto data  = ::juce::etw::convert (rect); \
             JUCE_WRITE_TRACE_LOG_VA (code,                                             \
                                      keyword,                                          \
                                      TraceLoggingValue (ticks),                        \
                                      TraceLoggingValue (frame),                        \
-                                     TraceLoggingInt32Array (vec.data(), (UINT16) vec.size(), "rect")); \
+                                     TraceLoggingValue (count));                        \
+                                     /*TraceLoggingInt32Array (data, (UINT16) (count * 4), "rect"));*/ \
         } };
 #else
     #define JUCE_SCOPED_TRACE_EVENT_FRAME(code, keyword, frameNumber)
-    #define JUCE_SCOPED_TRACE_EVENT_SET_FILL(code, keyword, frameNumber, colour, isGradient, isImage)
-    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn)
-    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32(code, keyword, frameNumber, rectIn)
+    #define JUCE_SCOPED_TRACE_EVENT_SET_FILL(keyword, frameNumber, fillType)
+    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_F32(code, keyword, frameNumber, rectIn, numRectangles)
+    #define JUCE_SCOPED_TRACE_EVENT_FRAME_RECT_I32(code, keyword, frameNumber, rectIn, numRectangles)
 #endif
 
 //==============================================================================
@@ -296,24 +309,25 @@ auto toVector (const RectangleList<Number>& list)
     JUCE_WRITE_TRACE_LOG_VA (code, etw::softwareRendererKeyword, TraceLoggingValue ((UINT64) frameNumber, "frame"))
 
 #if JUCE_ETW_TRACELOGGING
-    #define JUCE_TRACE_EVENT_INT_RECT_LIST(code, keyword, frameNumber, rect) \
+    #define JUCE_TRACE_EVENT_INT_RECT_LIST(code, keyword, frameNumber, rect, count) \
         { \
-            const std::vector<INT32> vec = ::juce::etw::toVector (rect); \
+            const auto data = ::juce::etw::convert (rect); \
             JUCE_WRITE_TRACE_LOG_VA (code,                              \
                                   keyword,      \
                                   TraceLoggingValue ((UINT64) frameNumber, "frame"), \
-                                  TraceLoggingInt32Array (vec.data(), (UINT16) vec.size(), "rect")); \
+                                  TraceLoggingValue (count));                        \
+                                  /*TraceLoggingInt32Array(data, (UINT16)(count * 4), "rect"));*/ \
         }
 
     #define JUCE_TRACE_EVENT_INT_RECT(code, keyword, rect) \
         { \
-            const std::vector<INT32> vec = ::juce::etw::toVector (rect); \
+            const auto data = ::juce::etw::convert (rect); \
             JUCE_WRITE_TRACE_LOG_VA (code,                              \
                                   keyword,      \
-                                  TraceLoggingInt32Array (vec.data(), (UINT16) vec.size(), "rect")); \
+                                  TraceLoggingInt32Array (data, (UINT16)4, "rect")); \
         }
 #else
-    #define JUCE_TRACE_EVENT_INT_RECT_LIST(code, keyword, frameNumber, rect)
+    #define JUCE_TRACE_EVENT_INT_RECT_LIST(code, keyword, frameNumber, rect, count)
     #define JUCE_TRACE_EVENT_INT_RECT(code, keyword, rect)
 #endif
 

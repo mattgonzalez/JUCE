@@ -287,7 +287,7 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap, int x, 
 void Direct2DPixelData::flushToSoftwareBackup()
 {
 #if JUCE_DIRECT2D_METRICS
-    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::softwareImageBackupEnabled))
+    if (!Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::softwareImageBackupEnabled])
         return;
 #endif
 
@@ -349,7 +349,7 @@ ImagePixelData::Ptr Direct2DPixelData::clip(Rectangle<int> sourceArea)
 void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
 {
 #if JUCE_DIRECT2D_METRICS
-    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::effectsEnabled))
+    if (!Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::effectsEnabled])
         return;
 #endif
 
@@ -409,7 +409,7 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
 void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& result)
 {
 #if JUCE_DIRECT2D_METRICS
-    if (!Direct2DMetricsHub::getInstance()->getControl(Direct2DMetricsHub::Control::effectsEnabled))
+    if (!Direct2DMetricsHub::getInstance()->getControls().flags[Direct2DMetricsHub::RenderControls::effectsEnabled])
         return;
 #endif
 

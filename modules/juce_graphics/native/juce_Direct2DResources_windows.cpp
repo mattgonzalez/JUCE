@@ -313,14 +313,34 @@ public:
 
         auto destination = destinations.getData();
 
-        for (int i = 0; i < spriteBatchSize; ++i)
+#if JUCE_DIRECT2D_METRICS
+        float minWidth = Direct2DMetricsHub::getInstance()->imageContextMetrics->minRectangleWidth;
+        float minHeight = Direct2DMetricsHub::getInstance()->imageContextMetrics->minRectangleHeight;
+        spriteBatchSize = 0;
+#endif
+        for (int i = 0; i < rectangles.getNumRectangles(); ++i)
         {
             auto r = rectangles.getRectangle(i);
             r = transformRectangle(r);
+
+#if JUCE_DIRECT2D_METRICS
+            if (r.getWidth() < minWidth || r.getHeight() < minHeight)
+            {
+                continue;
+            }
+
+            ++spriteBatchSize;
+#endif
+
             *destination = D2DUtilities::toRECT_F(r);
             ++destination;
         }
 
+        if (spriteBatchSize <= 0)
+        {
+            return;
+        }
+      
         if (!sourceRectangle)
         {
             JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, createSpriteSourceTime);

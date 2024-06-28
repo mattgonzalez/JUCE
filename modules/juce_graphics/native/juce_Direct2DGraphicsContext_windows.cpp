@@ -1222,10 +1222,7 @@ void Direct2DGraphicsContext::setFill (const FillType& fillType)
 
     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(metrics, setFillTime)
 
-    if (auto deviceContext = getPimpl()->getDeviceContext())
-    {
-        currentState->fillType = fillType;
-    }
+    currentState->fillType = fillType;
 }
 
 void Direct2DGraphicsContext::setOpacity (float newOpacity)

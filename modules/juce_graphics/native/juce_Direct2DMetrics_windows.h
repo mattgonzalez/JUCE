@@ -241,7 +241,7 @@ public:
 
     enum
     {
-        getValuesRequest,
+        getValuesRequest = 1000,
         resetValuesRequest,
         getDescriptionsRequest,
         setRenderControlsRequest
@@ -259,6 +259,12 @@ public:
 
     struct RenderControls
     {
+        RenderControls()
+        {
+            for (auto& flag : flags)
+                flag = true;
+        }
+
         int64 maximumTextureMemory = 1024LL * 1024LL * 512LL;
         float minRectangleWidth = 1.0f;
         float minRectangleHeight = 1.0f;

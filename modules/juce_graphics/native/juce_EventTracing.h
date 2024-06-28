@@ -217,6 +217,7 @@ auto convert (const Rectangle<Number>& r)
     return result.data();
 }
 
+#if 0
 template <typename Number>
 auto convert (const RectangleList<Number>& list)
 {
@@ -231,6 +232,7 @@ auto convert (const RectangleList<Number>& list)
 
     return result.data();
 }
+#endif
 
 //==============================================================================
 #if JUCE_WINDOWS && JUCE_ETW_TRACELOGGING
@@ -252,7 +254,7 @@ auto convert (const RectangleList<Number>& list)
         const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn), count  = (numRectangles)] \
         { \
             const auto ticks = ::juce::Time::getHighResolutionTicks() - start;       \
-            const auto data = ::juce::etw::convert (rect); \
+            /* const auto data = ::juce::etw::convert (rect); */ \
             JUCE_WRITE_TRACE_LOG_VA (code,                                             \
                                      keyword,                                          \
                                      TraceLoggingValue (ticks),                        \
@@ -265,7 +267,7 @@ auto convert (const RectangleList<Number>& list)
         const ScopeGuard scopedEvent_ ## __LINE__ { [start = ::juce::Time::getHighResolutionTicks(), frame = (frameNumber), rect = (rectIn), count = (numRectangles)] \
         { \
             const auto ticks = ::juce::Time::getHighResolutionTicks() - start;       \
-            const auto data  = ::juce::etw::convert (rect); \
+            /* const auto data  = ::juce::etw::convert (rect); */ \
             JUCE_WRITE_TRACE_LOG_VA (code,                                             \
                                      keyword,                                          \
                                      TraceLoggingValue (ticks),                        \
@@ -311,7 +313,7 @@ auto convert (const RectangleList<Number>& list)
 #if JUCE_ETW_TRACELOGGING
     #define JUCE_TRACE_EVENT_INT_RECT_LIST(code, keyword, frameNumber, rect, count) \
         { \
-            const auto data = ::juce::etw::convert (rect); \
+            /* const auto data = ::juce::etw::convert (rect); */ \
             JUCE_WRITE_TRACE_LOG_VA (code,                              \
                                   keyword,      \
                                   TraceLoggingValue ((UINT64) frameNumber, "frame"), \

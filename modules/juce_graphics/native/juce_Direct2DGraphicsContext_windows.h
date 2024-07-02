@@ -106,6 +106,9 @@ public:
 
     uint64_t getFrameId() const override { return frame; }
 
+    uint64_t getMaximumTextureMemory() const;
+    void setMaximumTextureMemory(uint64_t);
+
     Direct2DMetrics::Ptr metrics;
 
     //==============================================================================

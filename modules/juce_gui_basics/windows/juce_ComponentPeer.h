@@ -571,6 +571,9 @@ public:
     */
     uint64_t getNumFramesPainted() const { return peerFrameNumber; }
 
+    virtual uint64_t getMaximumTextureMemory() const { return 0; }
+    virtual void setMaximumTextureMemory (uint64_t) {}
+
 protected:
     //==============================================================================
     static void forceDisplayUpdate();

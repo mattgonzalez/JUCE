@@ -867,6 +867,24 @@ void Direct2DGraphicsContext::endFrame()
     ++frame;
 }
 
+uint64_t Direct2DGraphicsContext::getMaximumTextureMemory() const
+{
+    if (auto device = getPimpl()->getAdapter().direct2DDevice)
+    {
+        return device->GetMaximumTextureMemory();
+    }
+
+    return 0;
+}
+
+void Direct2DGraphicsContext::setMaximumTextureMemory(uint64_t bytes)
+{
+    if (auto device = getPimpl()->getAdapter().direct2DDevice)
+    {
+        return device->SetMaximumTextureMemory(bytes);
+    }
+}
+
 void Direct2DGraphicsContext::setOrigin (Point<int> o)
 {
     applyPendingClipList();

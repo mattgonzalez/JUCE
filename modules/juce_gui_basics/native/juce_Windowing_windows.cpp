@@ -1467,6 +1467,14 @@ struct RenderContext
     virtual void handleShowWindow() = 0;
     virtual std::optional<LRESULT> getNcHitTestResult() = 0;
 
+    virtual uint64_t getMaximumTextureMemory() const
+    {
+        return 0;
+    }
+    virtual void setMaximumTextureMemory(uint64_t)
+    {
+    }
+
     /*  Gets a snapshot of whatever the render context is currently showing. */
     virtual Image createSnapshot() = 0;
 };
@@ -1480,6 +1488,9 @@ class HWNDComponentPeer final : public ComponentPeer
                               #endif
 {
 public:
+
+
+
     //==============================================================================
     HWNDComponentPeer (Component& comp,
                        int windowStyleFlags,
@@ -4258,6 +4269,20 @@ private:
             sendInputAttemptWhenModalMessage();
     }
 
+    uint64_t getMaximumTextureMemory() const override
+    {
+        if (renderContext)
+            return renderContext->getMaximumTextureMemory();
+
+        return 0;
+    }
+
+    void setMaximumTextureMemory(uint64_t bytes) override
+    {
+        if (renderContext)
+            renderContext->setMaximumTextureMemory (bytes);
+    }
+
     // Unfortunately SetWindowsHookEx only allows us to register a static function as a hook.
     // To get around this, we keep a static list of listeners which are interested in
     // top-level window events, and notify all of these listeners from the callback.
@@ -4769,6 +4794,18 @@ public:
     {
         direct2DContext->handleShowWindow();
         handleDirect2DPaint();
+    }
+
+    uint64_t getMaximumTextureMemory() const override
+    {
+        if (direct2DContext != nullptr)
+            return direct2DContext->getMaximumTextureMemory();
+    }
+
+    void setMaximumTextureMemory (uint64_t bytes) override
+    {
+        if (direct2DContext != nullptr)
+            direct2DContext->setMaximumTextureMemory(bytes);
     }
 
 private:

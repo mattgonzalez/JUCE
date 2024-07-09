@@ -4795,6 +4795,8 @@ public:
     {
         if (direct2DContext != nullptr)
             return direct2DContext->getMaximumTextureMemory();
+
+        return 0;
     }
 
     void setMaximumTextureMemory (uint64_t bytes) override

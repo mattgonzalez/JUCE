@@ -111,11 +111,6 @@ public:
         return *newImage.getPixelData();
     }
 
-    ImagePixelData::Ptr clip(Rectangle<int>) override
-    {
-        return nullptr;
-    }
-
     std::unique_ptr<ImageType> createType() const override { return sourceImage->createType(); }
 
     /* as we always hold a reference to image, don't double count */
@@ -215,11 +210,6 @@ public:
         auto s = new SoftwarePixelData (pixelFormat, width, height, false);
         memcpy (s->imageData, imageData, (size_t) lineStride * (size_t) height);
         return *s;
-    }
-
-    ImagePixelData::Ptr clip(const Rectangle<int>) override
-    {
-        return nullptr;
     }
 
     std::unique_ptr<ImageType> createType() const override    { return std::make_unique<SoftwareImageType>(); }
@@ -870,9 +860,9 @@ JUCE_END_IGNORE_WARNINGS_MSVC
 Image ImageScratchpad::get(int index, Image::PixelFormat format, int width, int height)
 {
     if (scratchpadImages.size() <= (size_t)index)
-        scratchpadImages.resize(index + 1);
+        scratchpadImages.resize((size_t)index + 1);
 
-    auto& image = scratchpadImages[index];
+    auto& image = scratchpadImages[(size_t)index];
     if (image.getFormat() == format && image.getWidth() >= width && image.getHeight() >= height)
     {
         return image.getClippedImage({ 0, 0, width, height });

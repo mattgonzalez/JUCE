@@ -464,7 +464,7 @@ public:
     /** Creates a copy of this image. */
     virtual Ptr clone() = 0;
     /** Creates an ImagePixelData that refers to a subsection of the same original data. */
-    virtual Ptr clip(const Rectangle<int> area) = 0;
+    virtual Ptr clip([[maybe_unused]] const Rectangle<int> area) { return {}; }
     /** Creates an instance of the type of this image. */
     virtual std::unique_ptr<ImageType> createType() const = 0;
     /** Initialises a BitmapData object. */

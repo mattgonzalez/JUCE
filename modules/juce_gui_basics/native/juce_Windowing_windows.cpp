@@ -1075,11 +1075,6 @@ public:
         return newImage.getPixelData();
     }
 
-    ImagePixelData::Ptr clip(const Rectangle<int>) override
-    {
-        return nullptr;
-    }
-
     void blitToWindow (HWND hwnd, HDC dc, bool transparent, int x, int y, uint8 layeredWindowAlpha) noexcept
     {
         SetMapMode (dc, MM_TEXT);

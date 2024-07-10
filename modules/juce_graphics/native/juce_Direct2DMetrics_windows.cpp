@@ -117,7 +117,7 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
                 response->responseType = getValuesRequest;
                 response->windowHandle = metrics->windowHandle;
                 response->controls = owner.controls;
-
+                response->controls.maximumTextureMemory = metrics->maxTextureMemory;
                 for (size_t i = 0; i <= Direct2DMetrics::drawGlyphRunTime; ++i)
                 {
                     auto& accumulator = metrics->getAccumulator(i);

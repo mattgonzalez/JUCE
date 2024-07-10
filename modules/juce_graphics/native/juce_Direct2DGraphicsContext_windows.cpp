@@ -554,7 +554,7 @@ public:
 
         #if JUCE_DIRECT2D_METRICS
         {
-            owner.metrics->currentMaxTextureMemory = adapter->direct2DDevice->GetMaximumTextureMemory();
+            owner.metrics->maxTextureMemory = adapter->direct2DDevice->GetMaximumTextureMemory();
             owner.metrics->startFrame();
         }
         #endif
@@ -872,9 +872,12 @@ uint64_t Direct2DGraphicsContext::getMaximumTextureMemory() const
 
 void Direct2DGraphicsContext::setMaximumTextureMemory(uint64_t bytes)
 {
+    getPimpl()->getAdapter().maxTextureMemory = bytes;
+
     if (auto device = getPimpl()->getAdapter().direct2DDevice)
     {
-        return device->SetMaximumTextureMemory(bytes);
+        device->SetMaximumTextureMemory(bytes);
+        DBG("Direct2D texture memory " << (int64_t)device->GetMaximumTextureMemory());
     }
 }
 

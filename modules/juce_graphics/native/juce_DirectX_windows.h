@@ -77,6 +77,12 @@ struct DxgiAdapter : public ReferenceCountedObject
 
         if (const auto hr = d2dFactory->CreateDevice (dxgiDevice, direct2DDevice.resetAndGetPointerAddress()); FAILED (hr))
             return;
+
+        if (maxTextureMemory > 0)
+        {
+            direct2DDevice->SetMaximumTextureMemory(777LL * 1024lL * 1024LL);
+            DBG("Direct2D texture memory " << (int64_t)direct2DDevice->GetMaximumTextureMemory());
+        }
     }
 
     void release()
@@ -110,6 +116,7 @@ struct DxgiAdapter : public ReferenceCountedObject
     ComSmartPtr<ID2D1Device1> direct2DDevice;
     ComSmartPtr<IDXGIAdapter1> dxgiAdapter;
     std::vector<ComSmartPtr<IDXGIOutput>> dxgiOutputs;
+    uint64_t maxTextureMemory = 0;
 };
 
 struct DxgiAdapterListener

@@ -554,14 +554,7 @@ public:
 
         #if JUCE_DIRECT2D_METRICS
         {
-            if (owner.metrics->requestedMaxTextureMemory > 0)
-            {
-                adapter->direct2DDevice->SetMaximumTextureMemory(owner.metrics->requestedMaxTextureMemory);
-            }
-
-            auto actualMaxTextureMemory = adapter->direct2DDevice->GetMaximumTextureMemory();
-
-            owner.metrics->currentMaxTextureMemory = actualMaxTextureMemory;
+            owner.metrics->currentMaxTextureMemory = adapter->direct2DDevice->GetMaximumTextureMemory();
             owner.metrics->startFrame();
         }
         #endif

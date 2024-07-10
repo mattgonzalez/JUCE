@@ -158,7 +158,6 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
 
             for (auto metrics : owner.metricsArray)
             {
-                metrics->requestedMaxTextureMemory = request->controls.maximumTextureMemory;
                 metrics->minRectangleWidth = request->controls.minRectangleWidth;
                 metrics->minRectangleHeight = request->controls.minRectangleHeight;
             }

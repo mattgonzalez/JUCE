@@ -104,7 +104,6 @@ struct Direct2DMetrics : public ReferenceCountedObject
     int present1Count = 0;
     int64 lastPaintStartTicks = 0;
     uint64 lockAcquireMaxTicks = 0;
-    int64 requestedMaxTextureMemory = 0;
     int64 currentMaxTextureMemory = 0;
     float minRectangleWidth = 1.0f;
     float minRectangleHeight = 1.0f;

@@ -177,9 +177,16 @@ static bool readFromDirect2DBitmap (ComSmartPtr<ID2D1DeviceContext1> context,
             struct Releaser : public Image::BitmapData::BitmapDataReleaser
             {
                 explicit Releaser (ComSmartPtr<ID2D1Bitmap1> toUnmapIn) : toUnmap (toUnmapIn) {}
-                ~Releaser() override { toUnmap->Unmap(); }
+                ~Releaser() override
+                {
+                    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, unmapBitmapTime);
+
+                    toUnmap->Unmap();
+                }
                 ComSmartPtr<ID2D1Bitmap1> toUnmap;
             };
+
+            JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(Direct2DMetricsHub::getInstance()->imageContextMetrics, mapBitmapTime);
 
             D2D1_MAPPED_RECT mapped{};
             bitmap->Map (D2D1_MAP_OPTIONS_READ, &mapped);

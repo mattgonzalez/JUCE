@@ -132,10 +132,10 @@ public:
         This will immediately copy the content of the image to the software backup, so that the
         image can still be drawn if original device goes away.
     */
-    Direct2DPixelData (ComSmartPtr<ID2D1DeviceContext1>, ComSmartPtr<ID2D1Bitmap1>);
+    Direct2DPixelData (ComSmartPtr<ID2D1DeviceContext1>, ComSmartPtr<ID2D1Bitmap1>, Image::Permanence permanence = Image::Permanence::permanent);
 
     /*  Creates software image storage of the requested size. */
-    Direct2DPixelData (Image::PixelFormat, int, int, bool);
+    Direct2DPixelData (Image::PixelFormat, int, int, bool, Image::Permanence permanence = Image::Permanence::permanent);
 
     ~Direct2DPixelData() override;
 
@@ -144,7 +144,7 @@ public:
     */
     ImagePixelData::Ptr clone() override
     {
-        return new Direct2DPixelData (backingData->clone(), State::drawn);
+        return new Direct2DPixelData (backingData->clone(), State::drawn, permanence);
     }
 
     std::unique_ptr<ImageType> createType() const override
@@ -198,7 +198,7 @@ private:
         drawn,
     };
 
-    Direct2DPixelData (ImagePixelData::Ptr, State);
+    Direct2DPixelData (ImagePixelData::Ptr, State, Image::Permanence permanence);
     auto getIteratorForContext (ComSmartPtr<ID2D1DeviceContext1>);
 
     void adapterCreated (DxgiAdapter::Ptr) override {}

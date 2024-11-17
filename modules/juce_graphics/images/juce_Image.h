@@ -77,6 +77,13 @@ public:
         SingleChannel       /**<< each pixel is a 1-byte alpha channel value. */
     };
 
+    enum Permanence
+    {
+        permanent,    // the image data will never be deleted
+        disposable    // the image data may be arbitrarily deleted by the GPU
+    };
+
+
     //==============================================================================
     /** Creates a null image. */
     Image() noexcept;
@@ -97,7 +104,7 @@ public:
                                 or transparent black (if it's ARGB). If false, the image may contain
                                 junk initially, so you need to make sure you overwrite it thoroughly.
     */
-    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage);
+    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage, Permanence requestedPermanence = permanent);
 
     /** Creates an image with a specified size and format.
 
@@ -114,7 +121,7 @@ public:
         @param type             the type of image - this lets you specify the internal format that will
                                 be used to allocate and manage the image data.
     */
-    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage, const ImageType& type);
+    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage, const ImageType& type, Permanence permanence = permanent);
 
     /** Creates a shared reference to another image.
 
@@ -189,6 +196,11 @@ public:
 
     /** True if the image contains an alpha-channel. */
     bool hasAlphaChannel() const noexcept;
+
+    //==============================================================================
+
+    bool isPermanent() const noexcept;
+    bool isDisposable() const noexcept;
 
     //==============================================================================
     /** Clears a section of the image with a given colour.
@@ -454,7 +466,7 @@ private:
 class JUCE_API  ImagePixelData  : public ReferenceCountedObject
 {
 public:
-    ImagePixelData (Image::PixelFormat, int width, int height);
+    ImagePixelData (Image::PixelFormat, int width, int height, Image::Permanence requestedPermanence = Image::Permanence::permanent);
     ~ImagePixelData() override;
 
     using Ptr = ReferenceCountedObjectPtr<ImagePixelData>;
@@ -501,6 +513,7 @@ public:
     /** The pixel format of the image data. */
     const Image::PixelFormat pixelFormat;
     const int width, height;
+    const Image::Permanence permanence = Image::Permanence::permanent;
 
     /** User-defined settings that are attached to this image.
         @see Image::getProperties().
@@ -541,7 +554,7 @@ public:
     virtual ~ImageType();
 
     /** Creates a new image of this type, and the specified parameters. */
-    virtual ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool shouldClearImage) const = 0;
+    virtual ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool shouldClearImage, Image::Permanence requestedPermanence = Image::Permanence::permanent) const = 0;
 
     /** Must return a unique number to identify this type. */
     virtual int getTypeID() const = 0;
@@ -566,7 +579,7 @@ public:
     SoftwareImageType();
     ~SoftwareImageType() override;
 
-    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool clearImage) const override;
+    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool clearImage, Image::Permanence requestedPermanence = Image::Permanence::permanent) const override;
     int getTypeID() const override;
 };
 
@@ -584,7 +597,7 @@ public:
     NativeImageType();
     ~NativeImageType() override;
 
-    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool clearImage) const override;
+    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool clearImage, Image::Permanence requestedPermanence = Image::Permanence::permanent) const override;
     int getTypeID() const override;
 };
 

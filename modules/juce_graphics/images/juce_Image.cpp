@@ -128,8 +128,8 @@ private:
 };
 
 //==============================================================================
-ImagePixelData::ImagePixelData (Image::PixelFormat format, int w, int h)
-    : pixelFormat (format), width (w), height (h)
+ImagePixelData::ImagePixelData (Image::PixelFormat format, int w, int h, Image::Permanence permanenceIn)
+    : pixelFormat (format), width (w), height (h), permanence(permanenceIn)
 {
     jassert (format == Image::RGB || format == Image::ARGB || format == Image::SingleChannel);
     jassert (w > 0 && h > 0); // It's illegal to create a zero-sized image!
@@ -227,8 +227,9 @@ private:
 SoftwareImageType::SoftwareImageType() = default;
 SoftwareImageType::~SoftwareImageType() = default;
 
-ImagePixelData::Ptr SoftwareImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
+ImagePixelData::Ptr SoftwareImageType::create (Image::PixelFormat format, int width, int height, bool clearImage, Image::Permanence) const
 {
+    // The Permanence parameter is ignored here, as software images are always permanent
     return *new SoftwarePixelData (format, width, height, clearImage);
 }
 
@@ -276,13 +277,13 @@ Image::Image (ReferenceCountedObjectPtr<ImagePixelData> instance) noexcept
 {
 }
 
-Image::Image (PixelFormat format, int width, int height, bool clearImage)
-    : image (NativeImageType().create (format, width, height, clearImage))
+Image::Image (PixelFormat format, int width, int height, bool clearImage, Permanence requestedPermanence)
+    : image (NativeImageType().create (format, width, height, clearImage, requestedPermanence))
 {
 }
 
-Image::Image (PixelFormat format, int width, int height, bool clearImage, const ImageType& type)
-    : image (type.create (format, width, height, clearImage))
+Image::Image (PixelFormat format, int width, int height, bool clearImage, const ImageType& type, Permanence requestedPermanence)
+    : image (type.create (format, width, height, clearImage, requestedPermanence))
 {
 }
 
@@ -325,6 +326,8 @@ bool Image::isARGB() const noexcept                     { return getFormat() == 
 bool Image::isRGB() const noexcept                      { return getFormat() == RGB; }
 bool Image::isSingleChannel() const noexcept            { return getFormat() == SingleChannel; }
 bool Image::hasAlphaChannel() const noexcept            { return getFormat() != RGB; }
+bool Image::isPermanent() const noexcept                { return image != nullptr && image->permanence == Permanence::permanent; }
+bool Image::isDisposable() const noexcept               { return image != nullptr && image->permanence == Permanence::disposable; }
 
 std::unique_ptr<LowLevelGraphicsContext> Image::createLowLevelContext() const
 {

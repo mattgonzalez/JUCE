@@ -1025,7 +1025,7 @@ public:
         struct Type : public ImageType
         {
             int getTypeID() const override { return ByteOrder::makeInt ('w', 'b', 'i', 't'); }
-            ImagePixelData::Ptr create (Image::PixelFormat, int, int, bool) const override { return {}; }
+            ImagePixelData::Ptr create (Image::PixelFormat, int, int, bool, Image::Permanence) const override { return {}; }
             Image convert (const Image&) const override { return {}; }
         };
 

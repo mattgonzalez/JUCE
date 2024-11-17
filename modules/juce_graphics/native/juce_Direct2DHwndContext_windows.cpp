@@ -366,7 +366,7 @@ public:
         if (const auto hr = snapshot->CopyFromBitmap (&p, buffer, &sourceRect); FAILED (hr))
             return {};
 
-        const Image result { new Direct2DPixelData { deviceContext, snapshot } };
+        const Image result { new Direct2DPixelData { deviceContext, snapshot, Image::Permanence::permanent } };
 
         swap.getChain()->Present (0, DXGI_PRESENT_DO_NOT_WAIT);
 

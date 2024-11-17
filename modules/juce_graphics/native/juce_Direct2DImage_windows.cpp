@@ -282,8 +282,8 @@ auto Direct2DPixelDataPages::getPages() -> Span<const Page>
 }
 
 //==============================================================================
-Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialState)
-    : ImagePixelData { ptr->pixelFormat, ptr->width, ptr->height },
+Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialState, Image::Permanence permanenceIn)
+    : ImagePixelData { ptr->pixelFormat, ptr->width, ptr->height, permanenceIn },
       backingData (ptr),
       state (initialState)
 {
@@ -292,16 +292,21 @@ Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialStat
 }
 
 Direct2DPixelData::Direct2DPixelData (ComSmartPtr<ID2D1DeviceContext1> context,
-                                      ComSmartPtr<ID2D1Bitmap1> page)
-    : Direct2DPixelData (readFromDirect2DBitmap (context, page), State::drawn)
+                                      ComSmartPtr<ID2D1Bitmap1> page,
+                                      Image::Permanence permanence)
+    : Direct2DPixelData (readFromDirect2DBitmap (context, page), State::drawn, permanence)
 {
     if (const auto device1 = getDeviceForContext (context))
         pagesForDevice.emplace (device1, Direct2DPixelDataPages { page, backingData });
 }
 
-Direct2DPixelData::Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearIn)
-    : Direct2DPixelData { SoftwareImageType{}.create (formatToUse, w, h, clearIn),
-                          clearIn ? State::initiallyCleared : State::initiallyUndefined }
+Direct2DPixelData::Direct2DPixelData (Image::PixelFormat formatToUse, int w, int h, bool clearIn, Image::Permanence permanence)
+    : Direct2DPixelData
+     {
+        SoftwareImageType{}.create (formatToUse, w, h, clearIn),
+        clearIn ? State::initiallyCleared : State::initiallyUndefined,
+        permanence
+     }
 {
 }
 
@@ -474,7 +479,10 @@ std::unique_ptr<LowLevelGraphicsContext> Direct2DPixelData::createLowLevelContex
                 return;
 
             endFrame();
-            readFromDirect2DBitmap (storedContext, storedTarget, backup);
+
+            if (self->permanence == Image::Permanence::permanent)
+                readFromDirect2DBitmap (storedContext, storedTarget, backup);
+
             self->state = State::drawn;
         }
 
@@ -572,7 +580,7 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
     context->DrawImage (effect);
     context->EndDraw();
 
-    result = Image { new Direct2DPixelData { context, outputPixelData } };
+    result = Image{ new Direct2DPixelData { context, outputPixelData, Image::Permanence::disposable } };
 }
 
 void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& result)
@@ -649,7 +657,7 @@ void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& resu
     context->DrawImage (end);
     context->EndDraw();
 
-    result = Image { new Direct2DPixelData { context, outputPixelData } };
+    result = Image { new Direct2DPixelData { context, outputPixelData, Image::Permanence::disposable } };
 }
 
 auto Direct2DPixelData::getPagesForContext (ComSmartPtr<ID2D1DeviceContext1> context) -> Span<const Page>
@@ -658,7 +666,7 @@ auto Direct2DPixelData::getPagesForContext (ComSmartPtr<ID2D1DeviceContext1> con
 }
 
 //==============================================================================
-ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
+ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage, Image::Permanence requestedPermanence) const
 {
     SharedResourcePointer<DirectX> directX;
 
@@ -672,7 +680,7 @@ ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int widt
         return new SoftwarePixelData { format, width, height, clearImage };
     }
 
-    return new Direct2DPixelData (format, width, height, clearImage);
+    return new Direct2DPixelData{ format, width, height, clearImage, requestedPermanence };
 }
 
 //==============================================================================

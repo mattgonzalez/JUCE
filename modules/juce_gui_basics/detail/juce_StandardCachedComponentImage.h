@@ -54,7 +54,8 @@ struct StandardCachedComponentImage : public CachedComponentImage
                                             : Image::ARGB,
                            jmax (1, imageBounds.getWidth()),
                            jmax (1, imageBounds.getHeight()),
-                           ! owner.isOpaque());
+                           ! owner.isOpaque(),
+                            Image::Permanence::disposable);
 
             validArea.clear();
         }

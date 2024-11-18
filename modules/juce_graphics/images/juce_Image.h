@@ -121,7 +121,7 @@ public:
         @param type             the type of image - this lets you specify the internal format that will
                                 be used to allocate and manage the image data.
     */
-    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage, const ImageType& type, Permanence permanence = permanent);
+    Image (PixelFormat format, int imageWidth, int imageHeight, bool clearImage, const ImageType& type, Permanence requestedPermanence = permanent);
 
     /** Creates a shared reference to another image.
 

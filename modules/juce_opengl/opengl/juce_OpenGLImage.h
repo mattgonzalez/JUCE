@@ -54,7 +54,7 @@ public:
     OpenGLImageType();
     ~OpenGLImageType() override;
 
-    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool shouldClearImage) const override;
+    ImagePixelData::Ptr create (Image::PixelFormat, int width, int height, bool shouldClearImage, Image::Permanence requestedPermanence = Image::Permanence::permanent) const override;
     int getTypeID() const override;
 
     static OpenGLFrameBuffer* getFrameBufferFrom (const Image&);

@@ -35,6 +35,72 @@
 namespace juce
 {
 
+ComSmartPtr<ID2D1GradientStopCollection> makeGradientStopCollection(const ColourGradient& gradient,
+    ComSmartPtr<ID2D1DeviceContext1> deviceContext,
+    [[maybe_unused]] Direct2DMetrics* metrics) noexcept;
+
+class LinearGradientCache
+{
+public:
+    ComSmartPtr<ID2D1LinearGradientBrush> get(const ColourGradient& gradient,
+        ComSmartPtr<ID2D1DeviceContext1> deviceContext,
+        Direct2DMetrics* metrics)
+    {
+        jassert(!gradient.isRadial);
+
+        return cache.get(gradient, [&deviceContext, &metrics](const auto& key)
+            {
+                const auto gradientStops = makeGradientStopCollection(key, deviceContext, metrics);
+                const auto p1 = key.point1;
+                const auto p2 = key.point2;
+                const auto linearGradientBrushProperties = D2D1::LinearGradientBrushProperties({ p1.x, p1.y }, { p2.x, p2.y });
+                const D2D1_BRUSH_PROPERTIES brushProps{ 1.0f, D2D1::IdentityMatrix() };
+
+                ComSmartPtr<ID2D1LinearGradientBrush> result;
+                deviceContext->CreateLinearGradientBrush(linearGradientBrushProperties,
+                    brushProps,
+                    gradientStops,
+                    result.resetAndGetPointerAddress());
+                return result;
+            });
+    }
+
+private:
+    LruCache<ColourGradient, ComSmartPtr<ID2D1LinearGradientBrush>> cache;
+};
+
+class RadialGradientCache
+{
+public:
+    ComSmartPtr<ID2D1RadialGradientBrush> get(const ColourGradient& gradient,
+        ComSmartPtr<ID2D1DeviceContext1> deviceContext,
+        Direct2DMetrics* metrics)
+    {
+        jassert(gradient.isRadial);
+
+        return cache.get(gradient, [&deviceContext, &metrics](const auto& key)
+            {
+                const auto gradientStops = makeGradientStopCollection(key, deviceContext, metrics);
+
+                const auto p1 = key.point1;
+                const auto p2 = key.point2;
+                const auto r = p1.getDistanceFrom(p2);
+                const auto radialGradientBrushProperties = D2D1::RadialGradientBrushProperties({ p1.x, p1.y }, {}, r, r);
+                const D2D1_BRUSH_PROPERTIES brushProps{ 1.0F, D2D1::IdentityMatrix() };
+
+                ComSmartPtr<ID2D1RadialGradientBrush> result;
+                deviceContext->CreateRadialGradientBrush(radialGradientBrushProperties,
+                    brushProps,
+                    gradientStops,
+                    result.resetAndGetPointerAddress());
+                return result;
+            });
+    }
+
+private:
+    LruCache<ColourGradient, ComSmartPtr<ID2D1RadialGradientBrush>> cache;
+};
+
 struct DxgiAdapter : public ReferenceCountedObject
 {
     using Ptr = ReferenceCountedObjectPtr<DxgiAdapter>;
@@ -110,6 +176,8 @@ struct DxgiAdapter : public ReferenceCountedObject
     ComSmartPtr<ID2D1Device1> direct2DDevice;
     ComSmartPtr<IDXGIAdapter1> dxgiAdapter;
     std::vector<ComSmartPtr<IDXGIOutput>> dxgiOutputs;
+    LinearGradientCache linearGradientCache;
+    RadialGradientCache radialGradientCache;
 
 private:
     DxgiAdapter() = default;

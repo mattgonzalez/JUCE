@@ -365,15 +365,23 @@ public:
         }
         else if (fillType.isGradient())
         {
+            SharedResourcePointer<DirectX> directX;
+
             if (fillType.gradient->isRadial)
             {
-                radialGradient = deviceResources.radialGradientCache.get (*fillType.gradient, context, owner.metrics.get());
-                currentBrush = radialGradient;
+                if (auto adapter = deviceResources.findAdapter(directX->adapters, context))
+                {
+                    radialGradient = adapter->radialGradientCache.get(*fillType.gradient, context, owner.metrics.get());
+                    currentBrush = radialGradient;
+                }
             }
             else
             {
-                linearGradient = deviceResources.linearGradientCache.get (*fillType.gradient, context, owner.metrics.get());
-                currentBrush = linearGradient;
+                if (auto adapter = deviceResources.findAdapter(directX->adapters, context))
+                {
+                    linearGradient = adapter->linearGradientCache.get(*fillType.gradient, context, owner.metrics.get());
+                    currentBrush = linearGradient;
+                }
             }
         }
 
@@ -440,6 +448,9 @@ public:
 
             if (fillType.gradient->isRadial)
             {
+                if (!radialGradient)
+                    return { colourBrush };
+
                 const auto radius = p2.getDistanceFrom (p1);
                 radialGradient->SetRadiusX (radius);
                 radialGradient->SetRadiusY (radius);
@@ -447,6 +458,9 @@ public:
             }
             else
             {
+                if (!linearGradient)
+                    return { colourBrush };
+
                 linearGradient->SetStartPoint ({ p1.x, p1.y });
                 linearGradient->SetEndPoint ({ p2.x, p2.y });
             }

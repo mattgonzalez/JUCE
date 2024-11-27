@@ -327,7 +327,7 @@ bool Image::isRGB() const noexcept                      { return getFormat() == 
 bool Image::isSingleChannel() const noexcept            { return getFormat() == SingleChannel; }
 bool Image::hasAlphaChannel() const noexcept            { return getFormat() != RGB; }
 bool Image::isPermanent() const noexcept                { return image != nullptr && image->permanence == Permanence::permanent; }
-bool Image::isDisposable() const noexcept               { return image != nullptr && image->permanence == Permanence::disposable; }
+bool Image::isDisposable() const noexcept               { return ! isPermanent(); }
 
 std::unique_ptr<LowLevelGraphicsContext> Image::createLowLevelContext() const
 {
@@ -357,7 +357,7 @@ Image Image::rescaled (int newWidth, int newHeight, Graphics::ResamplingQuality 
         return *this;
 
     auto type = image->createType();
-    Image newImage (type->create (image->pixelFormat, newWidth, newHeight, hasAlphaChannel()));
+    Image newImage (type->create (image->pixelFormat, newWidth, newHeight, hasAlphaChannel(), image->permanence));
 
     Graphics g (newImage);
     g.setImageResamplingQuality (quality);

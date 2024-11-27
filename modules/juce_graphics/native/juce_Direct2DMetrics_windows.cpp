@@ -40,34 +40,52 @@ namespace juce
 String Direct2DMetricsHub::getProcessString() noexcept
 {
     auto processID = GetCurrentProcessId();
-    return String::toHexString ((pointer_sized_int) processID);
+    auto string = String{ (pointer_sized_int)processID };
+
+    auto processHandle = GetCurrentProcess();
+    wchar_t processNameBuffer[256];
+    DWORD numWchar = numElementsInArray(processNameBuffer);
+    if (QueryFullProcessImageNameW(processHandle,
+        0,
+        processNameBuffer,
+        &numWchar))
+    {
+        File file{ juce::String{ processNameBuffer, numWchar } };
+        string =  file.getFileNameWithoutExtension() + "_" + string;
+    }
+
+    return string;
 }
 
 void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& message)
 {
-    int requestType = *(int*) message.getData();
-    switch (requestType)
+    auto request = (Request*) message.getData();
+    if (!request || message.getSize() < sizeof (Request))
+        return;
+
+    switch (request->requestType)
     {
         case getValuesRequest:
         {
             ScopedLock locker { owner.lock };
 
-            auto foregroundWindow = GetForegroundWindow();
             Direct2DMetrics::Ptr metrics = nullptr;
-            for (int i = 0; i < owner.metricsArray.size(); ++i)
+            if (request->windowHandle)
             {
-                auto arrayEntry = owner.metricsArray[i];
-                if (arrayEntry->windowHandle && arrayEntry->windowHandle == foregroundWindow)
+                for (int i = 0; i < owner.metricsArray.size(); ++i)
                 {
-                    metrics = arrayEntry;
-                    break;
+                    auto arrayEntry = owner.metricsArray[i];
+                    if (arrayEntry->windowHandle && arrayEntry->windowHandle == request->windowHandle)
+                    {
+                        metrics = arrayEntry;
+                        break;
+                    }
                 }
             }
 
             if (! metrics)
             {
-                if (owner.lastMetrics && owner.metricsArray.contains (owner.lastMetrics))
-                    metrics = owner.lastMetrics;
+                metrics = owner.imageContextMetrics;
             }
 
             if (metrics)
@@ -102,8 +120,6 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
                 }
 
                 sendMessage (block);
-
-                owner.lastMetrics = metrics.get();
             }
             break;
         }
@@ -111,6 +127,29 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
         case resetValuesRequest:
         {
             owner.resetAll();
+            break;
+        }
+
+        case getWindowHandlesRequest:
+        {
+            MemoryBlock block{ sizeof(GetWindowHandlesResponse), true };
+            auto response = (GetWindowHandlesResponse*)block.getData();
+
+            ScopedLock locker{ owner.lock };
+
+            int numWindowHandles = jmin(owner.metricsArray.size(), numElementsInArray(response->windowHandles));
+            for (int i = 0; i < numWindowHandles; ++i)
+            {
+                auto const& metrics = owner.metricsArray[i];
+                if (metrics->windowHandle)
+                {
+                    response->windowHandles[i] = metrics->windowHandle;
+                }
+            }
+
+            response->responseType = getWindowHandlesRequest;
+
+            sendMessage(block);
             break;
         }
     }

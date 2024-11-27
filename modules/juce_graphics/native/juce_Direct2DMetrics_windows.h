@@ -235,7 +235,10 @@ public:
     enum
     {
         getValuesRequest,
-        resetValuesRequest
+        resetValuesRequest,
+        getWindowHandlesRequest,
+
+        imageContextMetricsHandle = 0xccbbaa99
     };
 
     struct MetricValues
@@ -248,11 +251,24 @@ public:
         double stdDev;
     };
 
+    struct Request
+    {
+        int requestType;
+        void* windowHandle;
+    };
+
     struct GetValuesResponse
     {
         int responseType;
         void* windowHandle;
         MetricValues values[Direct2DMetrics::numStats];
+    };
+
+    struct GetWindowHandlesResponse
+    {
+        int responseType;
+        static size_t constexpr maxNumWindowHandles = 64;
+        void* windowHandles[maxNumWindowHandles];
     };
 
     CriticalSection lock;
@@ -273,7 +289,7 @@ private:
             : InterprocessConnection (false, magicNumber),
               owner (ownerIn)
         {
-            createPipe ("JUCEDirect2DMetricsHub:" + owner.getProcessString(), -1, true);
+            createPipe ("JUCEDirect2DMetricsHub_" + owner.getProcessString(), -1, true);
         }
 
         ~HubPipeServer() override
@@ -296,7 +312,6 @@ private:
 
     HubPipeServer hubPipeServer { *this };
     ReferenceCountedArray<Direct2DMetrics> metricsArray;
-    Direct2DMetrics* lastMetrics = nullptr;
 };
 
 } // namespace juce

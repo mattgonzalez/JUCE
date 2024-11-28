@@ -142,10 +142,7 @@ public:
     /*  Creates new software image storage with content matching the content of this image.
         Does not copy any hardware resources.
     */
-    ImagePixelData::Ptr clone() override
-    {
-        return new Direct2DPixelData (backingData->clone(), State::drawn, permanence);
-    }
+    ImagePixelData::Ptr clone() override;
 
     std::unique_ptr<ImageType> createType() const override
     {
@@ -170,6 +167,7 @@ public:
     */
     void initialiseBitmapData (Image::BitmapData&, int, int, Image::BitmapData::ReadWriteMode) override;
 
+    void desaturate() override;
     void applyGaussianBlurEffect (float radius, Image& result) override;
     void applySingleChannelBoxBlurEffect (int radius, Image& result) override;
 
@@ -198,7 +196,7 @@ private:
         drawn,
     };
 
-    Direct2DPixelData (ImagePixelData::Ptr, State, Image::Permanence permanence);
+    Direct2DPixelData (ImagePixelData::Ptr, State, Image::Permanence);
     auto getIteratorForContext (ComSmartPtr<ID2D1DeviceContext1>);
 
     void adapterCreated (DxgiAdapter::Ptr) override {}

@@ -150,6 +150,57 @@ int ImagePixelData::getSharedCount() const noexcept
     return getReferenceCount();
 }
 
+template <class PixelType>
+struct PixelIterator
+{
+    template <class PixelOperation>
+    static void iterate(const Image::BitmapData& data, const PixelOperation& pixelOp)
+    {
+        for (int y = 0; y < data.height; ++y)
+        {
+            auto p = data.getLinePointer(y);
+
+            for (int x = 0; x < data.width; ++x)
+            {
+                pixelOp(*reinterpret_cast<PixelType*> (p));
+                p += data.pixelStride;
+            }
+        }
+    }
+};
+
+template <class PixelOperation>
+static void performPixelOp(const Image::BitmapData& data, const PixelOperation& pixelOp)
+{
+    switch (data.pixelFormat)
+    {
+    case Image::ARGB:           PixelIterator<PixelARGB> ::iterate(data, pixelOp); break;
+    case Image::RGB:            PixelIterator<PixelRGB>  ::iterate(data, pixelOp); break;
+    case Image::SingleChannel:  PixelIterator<PixelAlpha>::iterate(data, pixelOp); break;
+    case Image::UnknownFormat:
+    default:                    jassertfalse; break;
+    }
+}
+
+struct DesaturateOp
+{
+    template <class PixelType>
+    void operator() (PixelType& pixel) const
+    {
+        pixel.desaturate();
+    }
+};
+
+void ImagePixelData::desaturate()
+{
+    if (pixelFormat == Image::RGB || pixelFormat == Image::ARGB)
+    {
+        Image image{ this };
+        const Image::BitmapData destData(image, 0, 0, width, height, Image::BitmapData::readWrite);
+        performPixelOp(destData, DesaturateOp());
+    }
+}
+
 void ImagePixelData::applyGaussianBlurEffect ([[maybe_unused]] float radius, Image& result)
 {
     result = {};
@@ -547,38 +598,6 @@ void Image::multiplyAlphaAt (int x, int y, float multiplier)
     }
 }
 
-template <class PixelType>
-struct PixelIterator
-{
-    template <class PixelOperation>
-    static void iterate (const Image::BitmapData& data, const PixelOperation& pixelOp)
-    {
-        for (int y = 0; y < data.height; ++y)
-        {
-            auto p = data.getLinePointer (y);
-
-            for (int x = 0; x < data.width; ++x)
-            {
-                pixelOp (*reinterpret_cast<PixelType*> (p));
-                p += data.pixelStride;
-            }
-        }
-    }
-};
-
-template <class PixelOperation>
-static void performPixelOp (const Image::BitmapData& data, const PixelOperation& pixelOp)
-{
-    switch (data.pixelFormat)
-    {
-        case Image::ARGB:           PixelIterator<PixelARGB> ::iterate (data, pixelOp); break;
-        case Image::RGB:            PixelIterator<PixelRGB>  ::iterate (data, pixelOp); break;
-        case Image::SingleChannel:  PixelIterator<PixelAlpha>::iterate (data, pixelOp); break;
-        case Image::UnknownFormat:
-        default:                    jassertfalse; break;
-    }
-}
-
 struct AlphaMultiplyOp
 {
     float alpha;
@@ -598,22 +617,10 @@ void Image::multiplyAllAlphas (float amountToMultiplyBy)
     performPixelOp (destData, AlphaMultiplyOp { amountToMultiplyBy });
 }
 
-struct DesaturateOp
-{
-    template <class PixelType>
-    void operator() (PixelType& pixel) const
-    {
-        pixel.desaturate();
-    }
-};
-
 void Image::desaturate()
 {
-    if (isARGB() || isRGB())
-    {
-        const BitmapData destData (*this, 0, 0, getWidth(), getHeight(), BitmapData::readWrite);
-        performPixelOp (destData, DesaturateOp());
-    }
+    if (image)
+        image->desaturate();
 }
 
 void Image::createSolidAreaMask (RectangleList<int>& result, float alphaThreshold) const

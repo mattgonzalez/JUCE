@@ -282,8 +282,8 @@ auto Direct2DPixelDataPages::getPages() -> Span<const Page>
 }
 
 //==============================================================================
-Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialState, Image::Permanence permanenceIn)
-    : ImagePixelData { ptr->pixelFormat, ptr->width, ptr->height, permanenceIn },
+Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialState, Image::Permanence permanence)
+    : ImagePixelData { ptr->pixelFormat, ptr->width, ptr->height, permanence },
       backingData (ptr),
       state (initialState)
 {
@@ -292,8 +292,8 @@ Direct2DPixelData::Direct2DPixelData (ImagePixelData::Ptr ptr, State initialStat
 }
 
 Direct2DPixelData::Direct2DPixelData (ComSmartPtr<ID2D1DeviceContext1> context,
-                                      ComSmartPtr<ID2D1Bitmap1> page,
-                                      Image::Permanence permanence)
+    ComSmartPtr<ID2D1Bitmap1> page,
+    Image::Permanence permanence)
     : Direct2DPixelData (readFromDirect2DBitmap (context, page), State::drawn, permanence)
 {
     if (const auto device1 = getDeviceForContext (context))
@@ -313,6 +313,32 @@ Direct2DPixelData::Direct2DPixelData (Image::PixelFormat formatToUse, int w, int
 Direct2DPixelData::~Direct2DPixelData()
 {
     directX->adapters.removeListener (*this);
+}
+
+ImagePixelData::Ptr Direct2DPixelData::clone()
+{
+    if (permanence == Image::Permanence::disposable)
+    {
+        const auto adapter = directX->adapters.getDefaultAdapter();
+        if (adapter)
+        {
+            const auto context = Direct2DDeviceContext::create(adapter);
+            const auto maxSize = (int)context->GetMaximumBitmapSize();
+            if (context && width <= maxSize && height <= maxSize)
+            {
+                auto clonePixelData = new Direct2DPixelData{ pixelFormat, width, height, false, Image::Permanence::disposable };
+                auto sourceBitmap = getFirstPageForContext(context);
+                auto destinationBitmap = clonePixelData->getFirstPageForContext(context);
+                if (sourceBitmap && destinationBitmap)
+                {
+                    destinationBitmap->CopyFromBitmap(nullptr, sourceBitmap, nullptr);
+                    return clonePixelData;
+                }
+            }
+        }
+    }
+
+    return new Direct2DPixelData { backingData, state, permanence };
 }
 
 auto Direct2DPixelData::getIteratorForContext (ComSmartPtr<ID2D1DeviceContext1> context)
@@ -534,6 +560,55 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap,
     };
 
     bitmap.dataReleaser = std::make_unique<Releaser> (std::move (bitmap.dataReleaser), this);
+}
+
+void Direct2DPixelData::desaturate()
+{
+    if (permanence == Image::Permanence::permanent)
+    {
+        ImagePixelData::desaturate();
+        return;
+    }
+
+    const auto adapter = directX->adapters.getDefaultAdapter();
+    if (adapter == nullptr)
+    {
+        ImagePixelData::desaturate();
+        return;
+    }
+
+    const auto context = Direct2DDeviceContext::create(adapter);
+    const auto maxSize = (int)context->GetMaximumBitmapSize();
+
+    if (context == nullptr || maxSize < width || maxSize < height)
+    {
+        ImagePixelData::desaturate();
+        return;
+    }
+
+    ComSmartPtr<ID2D1Effect> effect;
+    if (const auto hr = context->CreateEffect(CLSID_D2D1Grayscale, effect.resetAndGetPointerAddress());
+        FAILED(hr) || effect == nullptr)
+    {
+        ImagePixelData::desaturate();
+        return;
+    }
+
+    auto sourceBitmap = getFirstPageForContext(context);
+    effect->SetInput(0, sourceBitmap);
+
+    const auto outputBitmap = Direct2DBitmap::createBitmap(context,
+        Image::ARGB,
+        D2D1::SizeU((UINT32)width, (UINT32)height),
+        D2D1_BITMAP_OPTIONS_TARGET);
+
+    context->SetTarget(outputBitmap);
+    context->BeginDraw();
+    context->Clear();
+    context->DrawImage(effect);
+    context->EndDraw();
+
+    sourceBitmap->CopyFromBitmap(nullptr, outputBitmap, nullptr);
 }
 
 void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)

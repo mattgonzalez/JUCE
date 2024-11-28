@@ -564,43 +564,46 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap,
 
 void Direct2DPixelData::desaturate()
 {
-    if (permanence == Image::Permanence::permanent)
-    {
-        ImagePixelData::desaturate();
-        return;
-    }
+    if (permanence == Image::Permanence::disposable)
+        if ( applyDirect2DEffect(CLSID_D2D1Grayscale, {}))
+            return;
 
+    ImagePixelData::desaturate();
+}
+
+bool Direct2DPixelData::applyDirect2DEffect(GUID const& effectID, Direct2DPixelData::Ptr outputPixelData, std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect)
+{
     const auto adapter = directX->adapters.getDefaultAdapter();
     if (adapter == nullptr)
-    {
-        ImagePixelData::desaturate();
-        return;
-    }
+        return false;
 
     const auto context = Direct2DDeviceContext::create(adapter);
     const auto maxSize = (int)context->GetMaximumBitmapSize();
-
     if (context == nullptr || maxSize < width || maxSize < height)
-    {
-        ImagePixelData::desaturate();
-        return;
-    }
+        return false;
 
     ComSmartPtr<ID2D1Effect> effect;
-    if (const auto hr = context->CreateEffect(CLSID_D2D1Grayscale, effect.resetAndGetPointerAddress());
-        FAILED(hr) || effect == nullptr)
-    {
-        ImagePixelData::desaturate();
-        return;
-    }
+    if (const auto hr = context->CreateEffect(effectID, effect.resetAndGetPointerAddress()); FAILED(hr))
+        return false;
+
+    if (configureEffect.has_value())
+        (*configureEffect)(effect);
 
     auto sourceBitmap = getFirstPageForContext(context);
     effect->SetInput(0, sourceBitmap);
 
-    const auto outputBitmap = Direct2DBitmap::createBitmap(context,
-        Image::ARGB,
-        D2D1::SizeU((UINT32)width, (UINT32)height),
-        D2D1_BITMAP_OPTIONS_TARGET);
+    ComSmartPtr<ID2D1Bitmap1> outputBitmap;
+    if (outputPixelData)
+    {
+        outputBitmap = outputPixelData->getFirstPageForContext(context);
+    }
+    else
+    {
+        outputBitmap = Direct2DBitmap::createBitmap(context,
+            Image::ARGB,
+            D2D1::SizeU((UINT32)width, (UINT32)height),
+            D2D1_BITMAP_OPTIONS_TARGET);
+    }
 
     context->SetTarget(outputBitmap);
     context->BeginDraw();
@@ -608,7 +611,12 @@ void Direct2DPixelData::desaturate()
     context->DrawImage(effect);
     context->EndDraw();
 
-    sourceBitmap->CopyFromBitmap(nullptr, outputBitmap, nullptr);
+    if (outputPixelData == nullptr)
+    {
+        sourceBitmap->CopyFromBitmap(nullptr, outputBitmap, nullptr);
+    }
+
+    return true;
 }
 
 void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
@@ -616,46 +624,17 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
     // The result must be a separate image!
     jassert (result.getPixelData() != this);
 
-    const auto adapter = directX->adapters.getDefaultAdapter();
-
-    if (adapter == nullptr)
+    auto outputPixelData = dynamic_cast<Direct2DPixelData*>(result.getPixelData());
+    if (outputPixelData == nullptr)
     {
         result = {};
         return;
     }
 
-    const auto context = Direct2DDeviceContext::create (adapter);
-    const auto maxSize = (int) context->GetMaximumBitmapSize();
-
-    if (context == nullptr || maxSize < width || maxSize < height)
-    {
-        result = {};
-        return;
-    }
-
-    ComSmartPtr<ID2D1Effect> effect;
-    if (const auto hr = context->CreateEffect (CLSID_D2D1GaussianBlur, effect.resetAndGetPointerAddress());
-        FAILED (hr) || effect == nullptr)
-    {
-        result = {};
-        return;
-    }
-
-    effect->SetInput (0, getFirstPageForContext (context));
-    effect->SetValue (D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, radius / 3.0f);
-
-    const auto outputPixelData = Direct2DBitmap::createBitmap (context,
-                                                               Image::ARGB,
-                                                               D2D1::SizeU ((UINT32) width, (UINT32) height),
-                                                               D2D1_BITMAP_OPTIONS_TARGET);
-
-    context->SetTarget (outputPixelData);
-    context->BeginDraw();
-    context->Clear();
-    context->DrawImage (effect);
-    context->EndDraw();
-
-    result = Image{ new Direct2DPixelData { context, outputPixelData, Image::Permanence::disposable } };
+    applyDirect2DEffect(CLSID_D2D1GaussianBlur, outputPixelData, [radius](ComSmartPtr<ID2D1Effect> effect)
+        {
+            effect->SetValue(D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, radius / 3.0f);
+        });
 }
 
 void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& result)

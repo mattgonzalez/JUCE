@@ -206,6 +206,8 @@ private:
             pagesForDevice.erase (adapter->direct2DDevice);
     }
 
+    bool applyDirect2DEffect(GUID const& effectID, Direct2DPixelData::Ptr outputPixelData, std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect = std::nullopt);
+
     SharedResourcePointer<DirectX> directX;
     ImagePixelData::Ptr backingData;
     std::map<ComSmartPtr<ID2D1Device1>, Pages> pagesForDevice;

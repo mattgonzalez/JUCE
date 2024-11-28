@@ -150,6 +150,77 @@ int ImagePixelData::getSharedCount() const noexcept
     return getReferenceCount();
 }
 
+void ImagePixelData::moveImageSection(int dx, int dy,
+    int sx, int sy,
+    int w, int h)
+{
+    if (dx < 0)
+    {
+        w += dx;
+        sx -= dx;
+        dx = 0;
+    }
+
+    if (dy < 0)
+    {
+        h += dy;
+        sy -= dy;
+        dy = 0;
+    }
+
+    if (sx < 0)
+    {
+        w += sx;
+        dx -= sx;
+        sx = 0;
+    }
+
+    if (sy < 0)
+    {
+        h += sy;
+        dy -= sy;
+        sy = 0;
+    }
+
+    const int minX = jmin(dx, sx);
+    const int minY = jmin(dy, sy);
+
+    w = jmin(w, width - jmax(sx, dx));
+    h = jmin(h, height - jmax(sy, dy));
+
+    if (w > 0 && h > 0)
+    {
+        auto maxX = jmax(dx, sx) + w;
+        auto maxY = jmax(dy, sy) + h;
+
+        Image image{ this };
+        const Image::BitmapData destData(image, minX, minY, maxX - minX, maxY - minY, Image::BitmapData::readWrite);
+
+        auto dst = destData.getPixelPointer(dx - minX, dy - minY);
+        auto src = destData.getPixelPointer(sx - minX, sy - minY);
+
+        auto lineSize = (size_t)destData.pixelStride * (size_t)w;
+
+        if (dy > sy)
+        {
+            while (--h >= 0)
+            {
+                const int offset = h * destData.lineStride;
+                memmove(dst + offset, src + offset, lineSize);
+            }
+        }
+        else if (dst != src)
+        {
+            while (--h >= 0)
+            {
+                memmove(dst, src, lineSize);
+                dst += destData.lineStride;
+                src += destData.lineStride;
+            }
+        }
+    }
+}
+
 template <class PixelType>
 struct PixelIterator
 {
@@ -677,70 +748,8 @@ void Image::moveImageSection (int dx, int dy,
                               int sx, int sy,
                               int w, int h)
 {
-    if (dx < 0)
-    {
-        w += dx;
-        sx -= dx;
-        dx = 0;
-    }
-
-    if (dy < 0)
-    {
-        h += dy;
-        sy -= dy;
-        dy = 0;
-    }
-
-    if (sx < 0)
-    {
-        w += sx;
-        dx -= sx;
-        sx = 0;
-    }
-
-    if (sy < 0)
-    {
-        h += sy;
-        dy -= sy;
-        sy = 0;
-    }
-
-    const int minX = jmin (dx, sx);
-    const int minY = jmin (dy, sy);
-
-    w = jmin (w, getWidth()  - jmax (sx, dx));
-    h = jmin (h, getHeight() - jmax (sy, dy));
-
-    if (w > 0 && h > 0)
-    {
-        auto maxX = jmax (dx, sx) + w;
-        auto maxY = jmax (dy, sy) + h;
-
-        const BitmapData destData (*this, minX, minY, maxX - minX, maxY - minY, BitmapData::readWrite);
-
-        auto dst = destData.getPixelPointer (dx - minX, dy - minY);
-        auto src = destData.getPixelPointer (sx - minX, sy - minY);
-
-        auto lineSize = (size_t) destData.pixelStride * (size_t) w;
-
-        if (dy > sy)
-        {
-            while (--h >= 0)
-            {
-                const int offset = h * destData.lineStride;
-                memmove (dst + offset, src + offset, lineSize);
-            }
-        }
-        else if (dst != src)
-        {
-            while (--h >= 0)
-            {
-                memmove (dst, src, lineSize);
-                dst += destData.lineStride;
-                src += destData.lineStride;
-            }
-        }
-    }
+    if (image)
+        image->moveImageSection (dx, dy, sx, sy, w, h);
 }
 
 void ImageEffects::applyGaussianBlurEffect (float radius, const Image& input, Image& result)

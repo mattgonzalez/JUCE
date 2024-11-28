@@ -167,6 +167,9 @@ public:
     */
     void initialiseBitmapData (Image::BitmapData&, int, int, Image::BitmapData::ReadWriteMode) override;
 
+    void moveImageSection(int destX, int destY,
+        int sourceX, int sourceY,
+        int width, int height) override;
     void desaturate() override;
     void applyGaussianBlurEffect (float radius, Image& result) override;
     void applySingleChannelBoxBlurEffect (int radius, Image& result) override;
@@ -206,7 +209,10 @@ private:
             pagesForDevice.erase (adapter->direct2DDevice);
     }
 
-    bool applyDirect2DEffect(GUID const& effectID, Direct2DPixelData::Ptr outputPixelData, std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect = std::nullopt);
+    bool applyDirect2DEffect(GUID const& effectID,
+        Direct2DPixelData::Ptr outputPixelData,
+        Rectangle<int> outputArea,
+        std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect = std::nullopt);
 
     SharedResourcePointer<DirectX> directX;
     ImagePixelData::Ptr backingData;

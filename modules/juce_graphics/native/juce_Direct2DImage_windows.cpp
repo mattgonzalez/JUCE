@@ -562,16 +562,40 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap,
     bitmap.dataReleaser = std::make_unique<Releaser> (std::move (bitmap.dataReleaser), this);
 }
 
+void Direct2DPixelData::moveImageSection(int dx, int dy,
+    int sx, int sy,
+    int w, int h)
+{
+    if (permanence == Image::Permanence::disposable)
+    {
+        if (applyDirect2DEffect(CLSID_D2D1Atlas,
+            nullptr,
+            { dx, dy, w, h },
+            [=](ComSmartPtr<ID2D1Effect> effect)
+            {
+                effect->SetValue(D2D1_ATLAS_PROP_INPUT_RECT, D2D1::RectF((FLOAT)sx, (FLOAT)sy, (FLOAT)(sx + w), (FLOAT)(sy + h)));
+            }))
+        {
+            return;
+        }
+    }
+
+    ImagePixelData::moveImageSection(dx, dy, sx, sy, w, h);
+}
+
 void Direct2DPixelData::desaturate()
 {
     if (permanence == Image::Permanence::disposable)
-        if ( applyDirect2DEffect(CLSID_D2D1Grayscale, {}))
+        if ( applyDirect2DEffect(CLSID_D2D1Grayscale, {}, { width, height }))
             return;
 
     ImagePixelData::desaturate();
 }
 
-bool Direct2DPixelData::applyDirect2DEffect(GUID const& effectID, Direct2DPixelData::Ptr outputPixelData, std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect)
+bool Direct2DPixelData::applyDirect2DEffect(GUID const& effectID,
+    Direct2DPixelData::Ptr outputPixelData,
+    Rectangle<int> outputArea,
+    std::optional<std::function<void(ComSmartPtr<ID2D1Effect>)>> configureEffect)
 {
     const auto adapter = directX->adapters.getDefaultAdapter();
     if (adapter == nullptr)
@@ -601,19 +625,25 @@ bool Direct2DPixelData::applyDirect2DEffect(GUID const& effectID, Direct2DPixelD
     {
         outputBitmap = Direct2DBitmap::createBitmap(context,
             Image::ARGB,
-            D2D1::SizeU((UINT32)width, (UINT32)height),
+            D2D1::SizeU((UINT32)outputArea.getWidth(), (UINT32)outputArea.getHeight()),
             D2D1_BITMAP_OPTIONS_TARGET);
     }
 
     context->SetTarget(outputBitmap);
     context->BeginDraw();
+    if (outputPixelData && (outputArea.getWidth() != outputPixelData->width || outputArea.getHeight() != outputPixelData->height))
+    {
+        context->PushAxisAlignedClip(D2DUtilities::toRECT_F(outputArea), D2D1_ANTIALIAS_MODE_ALIASED);
+    }
     context->Clear();
     context->DrawImage(effect);
     context->EndDraw();
 
     if (outputPixelData == nullptr)
     {
-        sourceBitmap->CopyFromBitmap(nullptr, outputBitmap, nullptr);
+        D2D1_POINT_2U destinationPoint{ (uint32_t)outputArea.getX(), (uint32_t)outputArea.getY() };
+        D2D1_RECT_U sourceArea{ 0, 0, (uint32_t)outputArea.getWidth(), (uint32_t)outputArea.getHeight()};
+        sourceBitmap->CopyFromBitmap(&destinationPoint, outputBitmap, &sourceArea);
     }
 
     return true;
@@ -631,7 +661,7 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
         return;
     }
 
-    applyDirect2DEffect(CLSID_D2D1GaussianBlur, outputPixelData, [radius](ComSmartPtr<ID2D1Effect> effect)
+    applyDirect2DEffect(CLSID_D2D1GaussianBlur, outputPixelData, { width, height }, [radius](ComSmartPtr<ID2D1Effect> effect)
         {
             effect->SetValue(D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, radius / 3.0f);
         });

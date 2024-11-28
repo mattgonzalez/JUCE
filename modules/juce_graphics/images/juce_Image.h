@@ -485,6 +485,11 @@ public:
     */
     virtual int getSharedCount() const noexcept;
 
+    /** Copies a section of the image to somewhere else within itself. */
+    virtual void moveImageSection(int destX, int destY,
+        int sourceX, int sourceY,
+        int width, int height);
+
     /** Changes all the colours to be shades of grey, based on their current luminosity.
         */
     virtual void desaturate();

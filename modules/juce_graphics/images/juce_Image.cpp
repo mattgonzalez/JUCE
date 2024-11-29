@@ -104,7 +104,7 @@ public:
         jassert (getReferenceCount() > 0); // (This method can't be used on an unowned pointer, as it will end up self-deleting)
         auto type = createType();
 
-        Image newImage (type->create (pixelFormat, area.getWidth(), area.getHeight(), pixelFormat != Image::RGB));
+        Image newImage (type->create (pixelFormat, area.getWidth(), area.getHeight(), pixelFormat != Image::RGB, sourceImage->permanence));
 
         {
             Graphics g (newImage);

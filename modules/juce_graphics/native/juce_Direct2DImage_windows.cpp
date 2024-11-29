@@ -569,33 +569,33 @@ void Direct2DPixelData::moveImageSection(int dx, int dy,
     if (permanence == Image::Permanence::disposable)
     {
         const auto adapter = directX->adapters.getDefaultAdapter();
-        if (adapter == nullptr)
-            return;
+        if (adapter)
+        {
+            const auto context = Direct2DDeviceContext::create(adapter);
+            const auto maxSize = (int)context->GetMaximumBitmapSize();
+            if (context && maxSize >= width && maxSize >= height)
+            {
+                Rectangle<int> sourceRect{ sx, sy, w, h };
+                Rectangle<int> destRect{ dx, dy, w, h };
+                sourceRect = sourceRect.getIntersection(Rectangle<int>{ width, height });
+                destRect = destRect.getIntersection(Rectangle<int>{ width, height });
+                if (!sourceRect.isEmpty() && !destRect.isEmpty())
+                {
+                    auto originalBitmap = getFirstPageForContext(context);
+                    auto tempBitmap = Direct2DBitmap::createBitmap(context,
+                        pixelFormat,
+                        D2D1::SizeU((UINT32)w, (UINT32)h),
+                        D2D1_BITMAP_OPTIONS_NONE);
 
-        const auto context = Direct2DDeviceContext::create(adapter);
-        const auto maxSize = (int)context->GetMaximumBitmapSize();
-        if (context == nullptr || maxSize < width || maxSize < height)
-            return;
+                    auto sourceRectU = D2DUtilities::toRECT_U(sourceRect);
+                    tempBitmap->CopyFromBitmap(nullptr, originalBitmap, &sourceRectU);
+                    auto destPoint = D2DUtilities::toPOINT_2U(destRect.getTopLeft());
+                    originalBitmap->CopyFromBitmap(&destPoint, tempBitmap, nullptr);
 
-        Rectangle<int> sourceRect{ sx, sy, w, h };
-        Rectangle<int> destRect{ dx, dy, w, h };
-        sourceRect = sourceRect.getIntersection(Rectangle<int>{ width, height });
-        destRect = destRect.getIntersection(Rectangle<int>{ width, height });
-        if (sourceRect.isEmpty() || destRect.isEmpty())
-            return;
-
-        auto originalBitmap = getFirstPageForContext(context);
-        auto tempBitmap = Direct2DBitmap::createBitmap(context,
-                pixelFormat,
-                D2D1::SizeU((UINT32)w, (UINT32)h),
-                D2D1_BITMAP_OPTIONS_NONE);
-
-        auto sourceRectU = D2DUtilities::toRECT_U(sourceRect);
-        tempBitmap->CopyFromBitmap(nullptr, originalBitmap, &sourceRectU);
-        auto destPoint = D2DUtilities::toPOINT_2U(destRect.getTopLeft());
-        originalBitmap->CopyFromBitmap(&destPoint, tempBitmap, nullptr);
-
-        return;
+                    return;
+                }
+            }
+        }
     }
 
     ImagePixelData::moveImageSection(dx, dy, sx, sy, w, h);

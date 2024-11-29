@@ -338,7 +338,7 @@ ImagePixelData::Ptr Direct2DPixelData::clone()
         }
     }
 
-    return new Direct2DPixelData { backingData, state, permanence };
+    return new Direct2DPixelData{ backingData->clone(), State::drawn, permanence };
 }
 
 auto Direct2DPixelData::getIteratorForContext (ComSmartPtr<ID2D1DeviceContext1> context)

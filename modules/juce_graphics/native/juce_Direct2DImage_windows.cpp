@@ -568,19 +568,51 @@ void Direct2DPixelData::moveImageSection(int dx, int dy,
 {
     if (permanence == Image::Permanence::disposable)
     {
-        if (applyDirect2DEffect(CLSID_D2D1Atlas,
-            nullptr,
-            { dx, dy, w, h },
-            [=](ComSmartPtr<ID2D1Effect> effect)
-            {
-                effect->SetValue(D2D1_ATLAS_PROP_INPUT_RECT, D2D1::RectF((FLOAT)sx, (FLOAT)sy, (FLOAT)(sx + w), (FLOAT)(sy + h)));
-            }))
-        {
+        const auto adapter = directX->adapters.getDefaultAdapter();
+        if (adapter == nullptr)
             return;
-        }
+
+        const auto context = Direct2DDeviceContext::create(adapter);
+        const auto maxSize = (int)context->GetMaximumBitmapSize();
+        if (context == nullptr || maxSize < width || maxSize < height)
+            return;
+
+        Rectangle<int> sourceRect{ sx, sy, w, h };
+        Rectangle<int> destRect{ dx, dy, w, h };
+        sourceRect = sourceRect.getIntersection(Rectangle<int>{ width, height });
+        destRect = destRect.getIntersection(Rectangle<int>{ width, height });
+        if (sourceRect.isEmpty() || destRect.isEmpty())
+            return;
+
+        auto originalBitmap = getFirstPageForContext(context);
+        auto tempBitmap = Direct2DBitmap::createBitmap(context,
+                pixelFormat,
+                D2D1::SizeU((UINT32)w, (UINT32)h),
+                D2D1_BITMAP_OPTIONS_NONE);
+
+        auto sourceRectU = D2DUtilities::toRECT_U(sourceRect);
+        tempBitmap->CopyFromBitmap(nullptr, originalBitmap, &sourceRectU);
+        auto destPoint = D2DUtilities::toPOINT_2U(destRect.getTopLeft());
+        originalBitmap->CopyFromBitmap(&destPoint, tempBitmap, nullptr);
+
+        return;
     }
 
     ImagePixelData::moveImageSection(dx, dy, sx, sy, w, h);
+}
+
+void Direct2DPixelData::multiplyAllAlphas(float amountToMultiplyBy)
+{
+    if (pixelFormat == Image::ARGB || pixelFormat == Image::SingleChannel)
+        if (permanence == Image::Permanence::disposable)
+            if (applyDirect2DEffect(CLSID_D2D1Opacity, {}, { width, height },
+                [=](ComSmartPtr<ID2D1Effect> effect)
+                {
+                    effect->SetValue(D2D1_OPACITY_PROP_OPACITY, amountToMultiplyBy);
+                }))
+                return;
+
+    ImagePixelData::multiplyAllAlphas(amountToMultiplyBy);
 }
 
 void Direct2DPixelData::desaturate()

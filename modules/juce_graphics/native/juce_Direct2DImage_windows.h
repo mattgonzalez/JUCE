@@ -170,6 +170,7 @@ public:
     void moveImageSection(int destX, int destY,
         int sourceX, int sourceY,
         int width, int height) override;
+    void multiplyAllAlphas(float amountToMultiplyBy);
     void desaturate() override;
     void applyGaussianBlurEffect (float radius, Image& result) override;
     void applySingleChannelBoxBlurEffect (int radius, Image& result) override;

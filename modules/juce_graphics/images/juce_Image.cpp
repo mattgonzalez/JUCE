@@ -253,6 +253,27 @@ static void performPixelOp(const Image::BitmapData& data, const PixelOperation& 
     }
 }
 
+struct AlphaMultiplyOp
+{
+    float alpha;
+
+    template <class PixelType>
+    void operator() (PixelType& pixel) const
+    {
+        pixel.multiplyAlpha(alpha);
+    }
+};
+
+void ImagePixelData::multiplyAllAlphas(float amountToMultiplyBy)
+{
+    if (pixelFormat == Image::ARGB || pixelFormat == Image::SingleChannel)
+    {
+        Image image{ this };
+        const Image::BitmapData destData(image, 0, 0, width, height, Image::BitmapData::readWrite);
+        performPixelOp(destData, AlphaMultiplyOp{ amountToMultiplyBy });
+    }
+}
+
 struct DesaturateOp
 {
     template <class PixelType>
@@ -669,23 +690,12 @@ void Image::multiplyAlphaAt (int x, int y, float multiplier)
     }
 }
 
-struct AlphaMultiplyOp
-{
-    float alpha;
-
-    template <class PixelType>
-    void operator() (PixelType& pixel) const
-    {
-        pixel.multiplyAlpha (alpha);
-    }
-};
-
 void Image::multiplyAllAlphas (float amountToMultiplyBy)
 {
     jassert (hasAlphaChannel());
 
-    const BitmapData destData (*this, 0, 0, getWidth(), getHeight(), BitmapData::readWrite);
-    performPixelOp (destData, AlphaMultiplyOp { amountToMultiplyBy });
+    if (image)
+        image->multiplyAllAlphas(amountToMultiplyBy);
 }
 
 void Image::desaturate()

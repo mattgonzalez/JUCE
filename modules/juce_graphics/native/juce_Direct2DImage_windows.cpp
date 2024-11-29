@@ -407,6 +407,7 @@ std::unique_ptr<LowLevelGraphicsContext> Direct2DPixelData::createLowLevelContex
         struct InertContext : public LowLevelGraphicsContext
         {
             bool isVectorDevice() const override { return false; }
+            std::unique_ptr<ImageType> getPreferredImageType() const override { return {}; }
             void setOrigin (Point<int>) override {}
             void addTransform (const AffineTransform&) override {}
             float getPhysicalPixelScaleFactor() const override { return 1.0f; }

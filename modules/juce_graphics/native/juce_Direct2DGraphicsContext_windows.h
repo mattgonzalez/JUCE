@@ -43,6 +43,7 @@ public:
 
     //==============================================================================
     bool isVectorDevice() const override { return false; }
+    std::unique_ptr<ImageType> getPreferredImageType() const override { return std::make_unique<NativeImageType>(); }
 
     void setOrigin (Point<int>) override;
     void addTransform (const AffineTransform&) override;

@@ -62,6 +62,7 @@ public:
 
     /** Returns true if this device is vector-based, e.g. a printer. */
     virtual bool isVectorDevice() const = 0;
+    virtual std::unique_ptr<ImageType> getPreferredImageType() const = 0;
 
     //==============================================================================
     /** Moves the origin to a new position.

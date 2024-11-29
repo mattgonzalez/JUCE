@@ -2586,6 +2586,7 @@ public:
     }
 
     bool isVectorDevice()                                              const override { return false; }
+    std::unique_ptr<ImageType> getPreferredImageType()                 const override { return std::make_unique<SoftwareImageType>(); }
     Rectangle<int> getClipBounds()                                     const override { return stack->getClipBounds(); }
     bool isClipEmpty()                                                 const override { return stack->clip == nullptr; }
 

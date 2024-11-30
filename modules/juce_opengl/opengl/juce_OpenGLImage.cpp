@@ -38,8 +38,8 @@ namespace juce
 class OpenGLFrameBufferImage final : public ImagePixelData
 {
 public:
-    OpenGLFrameBufferImage (OpenGLContext& c, int w, int h)
-        : ImagePixelData (Image::ARGB, w, h),
+    OpenGLFrameBufferImage (OpenGLContext& c, int w, int h, Image::Permanence requestedPermanence)
+        : ImagePixelData (Image::ARGB, w, h, requestedPermanence),
           context (c),
           pixelStride (4),
           lineStride (width * pixelStride)
@@ -65,7 +65,7 @@ public:
 
     ImagePixelData::Ptr clone() override
     {
-        std::unique_ptr<OpenGLFrameBufferImage> im (new OpenGLFrameBufferImage (context, width, height));
+        std::unique_ptr<OpenGLFrameBufferImage> im (new OpenGLFrameBufferImage (context, width, height, permanence));
 
         if (! im->initialise())
             return ImagePixelData::Ptr();
@@ -202,12 +202,12 @@ int OpenGLImageType::getTypeID() const
     return 3;
 }
 
-ImagePixelData::Ptr OpenGLImageType::create (Image::PixelFormat, int width, int height, bool /*shouldClearImage*/, Image::Permanence) const
+ImagePixelData::Ptr OpenGLImageType::create (Image::PixelFormat, int width, int height, bool /*shouldClearImage*/, Image::Permanence permanence) const
 {
     OpenGLContext* currentContext = OpenGLContext::getCurrentContext();
     jassert (currentContext != nullptr); // an OpenGL image can only be created when a valid context is active!
 
-    std::unique_ptr<OpenGLFrameBufferImage> im (new OpenGLFrameBufferImage (*currentContext, width, height));
+    std::unique_ptr<OpenGLFrameBufferImage> im (new OpenGLFrameBufferImage (*currentContext, width, height, permanence));
 
     if (! im->initialise())
         return ImagePixelData::Ptr();

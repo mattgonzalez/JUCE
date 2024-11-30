@@ -150,6 +150,64 @@ int ImagePixelData::getSharedCount() const noexcept
     return getReferenceCount();
 }
 
+ImagePixelData::Ptr ImagePixelData::convertedToFormat(Image::PixelFormat newFormat, Image::Permanence)
+{
+    bool hasAlphaChannel = pixelFormat != Image::RGB;
+    auto w = width, h = height;
+
+    auto type = createType();
+    Image newImage(type->create(newFormat, w, h, false));
+
+    if (newFormat == Image::SingleChannel)
+    {
+        if (!hasAlphaChannel)
+        {
+            newImage.clear({ w, h }, Colours::black);
+        }
+        else
+        {
+            const Image::BitmapData destData(newImage, 0, 0, w, h, Image::BitmapData::writeOnly);
+            const Image srcImage{ this };
+            const Image::BitmapData srcData(srcImage, 0, 0, w, h);
+
+            for (int y = 0; y < h; ++y)
+            {
+                auto src = reinterpret_cast<const PixelARGB*> (srcData.getLinePointer(y));
+                auto dst = destData.getLinePointer(y);
+
+                for (int x = 0; x < w; ++x)
+                    dst[x] = src[x].getAlpha();
+            }
+        }
+    }
+    else if (pixelFormat == Image::SingleChannel && newFormat == Image::ARGB)
+    {
+        const Image::BitmapData destData(newImage, 0, 0, w, h, Image::BitmapData::writeOnly);
+        const Image srcImage{ this };
+        const Image::BitmapData srcData(srcImage, 0, 0, w, h);
+
+        for (int y = 0; y < h; ++y)
+        {
+            auto src = reinterpret_cast<const PixelAlpha*> (srcData.getLinePointer(y));
+            auto dst = reinterpret_cast<PixelARGB*> (destData.getLinePointer(y));
+
+            for (int x = 0; x < w; ++x)
+                dst[x].set(src[x]);
+        }
+    }
+    else
+    {
+        if (hasAlphaChannel)
+            newImage.clear({ w, h });
+
+        Image srcImage{ this };
+        Graphics g(newImage);
+        g.drawImageAt(srcImage, 0, 0);
+    }
+
+    return newImage.getPixelData();
+}
+
 void ImagePixelData::moveImageSection(int dx, int dy,
     int sx, int sy,
     int w, int h)
@@ -324,8 +382,8 @@ Image ImageType::convert (const Image& source) const
 class SoftwarePixelData : public ImagePixelData
 {
 public:
-    SoftwarePixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage)
-        : ImagePixelData (formatToUse, w, h),
+    SoftwarePixelData (Image::PixelFormat formatToUse, int w, int h, bool clearImage, Image::Permanence requestedPermanence)
+        : ImagePixelData (formatToUse, w, h, requestedPermanence),
           pixelStride (formatToUse == Image::RGB ? 3 : ((formatToUse == Image::ARGB) ? 4 : 1)),
           lineStride ((pixelStride * jmax (1, w) + 3) & ~3)
     {
@@ -353,7 +411,7 @@ public:
 
     ImagePixelData::Ptr clone() override
     {
-        auto s = new SoftwarePixelData (pixelFormat, width, height, false);
+        auto s = new SoftwarePixelData (pixelFormat, width, height, false, permanence);
         memcpy (s->imageData, imageData, (size_t) lineStride * (size_t) height);
         return *s;
     }
@@ -370,10 +428,9 @@ private:
 SoftwareImageType::SoftwareImageType() = default;
 SoftwareImageType::~SoftwareImageType() = default;
 
-ImagePixelData::Ptr SoftwareImageType::create (Image::PixelFormat format, int width, int height, bool clearImage, Image::Permanence) const
+ImagePixelData::Ptr SoftwareImageType::create (Image::PixelFormat format, int width, int height, bool clearImage, Image::Permanence permanence) const
 {
-    // The Permanence parameter is ignored here, as software images are always permanent
-    return *new SoftwarePixelData (format, width, height, clearImage);
+    return *new SoftwarePixelData (format, width, height, clearImage, permanence);
 }
 
 int SoftwareImageType::getTypeID() const
@@ -514,56 +571,7 @@ Image Image::convertedToFormat (PixelFormat newFormat) const
     if (image == nullptr || newFormat == image->pixelFormat)
         return *this;
 
-    auto w = image->width, h = image->height;
-
-    auto type = image->createType();
-    Image newImage (type->create (newFormat, w, h, false));
-
-    if (newFormat == SingleChannel)
-    {
-        if (! hasAlphaChannel())
-        {
-            newImage.clear (getBounds(), Colours::black);
-        }
-        else
-        {
-            const BitmapData destData (newImage, 0, 0, w, h, BitmapData::writeOnly);
-            const BitmapData srcData (*this, 0, 0, w, h);
-
-            for (int y = 0; y < h; ++y)
-            {
-                auto src = reinterpret_cast<const PixelARGB*> (srcData.getLinePointer (y));
-                auto dst = destData.getLinePointer (y);
-
-                for (int x = 0; x < w; ++x)
-                    dst[x] = src[x].getAlpha();
-            }
-        }
-    }
-    else if (image->pixelFormat == SingleChannel && newFormat == Image::ARGB)
-    {
-        const BitmapData destData (newImage, 0, 0, w, h, BitmapData::writeOnly);
-        const BitmapData srcData (*this, 0, 0, w, h);
-
-        for (int y = 0; y < h; ++y)
-        {
-            auto src = reinterpret_cast<const PixelAlpha*> (srcData.getLinePointer (y));
-            auto dst = reinterpret_cast<PixelARGB*> (destData.getLinePointer (y));
-
-            for (int x = 0; x < w; ++x)
-                dst[x].set (src[x]);
-        }
-    }
-    else
-    {
-        if (hasAlphaChannel())
-            newImage.clear (getBounds());
-
-        Graphics g (newImage);
-        g.drawImageAt (*this, 0, 0);
-    }
-
-    return newImage;
+    return Image{ image->convertedToFormat(newFormat, image->permanence) };
 }
 
 NamedValueSet* Image::getProperties() const

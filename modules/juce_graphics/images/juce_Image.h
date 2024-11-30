@@ -475,6 +475,14 @@ public:
     virtual std::unique_ptr<LowLevelGraphicsContext> createLowLevelContext() = 0;
     /** Creates a copy of this image. */
     virtual Ptr clone() = 0;
+    /** Returns a version of this object with a different image format.
+
+    A new ImagePixelData is returned which has been converted to the specified format.
+
+    Note that if the new format is no different to the current one, this will just return
+    a reference to the original ImagePixelData, and won't actually create a copy.
+    */
+    virtual Ptr convertedToFormat(Image::PixelFormat newFormat, Image::Permanence permanence);
     /** Creates an instance of the type of this image. */
     virtual std::unique_ptr<ImageType> createType() const = 0;
     /** Initialises a BitmapData object. */

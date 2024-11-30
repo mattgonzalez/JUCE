@@ -144,6 +144,8 @@ public:
     */
     ImagePixelData::Ptr clone() override;
 
+    ImagePixelData::Ptr convertedToFormat (Image::PixelFormat, Image::Permanence permanence) override;
+
     std::unique_ptr<ImageType> createType() const override
     {
         return std::make_unique<NativeImageType>();

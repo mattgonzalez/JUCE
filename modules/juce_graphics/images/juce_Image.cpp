@@ -356,7 +356,7 @@ void ImagePixelData::applyGaussianBlurEffect ([[maybe_unused]] float radius, Ima
     result = {};
 }
 
-void ImagePixelData::applySingleChannelBoxBlurEffect ([[maybe_unused]] int radius, juce::Image &result)
+void ImagePixelData::applyShadowEffect ([[maybe_unused]] int radius, juce::Image &result)
 {
     result = {};
 }
@@ -780,12 +780,12 @@ void ImageEffects::applyGaussianBlurEffect (float radius, const Image& input, Im
         return;
     }
 
-    auto copy = result;
-    image->applyGaussianBlurEffect (radius, copy);
+    auto imageEffectOutput = Image{ Image::SingleChannel, input.getWidth(), input.getHeight(), false, Image::Permanence::disposable };
+    image->applyGaussianBlurEffect (radius, imageEffectOutput);
 
-    if (copy.isValid())
+    if (imageEffectOutput.isValid())
     {
-        result = std::move (copy);
+        result = std::move (imageEffectOutput);
         return;
     }
 
@@ -851,12 +851,12 @@ void ImageEffects::applySingleChannelBoxBlurEffect (int radius, const Image& inp
         return;
     }
 
-    auto copy = result;
-    image->applySingleChannelBoxBlurEffect (radius, copy);
+    auto imageEffectOutput = Image{ Image::SingleChannel, input.getWidth(), input.getHeight(), false, Image::Permanence::disposable };
+    image->applyShadowEffect (radius, imageEffectOutput);
 
-    if (copy.isValid())
+    if (imageEffectOutput.isValid())
     {
-        result = std::move (copy);
+        result = std::move (imageEffectOutput);
         return;
     }
 

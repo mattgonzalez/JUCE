@@ -761,81 +761,22 @@ void Direct2DPixelData::applyGaussianBlurEffect (float radius, Image& result)
         });
 }
 
-void Direct2DPixelData::applySingleChannelBoxBlurEffect (int radius, Image& result)
+void Direct2DPixelData::applyShadowEffect (int radius, Image& result)
 {
     // The result must be a separate image!
-    jassert (result.getPixelData() != this);
+    jassert(result.getPixelData() != this);
 
-    const auto adapter = directX->adapters.getDefaultAdapter();
-
-    if (adapter == nullptr)
+    auto outputPixelData = dynamic_cast<Direct2DPixelData*>(result.getPixelData());
+    if (outputPixelData == nullptr)
     {
         result = {};
         return;
     }
 
-    const auto context = Direct2DDeviceContext::create (adapter);
-    const auto maxSize = (int) context->GetMaximumBitmapSize();
-
-    if (context == nullptr || maxSize < width || maxSize < height)
-    {
-        result = {};
-        return;
-    }
-
-    constexpr FLOAT kernel[] { 1.0f / 9.0f, 2.0f / 9.0f, 3.0f / 9.0f, 2.0f / 9.0f, 1.0f / 9.0f };
-
-    ComSmartPtr<ID2D1Effect> begin, end;
-
-    for (auto horizontal : { false, true })
-    {
-        for (auto i = 0; i < radius; ++i)
+    applyDirect2DEffect(CLSID_D2D1Shadow, outputPixelData, { width, height }, [radius](ComSmartPtr<ID2D1Effect> effect)
         {
-            ComSmartPtr<ID2D1Effect> effect;
-            if (const auto hr = context->CreateEffect (CLSID_D2D1ConvolveMatrix, effect.resetAndGetPointerAddress());
-                FAILED (hr) || effect == nullptr)
-            {
-                result = {};
-                return;
-            }
-
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_SIZE_X, (UINT32) (horizontal ? std::size (kernel) : 1));
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_SIZE_Y, (UINT32) (horizontal ? 1 : std::size (kernel)));
-            effect->SetValue (D2D1_CONVOLVEMATRIX_PROP_KERNEL_MATRIX, kernel);
-
-            if (begin == nullptr)
-            {
-                begin = effect;
-                end = effect;
-            }
-            else
-            {
-                effect->SetInputEffect (0, end);
-                end = effect;
-            }
-        }
-    }
-
-    if (begin == nullptr)
-    {
-        result = {};
-        return;
-    }
-
-    begin->SetInput (0, getFirstPageForContext (context));
-
-    const auto outputPixelData = Direct2DBitmap::createBitmap (context,
-                                                               Image::ARGB,
-                                                               D2D1::SizeU ((UINT32) width, (UINT32) height),
-                                                               D2D1_BITMAP_OPTIONS_TARGET);
-
-    context->SetTarget (outputPixelData);
-    context->BeginDraw();
-    context->Clear();
-    context->DrawImage (end);
-    context->EndDraw();
-
-    result = Image { new Direct2DPixelData { context, outputPixelData, Image::Permanence::disposable } };
+            effect->SetValue(D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, radius / 3.0f);
+        });
 }
 
 auto Direct2DPixelData::getPagesForContext (ComSmartPtr<ID2D1DeviceContext1> context) -> Span<const Page>

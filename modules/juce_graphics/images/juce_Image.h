@@ -524,18 +524,7 @@ public:
     */
     virtual void applyGaussianBlurEffect (float radius, Image& result);
 
-    /** Applies a native blur effect to this image, if available.
-        This is intended for blurring single-channel images, which is useful when rendering drop
-        shadows. This is implemented as several box-blurs in series. The results should be visually
-        similar to a Gaussian blur, but less accurate.
-
-        Implementations should attempt to re-use the storage provided in the result out-parameter
-        when possible.
-
-        If native blurs are unsupported, or if creating a blur fails for any other reason,
-        the result out-parameter will be reset to an invalid image.
-    */
-    virtual void applySingleChannelBoxBlurEffect (int radius, Image& result);
+    virtual void applyShadowEffect (int radius, Image& result);
 
     /** The pixel format of the image data. */
     const Image::PixelFormat pixelFormat;
@@ -665,6 +654,8 @@ struct ImageEffects
         Otherwise, new storage may be allocated for the blurred image.
     */
     static void applySingleChannelBoxBlurEffect (int radius, const Image& input, Image& result);
+
+    static void applyShadowEffect(int radius, const Image& input, Image& result);
 };
 
 } // namespace juce

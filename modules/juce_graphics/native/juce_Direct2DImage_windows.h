@@ -175,7 +175,7 @@ public:
     void multiplyAllAlphas(float amountToMultiplyBy);
     void desaturate() override;
     void applyGaussianBlurEffect (float radius, Image& result) override;
-    void applySingleChannelBoxBlurEffect (int radius, Image& result) override;
+    void applyShadowEffect (int radius, Image& result) override;
 
     /*  This returns image data that is suitable for use when drawing with the provided context.
         This image data should be treated as a read-only view - making modifications directly

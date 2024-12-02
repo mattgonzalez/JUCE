@@ -238,11 +238,16 @@ private:
             messagesToDispatch.swapWith (messageQueue);
         }
 
+        auto start = Time::getMillisecondCounterHiRes();
         for (int i = 0; i < messagesToDispatch.size(); ++i)
-        {
+        {   
             auto message = messagesToDispatch.getUnchecked (i);
             message->incReferenceCount();
             dispatchMessage (message.get());
+
+            auto now = Time::getMillisecondCounterHiRes();
+            if (now - start > 100.0)
+                break;
         }
     }
 

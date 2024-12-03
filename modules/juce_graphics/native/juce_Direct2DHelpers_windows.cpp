@@ -111,7 +111,8 @@ struct D2DHelpers
 {
     static bool isTransformAxisAligned (const AffineTransform& transform)
     {
-        return transform.mat01 == 0.0f && transform.mat10 == 0.0f;
+        return transform.mat01 == 0.0f && transform.mat10 == 0.0f 
+            && transform.mat00 >= 0.0f && transform.mat11 >= 0.0f;
     }
 
     static void pathToGeometrySink (const Path& path,

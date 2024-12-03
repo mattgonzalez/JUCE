@@ -95,8 +95,8 @@ public:
         {
             const ScopedLock sl (lock);
 
-            shouldTriggerMessageQueueDispatch = messageQueue.empty();
-            messageQueue.push(MessageManager::MessageBase::Ptr{ message });
+            shouldTriggerMessageQueueDispatch = messageQueue.isEmpty();
+            messageQueue.add (message);
         }
 
         if (! shouldTriggerMessageQueueDispatch)
@@ -227,31 +227,22 @@ private:
 
     void dispatchMessages()
     {
-        auto startMsec = Time::getMillisecondCounterHiRes();
-        bool timedOut = false;
-        while (! timedOut)
+        ReferenceCountedArray<MessageManager::MessageBase> messagesToDispatch;
+
         {
-            MessageManager::MessageBase::Ptr message = nullptr;
+            const ScopedLock sl (lock);
 
-            {
-                const ScopedLock sl(lock);
+            if (messageQueue.isEmpty())
+                return;
 
-                if (messageQueue.empty())
-                    break;
-
-                message = messageQueue.front();
-                messageQueue.pop();
-            }
-
-            message->incReferenceCount();
-            dispatchMessage(message.get());
-
-            timedOut = (Time::getMillisecondCounterHiRes() - startMsec) > 100.0;
+            messagesToDispatch.swapWith (messageQueue);
         }
 
-        if (timedOut)
-        {
-            PostMessage(juce_messageWindowHandle, customMessageID, 0, 0);
+        for (int i = 0; i < messagesToDispatch.size(); ++i)
+        {   
+            auto message = messagesToDispatch.getUnchecked (i);
+            message->incReferenceCount();
+            dispatchMessage (message.get());
         }
     }
 
@@ -263,7 +254,7 @@ private:
     std::unique_ptr<HiddenMessageWindow> messageWindow;
 
     CriticalSection lock;
-    std::queue<MessageManager::MessageBase::Ptr> messageQueue;
+    ReferenceCountedArray<MessageManager::MessageBase> messageQueue;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InternalMessageQueue)

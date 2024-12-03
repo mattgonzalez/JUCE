@@ -588,6 +588,17 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap,
                                               int y,
                                               Image::BitmapData::ReadWriteMode mode)
 {
+    if (permanence == Image::Permanence::disposable)
+    {
+        if (const auto adapter = directX->adapters.getDefaultAdapter())
+        {
+            if (const auto context = Direct2DDeviceContext::create(adapter))
+            {
+                readFromDirect2DBitmap(context, getFirstPageForContext(context), backingData);
+            }
+        }
+    }
+
     backingData->initialiseBitmapData (bitmap, x, y, mode);
 
     // If we're only reading, then we can assume that the bitmap data was flushed to the software

@@ -269,7 +269,7 @@ public:
     {
         deferredRepaints.add (deferredRepaint);
 
-        JUCE_TRACE_EVENT_INT_RECT (etw::repaint, etw::paintKeyword, snappedRectangle);
+        JUCE_TRACE_EVENT_INT_RECT (etw::repaint, etw::paintKeyword, deferredRepaint);
     }
 
     SavedState* startFrame (float dpiScale) override

@@ -121,8 +121,10 @@ private:
         {
             if (output->WaitForVBlank() == S_OK)
             {
+                JUCE_TRACE_LOG_JUCE_VBLANK_THREAD_EVENT;
+
                 if (const auto now = Time::getMillisecondCounterHiRes();
-                    now - lastVBlankEvent.exchange (now) < 1.0)
+                    now - vblankEventMsec.exchange (now) < 1.0)
                 {
                     Thread::sleep (1);
                 }
@@ -132,6 +134,8 @@ private:
 
                 if (threadState == ThreadState::exit)
                     return;
+
+                JUCE_WRITE_TRACE_LOG(etw::sendVBlankMessage, etw::vblankKeyword);
 
                 threadState = ThreadState::sleep;
                 triggerAsyncUpdate();
@@ -145,10 +149,25 @@ private:
 
     void handleAsyncUpdate() override
     {
-        const auto timestampSec = lastVBlankEvent / 1000.0;
+        // how long since the last frame finished?
+        const auto gapSinceLastFrameMsec = vblankEventMsec - listenerProcessingEndMsec;
 
-        for (auto& listener : listeners)
-            listener.get().onVBlank (timestampSec);
+        // Skip this VBlank if frameProcessingMsec is too long relative to the gap;
+        // attempt to limit VBlank listeners to 80% of the message thread
+        if (gapSinceLastFrameMsec >= frameProcessingMsec * 0.25)
+        {
+            const auto timestampSec = vblankEventMsec * 0.001;
+
+            JUCE_TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS;
+
+            auto startMsec = Time::getMillisecondCounterHiRes();
+
+            for (auto& listener : listeners)
+                listener.get().onVBlank(timestampSec);
+
+            listenerProcessingEndMsec = Time::getMillisecondCounterHiRes();
+            frameProcessingMsec = listenerProcessingEndMsec - startMsec;
+        }
 
         {
             const std::scoped_lock lock { mutex };
@@ -172,7 +191,10 @@ private:
         exit,
     };
 
-    std::atomic<double> lastVBlankEvent{};
+    double listenerProcessingEndMsec = 0.0;
+    double frameProcessingMsec = 0.0;
+    double previousTimestampSeconds = Time::getMillisecondCounterHiRes();
+    std::atomic<double> vblankEventMsec{};
     ThreadState threadState = ThreadState::paint;
     std::condition_variable condvar;
     std::mutex mutex;

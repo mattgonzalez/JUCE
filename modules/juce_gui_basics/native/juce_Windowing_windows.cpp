@@ -3761,6 +3761,8 @@ private:
 
     LRESULT peerWindowProc (HWND h, UINT message, WPARAM wParam, LPARAM lParam)
     {
+        JUCE_WRITE_TRACE_LOG_VA(etw::windowMessage, etw::windowMessageKeyword, TraceLoggingValue((void*)h, "HWND"), TraceLoggingValue(message, "Message"), TraceLoggingValue(wParam, "wParam"), TraceLoggingValue(lParam, "lParam"));
+
         switch (message)
         {
             //==============================================================================

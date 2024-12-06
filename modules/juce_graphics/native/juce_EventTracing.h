@@ -91,7 +91,9 @@ enum
     softwareRendererKeyword = 1 << 7,
     resourcesKeyword        = 1 << 8,
     componentKeyword        = 1 << 9,
-    spriteKeyword           = 1 << 10
+    spriteKeyword           = 1 << 10,
+    vblankKeyword           = 1 << 11,
+    windowMessageKeyword    = 1 << 12
 };
 
 enum : uint64_t
@@ -180,6 +182,8 @@ enum : uint64_t
     setSprites,
     addSprites,
     drawSprites,
+    sendVBlankMessage,
+    windowMessage
 };
 
 #if JUCE_WINDOWS && JUCE_ETW_TRACELOGGING
@@ -265,10 +269,10 @@ auto toVector (const RectangleList<Number>& list)
     JUCE_WRITE_TRACE_LOG_VA (code, etw::paintKeyword | etw::direct2dKeyword, TraceLoggingValue ((UINT64) frameNumber, "frame"))
 
 #define JUCE_TRACE_LOG_JUCE_VBLANK_THREAD_EVENT \
-    JUCE_WRITE_TRACE_LOG (etw::waitForVBlankDone, etw::softwareRendererKeyword)
+    JUCE_WRITE_TRACE_LOG (etw::waitForVBlankDone, etw::vblankKeyword)
 
 #define JUCE_TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS \
-    JUCE_WRITE_TRACE_LOG (etw::callVBlankListeners, etw::softwareRendererKeyword)
+    JUCE_WRITE_TRACE_LOG (etw::callVBlankListeners, etw::vblankKeyword)
 
 #define JUCE_TRACE_LOG_D2D_RESIZE(message) \
     JUCE_WRITE_TRACE_LOG_VA (etw::resize, etw::paintKeyword | etw::direct2dKeyword, TraceLoggingValue (message, "message"))

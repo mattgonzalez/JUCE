@@ -110,6 +110,12 @@ struct DxgiAdapter : public ReferenceCountedObject
         if (dxgiAdapterIn == nullptr || d2dFactory == nullptr)
             return {};
 
+        // Skip software-only adapters
+        DXGI_ADAPTER_DESC1 desc;
+        dxgiAdapterIn->GetDesc1(&desc);
+        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            return {};
+
         Ptr result = new DxgiAdapter;
         result->dxgiAdapter = dxgiAdapterIn;
 

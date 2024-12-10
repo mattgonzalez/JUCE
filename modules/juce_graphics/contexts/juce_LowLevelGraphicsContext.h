@@ -182,6 +182,19 @@ public:
         Useful for debugging/logging.
     */
     virtual uint64_t getFrameId() const = 0;
+
+#if JUCE_WINDOWS
+    static void setDirect2DEnabled([[maybe_unused]] bool enabled);
+    static bool isDirect2DEnabled();
+#else
+    static void setDirect2DEnabled([[maybe_unused]] bool enabled)
+    {
+    }
+    static bool isDirect2DEnabled()
+    {
+        return false;
+    }
+#endif
 };
 
 } // namespace juce

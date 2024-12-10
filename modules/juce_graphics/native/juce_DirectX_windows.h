@@ -330,6 +330,16 @@ public:
 
     auto getD2DFactory() const { return d2dSharedFactory; }
 
+    void setDirect2DEnabled(bool enabled)
+    {
+        direct2DEnabled = enabled;
+    }
+
+    bool isDirect2DEnabled() const noexcept
+    {
+        return direct2DEnabled;
+    }
+
 private:
     ComSmartPtr<ID2D1Factory2> d2dSharedFactory = [&]
     {
@@ -346,6 +356,8 @@ private:
 
         return result;
     }();
+
+    bool direct2DEnabled = true;
 
 public:
     DxgiAdapters adapters { d2dSharedFactory };

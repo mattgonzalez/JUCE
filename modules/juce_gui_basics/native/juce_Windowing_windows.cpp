@@ -5495,6 +5495,9 @@ inline constexpr auto& contextDescriptors = contextDescriptorList<GDIRenderConte
 
 void HWNDComponentPeer::setCurrentRenderingEngine (int e)
 {
+    if (!LowLevelGraphicsContext::isDirect2DEnabled())
+        e = 0;
+
     if (isPositiveAndBelow (e, std::size (contextDescriptors)) && (renderContext == nullptr || getCurrentRenderingEngine() != e))
     {
         // Reset the old context before creating the new context, because some context resources

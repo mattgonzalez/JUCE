@@ -35,6 +35,18 @@
 namespace juce
 {
 
+void LowLevelGraphicsContext::setDirect2DEnabled([[maybe_unused]] bool enabled)
+{
+    SharedResourcePointer<DirectX> directX;
+    directX->setDirect2DEnabled(enabled);
+}
+
+bool LowLevelGraphicsContext::isDirect2DEnabled()
+{
+    SharedResourcePointer<DirectX> directX;
+    return directX->isDirect2DEnabled();
+}
+
 class ScopedMultithread
 {
 public:

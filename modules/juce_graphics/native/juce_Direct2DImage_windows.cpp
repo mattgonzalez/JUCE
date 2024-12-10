@@ -800,7 +800,7 @@ ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int widt
 {
     SharedResourcePointer<DirectX> directX;
 
-    if (directX->adapters.getFactory() == nullptr)
+    if (directX->adapters.getFactory() == nullptr || !directX->isDirect2DEnabled())
     {
         // Make sure the DXGI factory exists
         //

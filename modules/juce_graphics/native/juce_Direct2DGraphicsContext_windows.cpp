@@ -1468,13 +1468,12 @@ void Direct2DGraphicsContext::drawImage (const Image& imageIn, const AffineTrans
 
     if (auto deviceContext = getPimpl()->getDeviceContext())
     {
-        auto image = NativeImageType{}.convert (imageIn);
-        Direct2DPixelData* nativeBitmap = nullptr;
+        Direct2DPixelData::Ptr nativeBitmap = nullptr;
         Rectangle<int> imageClipArea;
 
         const auto imageTransform = currentState->currentTransform.getTransformWith (transform);
 
-        if (auto* subsectionPixelData = dynamic_cast<SubsectionPixelData*> (image.getPixelData()))
+        if (auto* subsectionPixelData = dynamic_cast<SubsectionPixelData*> (imageIn.getPixelData()))
         {
             if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (subsectionPixelData->getSourcePixelData().get()))
             {
@@ -1482,15 +1481,27 @@ void Direct2DGraphicsContext::drawImage (const Image& imageIn, const AffineTrans
                 imageClipArea = subsectionPixelData->getSubsection();
             }
         }
-        else if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (image.getPixelData()))
+        else if (auto direct2DPixelData = dynamic_cast<Direct2DPixelData*> (imageIn.getPixelData()))
         {
             nativeBitmap  = direct2DPixelData;
             imageClipArea = { direct2DPixelData->width, direct2DPixelData->height };
         }
         else
         {
-            // This shouldn't happen, we converted the image to a native type already
-            jassertfalse;
+            const Image::BitmapData src{ imageIn, Image::BitmapData::readOnly };
+
+            if (src.data == nullptr)
+                return;
+
+            Direct2DPixelData::Ptr convertedD2DPixelData = new Direct2DPixelData{ imageIn.getFormat(), imageIn.getWidth(), imageIn.getHeight(), false, Image::disposable };
+            Image convertedImage{ convertedD2DPixelData };
+            {
+                Image::BitmapData dest(convertedImage, Image::BitmapData::writeOnly);
+                BitmapDataDetail::convert(src, dest);
+            }
+
+            nativeBitmap = convertedD2DPixelData.get();
+            imageClipArea = { imageIn.getWidth(), imageIn.getHeight() };
         }
 
         if (! nativeBitmap)

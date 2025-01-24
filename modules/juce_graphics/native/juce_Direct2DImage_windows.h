@@ -139,6 +139,7 @@ public:
     /*  Creates new software image storage with content matching the content of this image.
         Does not copy any hardware resources.
     */
+    ImagePixelData::Ptr clone() override;
 
     void moveImageSection(int destX, int destY,
         int sourceX, int sourceY,

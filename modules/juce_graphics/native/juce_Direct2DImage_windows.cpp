@@ -596,6 +596,101 @@ void Direct2DPixelData::initialiseBitmapData (Image::BitmapData& bitmap,
     bitmap.dataReleaser = std::make_unique<Releaser> (std::move (bitmap.dataReleaser), this);
 }
 
+ImagePixelData::Ptr Direct2DPixelData::clone()
+{
+    auto backupExtensions = getBackupExtensions();
+    if (backupExtensions && !backupExtensions->isBackupEnabled())
+    {
+        Direct2DPixelData::Ptr clonedPixelData = new Direct2DPixelData{ pixelFormat, width, height, false };
+        Image clonedImage{ clonedPixelData };
+        clonedImage.setBackupEnabled(false);
+
+        {
+            Graphics g{ clonedImage };
+            if (auto direct2DLLGC = dynamic_cast<Direct2DImageContext*>(&g.getInternalContext()))
+            {
+                auto clonedImageDeviceContext = direct2DLLGC->getDeviceContext();
+
+                if (clonedImageDeviceContext.get())
+                {
+                    ComSmartPtr<ID2D1Device> device;
+                    clonedImageDeviceContext->GetDevice(device.resetAndGetPointerAddress());
+                    if (device)
+                    {
+                        ComSmartPtr<ID2D1Device1> device1;
+                        device->QueryInterface(device1.resetAndGetPointerAddress());
+                        if (device1)
+                        {
+                            auto clonedImageBitmap = clonedPixelData->getFirstPageForDevice(device1);
+                            auto sourceBitmap = getFirstPageForDevice(device1);
+                            if (clonedImageBitmap && sourceBitmap)
+                            {
+                                clonedImageBitmap->CopyFromBitmap(nullptr, sourceBitmap, nullptr);
+                                return clonedPixelData;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return clonedImage.getPixelData();
+    }
+
+    return new Direct2DPixelData(backingData->clone(), State::drawn);
+}
+
+void Direct2DPixelData::moveImageSection(int dx, int dy,
+    int sx, int sy,
+    int w, int h)
+{
+    auto backupExtensions = getBackupExtensions();
+    if (backupExtensions && !backupExtensions->isBackupEnabled())
+    {
+        if (const auto internalGraphicsContext = createNativeContext())
+        {
+            const auto context = internalGraphicsContext->getDeviceContext();
+            const auto maxSize = (int)context->GetMaximumBitmapSize();
+            if (context && width <= maxSize && height <= maxSize)
+            {
+                Rectangle<int> sourceRect{ sx, sy, w, h };
+                Rectangle<int> destRect{ dx, dy, w, h };
+                sourceRect = sourceRect.getIntersection(Rectangle<int>{ width, height });
+                destRect = destRect.getIntersection(Rectangle<int>{ width, height });
+                if (!sourceRect.isEmpty() && !destRect.isEmpty())
+                {
+                    ComSmartPtr<ID2D1Device> device;
+                    context->GetDevice(device.resetAndGetPointerAddress());
+
+                    if (device)
+                    {
+                        ComSmartPtr<ID2D1Device1> device1;
+                        device->QueryInterface<ID2D1Device1>(device1.resetAndGetPointerAddress());
+
+                        if (device1)
+                        {
+                            auto originalBitmap = getFirstPageForDevice(device1);
+                            auto tempBitmap = Direct2DBitmap::createBitmap(context,
+                                pixelFormat,
+                                D2D1::SizeU((UINT32)w, (UINT32)h),
+                                D2D1_BITMAP_OPTIONS_NONE);
+
+                            auto sourceRectU = D2DUtilities::toRECT_U(sourceRect);
+                            tempBitmap->CopyFromBitmap(nullptr, originalBitmap, &sourceRectU);
+                            auto destPoint = D2DUtilities::toPOINT_2U(destRect.getTopLeft());
+                            originalBitmap->CopyFromBitmap(&destPoint, tempBitmap, nullptr);
+                        }
+
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    ImagePixelData::moveImageSection(dx, dy, sx, sy, w, h);
+}
+
 template <typename Fn>
 bool Direct2DPixelData::applyEffectInArea (Rectangle<int> area, Fn&& configureEffect)
 {

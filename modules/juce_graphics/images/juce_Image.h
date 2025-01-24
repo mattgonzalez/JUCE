@@ -605,6 +605,12 @@ public:
     */
     virtual int getSharedCount() const noexcept;
 
+    /**
+    */
+    virtual void moveImageSection(int destX, int destY,
+        int sourceX, int sourceY,
+        int width, int height);
+
     /** Applies a native blur effect to this image, if available.
         This blur applies to all channels of the input image. It may be more expensive to
         calculate than a box blur, but should produce higher-quality results.

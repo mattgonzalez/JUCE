@@ -139,10 +139,10 @@ public:
     /*  Creates new software image storage with content matching the content of this image.
         Does not copy any hardware resources.
     */
-    ImagePixelData::Ptr clone() override
-    {
-        return new Direct2DPixelData (backingData->clone(), State::drawn);
-    }
+
+    void moveImageSection(int destX, int destY,
+        int sourceX, int sourceY,
+        int width, int height) override;
 
     std::unique_ptr<ImageType> createType() const override
     {

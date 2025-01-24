@@ -810,42 +810,52 @@ Image Image::convertedToFormat (PixelFormat newFormat) const
     auto type = image->createType();
     Image newImage (type->create (newFormat, w, h, false));
 
-    if (newFormat == SingleChannel)
+    auto backupExtensions = image->getBackupExtensions();
+    if (backupExtensions && backupExtensions->isBackupEnabled())
     {
-        if (! hasAlphaChannel())
+        // This is either a software image or a software-backed GPU image
+        if (newFormat == SingleChannel)
         {
-            newImage.clear (getBounds(), Colours::black);
+            if (!hasAlphaChannel())
+            {
+                newImage.clear(getBounds(), Colours::black);
+            }
+            else
+            {
+                const BitmapData destData(newImage, { w, h }, BitmapData::writeOnly);
+                const BitmapData srcData(*this, { w, h }, BitmapData::readOnly);
+
+                for (int y = 0; y < h; ++y)
+                {
+                    auto src = reinterpret_cast<const PixelARGB*> (srcData.getLinePointer(y));
+                    auto dst = destData.getLinePointer(y);
+
+                    for (int x = 0; x < w; ++x)
+                        dst[x] = src[x].getAlpha();
+                }
+            }
+
+            return newImage;
         }
-        else
+        
+        if (image->pixelFormat == SingleChannel && newFormat == Image::ARGB)
         {
-            const BitmapData destData (newImage, { w, h }, BitmapData::writeOnly);
-            const BitmapData srcData (*this, { w, h }, BitmapData::readOnly);
+            const BitmapData destData(newImage, { w, h }, BitmapData::writeOnly);
+            const BitmapData srcData(*this, { w, h }, BitmapData::readOnly);
 
             for (int y = 0; y < h; ++y)
             {
-                auto src = reinterpret_cast<const PixelARGB*> (srcData.getLinePointer (y));
-                auto dst = destData.getLinePointer (y);
+                auto src = reinterpret_cast<const PixelAlpha*> (srcData.getLinePointer(y));
+                auto dst = reinterpret_cast<PixelARGB*> (destData.getLinePointer(y));
 
                 for (int x = 0; x < w; ++x)
-                    dst[x] = src[x].getAlpha();
+                    dst[x].set(src[x]);
             }
+
+            return newImage;
         }
     }
-    else if (image->pixelFormat == SingleChannel && newFormat == Image::ARGB)
-    {
-        const BitmapData destData (newImage, { w, h }, BitmapData::writeOnly);
-        const BitmapData srcData (*this, { w, h }, BitmapData::readOnly);
-
-        for (int y = 0; y < h; ++y)
-        {
-            auto src = reinterpret_cast<const PixelAlpha*> (srcData.getLinePointer (y));
-            auto dst = reinterpret_cast<PixelARGB*> (destData.getLinePointer (y));
-
-            for (int x = 0; x < w; ++x)
-                dst[x].set (src[x]);
-        }
-    }
-    else
+    
     {
         if (hasAlphaChannel())
             newImage.clear (getBounds());

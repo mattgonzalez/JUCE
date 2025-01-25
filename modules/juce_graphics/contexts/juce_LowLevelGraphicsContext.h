@@ -181,6 +181,11 @@ public:
         Useful for debugging/logging.
     */
     virtual uint64_t getFrameId() const = 0;
+
+    virtual std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept
+    {
+        return std::make_unique<SoftwareImageType>();
+    }
 };
 
 } // namespace juce

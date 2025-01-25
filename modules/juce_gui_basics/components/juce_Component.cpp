@@ -194,7 +194,8 @@ public:
 
         if (effectImage.getBounds() != scaledBounds)
         {
-            effectImage = Image{ c.isOpaque() ? Image::RGB : Image::ARGB, scaledBounds.getWidth(), scaledBounds.getHeight(), false };
+            auto imageType = g.getInternalContext().getPreferredImageTypeForTemporaryImages();
+            effectImage = Image{ c.isOpaque() ? Image::RGB : Image::ARGB, scaledBounds.getWidth(), scaledBounds.getHeight(), false, *imageType};
             effectImage.setBackupEnabled(false);
         }
 

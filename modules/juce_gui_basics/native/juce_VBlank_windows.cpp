@@ -56,7 +56,12 @@ public:
     {
         cancelPendingUpdate();
 
-        state |= flagExit;
+        {
+            const std::scoped_lock lock { mutex };
+            threadState = ThreadState::exit;
+        }
+
+        condvar.notify_one();
 
         stopThread (-1);
     }
@@ -116,51 +121,82 @@ private:
         {
             if (output->WaitForVBlank() == S_OK)
             {
-                const auto now = Time::getMillisecondCounterHiRes();
+                JUCE_TRACE_LOG_JUCE_VBLANK_THREAD_EVENT;
 
-                if (now - lastVBlankEvent.exchange (now) < 1.0)
-                    sleep (1);
+                if (const auto now = Time::getMillisecondCounterHiRes();
+                    now - vblankEventMsec.exchange (now) < 1.0)
+                {
+                    Thread::sleep (1);
+                }
 
-                const auto stateToRead = state.fetch_or (flagPaintPending);
+                std::unique_lock lock { mutex };
+                condvar.wait (lock, [this] { return threadState != ThreadState::sleep; });
 
-                if ((stateToRead & flagExit) != 0)
+                if (threadState == ThreadState::exit)
                     return;
 
-                if ((stateToRead & flagPaintPending) != 0)
-                    continue;
+                JUCE_WRITE_TRACE_LOG(etw::sendVBlankMessage, etw::vblankKeyword);
 
+                threadState = ThreadState::sleep;
                 triggerAsyncUpdate();
             }
             else
             {
-                sleep (1);
+                Thread::sleep (1);
             }
         }
     }
 
     void handleAsyncUpdate() override
     {
-        const auto timestampSec = lastVBlankEvent / 1000.0;
+        const auto msecSinceEndOfLastFrame = vblankEventMsec - listenerProcessingEndMsec;
 
-        for (auto& listener : listeners)
-            listener.get().onVBlank (timestampSec);
+        // Skip this VBlank if frameProcessingMsec is too long relative to the gap;
+        // attempt to limit VBlank listeners to use no more than 80% of the message thread processing time
+        if (msecSinceEndOfLastFrame >= frameProcessingMsec * 0.25)
+        {
+            const auto timestampSec = vblankEventMsec * 0.001;
 
-        state &= ~flagPaintPending;
+            JUCE_TRACE_LOG_JUCE_VBLANK_CALL_LISTENERS;
+
+            auto startMsec = Time::getMillisecondCounterHiRes();
+
+            for (auto& listener : listeners)
+                listener.get().onVBlank(timestampSec);
+
+            listenerProcessingEndMsec = Time::getMillisecondCounterHiRes();
+            frameProcessingMsec = listenerProcessingEndMsec - startMsec;
+        }
+
+        {
+            const std::scoped_lock lock { mutex };
+
+            if (threadState == ThreadState::sleep)
+                threadState = ThreadState::paint;
+        }
+
+        condvar.notify_one();
     }
-
-    enum Flags
-    {
-        flagExit = 1 << 0,
-        flagPaintPending = 1 << 1,
-    };
 
     //==============================================================================
     ComSmartPtr<IDXGIOutput> output;
     HMONITOR monitor = nullptr;
     std::vector<std::reference_wrapper<VBlankListener>> listeners;
 
-    std::atomic<double> lastVBlankEvent{};
-    std::atomic<int> state{};
+    enum class ThreadState
+    {
+        sleep,
+        paint,
+        exit,
+    };
+
+    double listenerProcessingEndMsec = 0.0;
+    double frameProcessingMsec = 0.0;
+    double previousTimestampSeconds = Time::getMillisecondCounterHiRes();
+    std::atomic<double> vblankEventMsec{};
+    ThreadState threadState = ThreadState::paint;
+    std::condition_variable condvar;
+    std::mutex mutex;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VBlankThread)
     JUCE_DECLARE_NON_MOVEABLE (VBlankThread)

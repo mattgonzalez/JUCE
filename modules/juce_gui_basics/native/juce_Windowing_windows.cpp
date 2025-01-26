@@ -1202,7 +1202,7 @@ namespace IconConverters
                 for (int i = 0; i < numPixels; ++i)
                     opacityMask[i] = (bitmapImageData[i] == 0);
 
-                Image result = Image (Image::ARGB, bm.bmWidth, bm.bmHeight, true);
+                Image result = Image(Image::ARGB, bm.bmWidth, bm.bmHeight, true, SoftwareImageType{} );
                 Image::BitmapData imageData (result, Image::BitmapData::readWrite);
 
                 memset (bitmapImageData, 0, numColourComponents);
@@ -1414,6 +1414,7 @@ struct RenderContext
     virtual void performAnyPendingRepaintsNow() = 0;
     virtual void onVBlank() = 0;
     virtual void handleShowWindow() = 0;
+    virtual std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept = 0;
 
     /*  Gets a snapshot of whatever the render context is currently showing. */
     virtual Image createSnapshot() = 0;
@@ -2657,6 +2658,7 @@ private:
     StringArray getAvailableRenderingEngines() override;
     int getCurrentRenderingEngine() const override;
     void setCurrentRenderingEngine (int e) override;
+    std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override;
 
     bool isTouchEvent() noexcept
     {
@@ -4823,6 +4825,11 @@ public:
 
     void handleShowWindow() override {}
 
+    std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override
+    {
+        return std::make_unique<SoftwareImageType>();
+    }
+
 private:
     // If we've called UpdateLayeredWindow to display the window contents, retrieving the
     // contents of the window DC will fail.
@@ -5126,6 +5133,11 @@ public:
     {
         direct2DContext->handleShowWindow();
         handleDirect2DPaint();
+    }
+
+    std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override
+    {
+        return std::make_unique<NativeImageType>();
     }
 
 private:
@@ -5560,6 +5572,11 @@ int HWNDComponentPeer::getCurrentRenderingEngine() const
             return index;
 
     return -1;
+}
+
+std::unique_ptr<ImageType> HWNDComponentPeer::getPreferredImageTypeForTemporaryImages() const noexcept
+{
+    return renderContext->getPreferredImageTypeForTemporaryImages();
 }
 
 JUCE_API ComponentPeer* createNonRepaintingEmbeddedWindowsPeer (Component& component, Component* parentComponent);

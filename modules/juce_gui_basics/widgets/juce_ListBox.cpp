@@ -1118,10 +1118,18 @@ ScaledImage ListBox::createSnapshotOfRows (const SparseSet<int>& rows, int& imag
 
     const auto additionalScale = 2.0f;
     const auto listScale = Component::getApproximateScaleFactorForComponent (this) * additionalScale;
-    Image snapshot (Image::ARGB,
-                    roundToInt ((float) imageArea.getWidth() * listScale),
-                    roundToInt ((float) imageArea.getHeight() * listScale),
-                    true);
+
+    std::unique_ptr<ImageType> imageType;
+    if (auto peer = getPeer())
+        imageType = peer->getPreferredImageTypeForTemporaryImages();
+    else
+        imageType = std::make_unique<NativeImageType>();
+
+    Image snapshot(Image::ARGB,
+        roundToInt((float)imageArea.getWidth() * listScale),
+        roundToInt((float)imageArea.getHeight() * listScale),
+        true,
+        *imageType);
 
     for (int i = getNumRowsOnScreen() + 2; --i >= 0;)
     {

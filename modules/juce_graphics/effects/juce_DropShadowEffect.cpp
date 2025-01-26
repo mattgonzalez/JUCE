@@ -67,7 +67,7 @@ void DropShadow::drawForPath (Graphics& g, const Path& path) const
 
     if (area.getWidth() > 2 && area.getHeight() > 2)
     {
-        Image pathImage { Image::SingleChannel, area.getWidth(), area.getHeight(), true };
+        Image pathImage { Image::SingleChannel, area.getWidth(), area.getHeight(), true, *g.getInternalContext().getPreferredImageTypeForTemporaryImages() };
         pathImage.setBackupEnabled (false);
 
         {

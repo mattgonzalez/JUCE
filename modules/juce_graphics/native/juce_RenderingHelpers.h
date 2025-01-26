@@ -2429,7 +2429,7 @@ public:
         {
             auto layerBounds = clip->getClipBounds();
 
-            s->image = Image (Image::ARGB, layerBounds.getWidth(), layerBounds.getHeight(), true);
+            s->image = Image(Image::ARGB, layerBounds.getWidth(), layerBounds.getHeight(), true, juce::SoftwareImageType{} );
             s->transparencyLayerAlpha = opacity;
             s->transform.moveOriginInDeviceSpace (-layerBounds.getPosition());
             s->cloneClipIfMultiplyReferenced();

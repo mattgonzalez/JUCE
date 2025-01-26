@@ -462,6 +462,10 @@ public:
     virtual StringArray getAvailableRenderingEngines() = 0;
     virtual int getCurrentRenderingEngine() const;
     virtual void setCurrentRenderingEngine (int index);
+    virtual std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept
+    {
+        return std::make_unique<NativeImageType>();
+    }
 
     //==============================================================================
     /** On desktop platforms this method will check all the mouse and key states and return

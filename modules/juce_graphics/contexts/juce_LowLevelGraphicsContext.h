@@ -182,10 +182,7 @@ public:
     */
     virtual uint64_t getFrameId() const = 0;
 
-    virtual std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept
-    {
-        return std::make_unique<SoftwareImageType>();
-    }
+    virtual std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept = 0;
 };
 
 } // namespace juce

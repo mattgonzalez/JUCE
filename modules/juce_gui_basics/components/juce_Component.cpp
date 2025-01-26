@@ -1805,7 +1805,12 @@ Image Component::createComponentSnapshot (Rectangle<int> areaToGrab,
     auto w = roundToInt (scaleFactor * (float) r.getWidth());
     auto h = roundToInt (scaleFactor * (float) r.getHeight());
 
-    Image image (flags.opaqueFlag ? Image::RGB : Image::ARGB, w, h, true);
+    std::unique_ptr<ImageType> imageType;
+    if (auto peer = getPeer())
+        imageType = peer->getPreferredImageTypeForTemporaryImages();
+    else
+        imageType = std::make_unique<NativeImageType>();
+    Image image(flags.opaqueFlag ? Image::RGB : Image::ARGB, w, h, true, *imageType);
 
     Graphics g (image);
 

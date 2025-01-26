@@ -1839,6 +1839,11 @@ struct ShaderContext final : public RenderingHelpers::StackBasedLowLevelGraphics
         static_cast<SavedState&> (*stack).fillRectWithCustomShader (shader, area);
     }
 
+    std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override
+    {
+        return std::make_unique<SoftwareImageType>();
+    }
+
     GLState glState;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ShaderContext)

@@ -64,7 +64,7 @@ private:
 
         void handleAsyncUpdate() override
         {
-            //owner.swapEventReceived = true;
+            owner.swapEventReceived = true;
             owner.present();
         }
 
@@ -100,7 +100,7 @@ private:
 
     SwapChain swap;
     ComSmartPtr<ID2D1DeviceContext1> deviceContext;
-    //std::unique_ptr<SwapChainThread> swapChainThread;
+    std::unique_ptr<SwapChainThread> swapChainThread;
     std::optional<CompositionTree> compositionTree;
 
     // Areas that must be repainted during the next paint call, between startFrame/endFrame
@@ -115,7 +115,7 @@ private:
 
     // Set to true after the swap event is signalled, indicating that we're allowed to try presenting
     // a new frame.
-    //bool swapEventReceived = false;
+    bool swapEventReceived = false;
 
     bool prepare() override
     {
@@ -145,11 +145,9 @@ private:
                 return false;
         }
 
-        /*
         if (swapChainThread == nullptr)
             if (auto* e = swap.getEvent())
                 swapChainThread = std::make_unique<SwapChainThread> (*this, e->getHandle());
-        */
 
         if (! compositionTree.has_value())
             compositionTree = CompositionTree::create (adapter->dxgiDevice, hwnd, swap.getChain());
@@ -163,7 +161,7 @@ private:
     void teardown() override
     {
         compositionTree.reset();
-        //swapChainThread = nullptr;
+        swapChainThread = nullptr;
         deviceContext = nullptr;
         swap = {};
 
@@ -292,7 +290,7 @@ public:
     {
         JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (owner.metrics, present1Duration);
 
-        if (swap.getBuffer() == nullptr || dirtyRegionsInBackBuffer.isEmpty())// || ! swapEventReceived)
+        if (swap.getBuffer() == nullptr || dirtyRegionsInBackBuffer.isEmpty() || ! swapEventReceived)
             return;
 
         auto const swapChainSize = swap.getSize();
@@ -323,7 +321,7 @@ public:
 
         // We managed to present a frame, so we should avoid rendering anything or calling
         // present again until that frame has been shown on-screen.
-        //swapEventReceived = false;
+        swapEventReceived = false;
 
         // There's nothing waiting to be displayed in the backbuffer.
         dirtyRegionsInBackBuffer.clear();

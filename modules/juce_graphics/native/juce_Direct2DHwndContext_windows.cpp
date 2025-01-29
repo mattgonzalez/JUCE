@@ -40,9 +40,10 @@ struct Direct2DHwndContext::HwndPimpl : public Direct2DGraphicsContext::Pimpl
 private:
     struct SwapChainThread
     {
-        SwapChainThread (Direct2DHwndContext::HwndPimpl& ownerIn, HANDLE swapHandle)
+        SwapChainThread (Direct2DHwndContext::HwndPimpl& ownerIn, HANDLE swapHandle, std::function<void()> callbackIn)
             : owner (ownerIn),
-              swapChainEventHandle (swapHandle)
+              swapChainEventHandle (swapHandle),
+              callback(callbackIn)
         {
             SetWindowSubclass(owner.hwnd, SubclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
         }
@@ -62,6 +63,10 @@ private:
             if (message == swapChainReadyMessageID)
             {
                 that->owner.swapEventReceived = true;
+
+                if (that->callback)
+                    that->callback();
+
                 return 0;
             }
 
@@ -75,6 +80,7 @@ private:
     private:
         Direct2DHwndContext::HwndPimpl& owner;
         HANDLE swapChainEventHandle = nullptr;
+        std::function<void()> callback;
 
         WindowsScopedEvent quitEvent;
         std::thread thread { [&] { threadLoop(); } };
@@ -112,6 +118,7 @@ private:
     SwapChain swap;
     ComSmartPtr<ID2D1DeviceContext1> deviceContext;
     std::unique_ptr<SwapChainThread> swapChainThread;
+    std::function<void()> swapChainCallback;
     std::optional<CompositionTree> compositionTree;
 
     // Areas that must be repainted during the next paint call, between startFrame/endFrame
@@ -158,7 +165,7 @@ private:
 
         if (swapChainThread == nullptr)
             if (auto* e = swap.getEvent())
-                swapChainThread = std::make_unique<SwapChainThread> (*this, e->getHandle());
+                swapChainThread = std::make_unique<SwapChainThread> (*this, e->getHandle(), swapChainCallback);
 
         if (! compositionTree.has_value())
             compositionTree = CompositionTree::create (adapter->dxgiDevice, hwnd, swap.getChain());
@@ -201,9 +208,10 @@ private:
     JUCE_DECLARE_WEAK_REFERENCEABLE (HwndPimpl)
 
 public:
-    HwndPimpl (Direct2DHwndContext& ownerIn, HWND hwndIn)
+    HwndPimpl (Direct2DHwndContext& ownerIn, HWND hwndIn, std::function<void()> swapChainCallbackIn)
         : Pimpl (ownerIn),
-          hwnd (hwndIn)
+          hwnd (hwndIn),
+          swapChainCallback(swapChainCallbackIn)
     {
     }
 
@@ -387,7 +395,7 @@ public:
 };
 
 //==============================================================================
-Direct2DHwndContext::Direct2DHwndContext (HWND windowHandle)
+Direct2DHwndContext::Direct2DHwndContext (HWND windowHandle, std::function<void()> swapChainCallbackIn)
 {
    #if JUCE_DIRECT2D_METRICS
     metrics = new Direct2DMetrics { Direct2DMetricsHub::getInstance()->lock,
@@ -396,7 +404,7 @@ Direct2DHwndContext::Direct2DHwndContext (HWND windowHandle)
     Direct2DMetricsHub::getInstance()->add (metrics);
    #endif
 
-    pimpl = std::make_unique<HwndPimpl> (*this, windowHandle);
+    pimpl = std::make_unique<HwndPimpl> (*this, windowHandle, swapChainCallbackIn);
 }
 
 Direct2DHwndContext::~Direct2DHwndContext()

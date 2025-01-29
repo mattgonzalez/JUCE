@@ -5087,7 +5087,7 @@ public:
         if (transparent != direct2DContext->supportsTransparency())
         {
             direct2DContext.reset();
-            direct2DContext = getContextForPeer (peer);
+            direct2DContext = getContextForPeer(peer, [this] { handleDirect2DPaint(); });
         }
 
         if (direct2DContext->supportsTransparency())
@@ -5171,7 +5171,7 @@ private:
     class WrappedD2DHwndContext : public WrappedD2DHwndContextBase
     {
     public:
-        explicit WrappedD2DHwndContext (HWND hwnd) : ctx (hwnd) {}
+        explicit WrappedD2DHwndContext (HWND hwnd, std::function<void()> callbackIn) : ctx (hwnd, callbackIn) {}
 
         void addDeferredRepaint (Rectangle<int> area) override
         {
@@ -5487,17 +5487,17 @@ private:
        #endif
     }
 
-    static std::unique_ptr<WrappedD2DHwndContextBase> getContextForPeer (HWNDComponentPeer& peer)
+    static std::unique_ptr<WrappedD2DHwndContextBase> getContextForPeer (HWNDComponentPeer& peer, std::function<void()> callback)
     {
         if (peer.getTransparencyKind() != HWNDComponentPeer::TransparencyKind::opaque)
-            return std::make_unique<WrappedD2DHwndContextTransparent> (peer);
+            return std::make_unique<WrappedD2DHwndContextTransparent>(peer);
 
-        return std::make_unique<WrappedD2DHwndContext> (peer.getHWND());
+        return std::make_unique<WrappedD2DHwndContext> (peer.getHWND(), callback);
     }
 
     HWNDComponentPeer& peer;
 
-    std::unique_ptr<WrappedD2DHwndContextBase> direct2DContext = getContextForPeer (peer);
+    std::unique_ptr<WrappedD2DHwndContextBase> direct2DContext = getContextForPeer(peer, [this] { handleDirect2DPaint(); });
     UpdateRegion updateRegion;
 
    #if JUCE_ETW_TRACELOGGING

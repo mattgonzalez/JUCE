@@ -38,7 +38,7 @@ namespace juce
 class Direct2DHwndContext : public Direct2DGraphicsContext
 {
 public:
-    explicit Direct2DHwndContext (HWND windowHandle);
+    explicit Direct2DHwndContext (HWND windowHandle, std::function<void()> swapChainCallbackIn);
     ~Direct2DHwndContext() override;
 
     void handleShowWindow();

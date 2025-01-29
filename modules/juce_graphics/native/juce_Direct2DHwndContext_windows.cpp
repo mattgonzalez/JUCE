@@ -38,22 +38,39 @@ namespace juce
 struct Direct2DHwndContext::HwndPimpl : public Direct2DGraphicsContext::Pimpl
 {
 private:
-    struct SwapChainThread : private AsyncUpdater
+    struct SwapChainThread
     {
         SwapChainThread (Direct2DHwndContext::HwndPimpl& ownerIn, HANDLE swapHandle)
             : owner (ownerIn),
               swapChainEventHandle (swapHandle)
         {
+            SetWindowSubclass(owner.hwnd, SubclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
         }
 
-        ~SwapChainThread() override
+        ~SwapChainThread()
         {
-            cancelPendingUpdate();
+            RemoveWindowSubclass(owner.hwnd, SubclassWindowProc, (UINT_PTR)this);
+
             SetEvent (quitEvent.getHandle());
             thread.join();
         }
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SwapChainThread)
+        static LRESULT SubclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
+        {
+            auto* that = reinterpret_cast<SwapChainThread*> (referenceData);
+
+            if (message == swapChainReadyMessageID)
+            {
+                that->owner.swapEventReceived = true;
+                return 0;
+            }
+
+            return DefSubclassProc(hwnd, message, wParam, lParam);
+        }
+
+        static constexpr uint32_t swapChainReadyMessageID = WM_USER + 124;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SwapChainThread)
 
     private:
         Direct2DHwndContext::HwndPimpl& owner;
@@ -61,12 +78,6 @@ private:
 
         WindowsScopedEvent quitEvent;
         std::thread thread { [&] { threadLoop(); } };
-
-        void handleAsyncUpdate() override
-        {
-            owner.swapEventReceived = true;
-            owner.present();
-        }
 
         void threadLoop()
         {
@@ -82,7 +93,7 @@ private:
                 {
                     case WAIT_OBJECT_0:
                     {
-                        triggerAsyncUpdate();
+                        PostMessage(owner.hwnd, swapChainReadyMessageID, 0, 0);
                         break;
                     }
 
@@ -182,6 +193,7 @@ private:
         bool ready = Pimpl::checkPaintReady();
         ready &= swap.canPaint();
         ready &= compositionTree.has_value();
+        ready &= swapEventReceived;
 
         return ready;
     }
@@ -290,7 +302,7 @@ public:
     {
         JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (owner.metrics, present1Duration);
 
-        if (swap.getBuffer() == nullptr || dirtyRegionsInBackBuffer.isEmpty() || ! swapEventReceived)
+        if (swap.getBuffer() == nullptr || dirtyRegionsInBackBuffer.isEmpty() || !swapEventReceived)
             return;
 
         auto const swapChainSize = swap.getSize();

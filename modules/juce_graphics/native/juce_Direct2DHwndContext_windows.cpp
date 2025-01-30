@@ -45,18 +45,18 @@ private:
               swapChainEventHandle (swapHandle),
               callback(callbackIn)
         {
-            SetWindowSubclass(owner.hwnd, SubclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
+            SetWindowSubclass(owner.hwnd, subclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
         }
 
         ~SwapChainThread()
         {
-            RemoveWindowSubclass(owner.hwnd, SubclassWindowProc, (UINT_PTR)this);
+            RemoveWindowSubclass(owner.hwnd, subclassWindowProc, (UINT_PTR)this);
 
             SetEvent (quitEvent.getHandle());
             thread.join();
         }
 
-        static LRESULT SubclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
+        static LRESULT subclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
         {
             auto* that = reinterpret_cast<SwapChainThread*> (referenceData);
 
@@ -73,6 +73,40 @@ private:
             return DefSubclassProc(hwnd, message, wParam, lParam);
         }
 
+        void notifyFramePainted()
+        {
+            jassert(owner.swapEventReceived);
+
+            if (owner.swap.getBuffer() == nullptr || !owner.swapEventReceived)
+                return;
+
+            SetEvent(framePaintedEvent.getHandle());
+        }
+
+        void setupDirtyRectangles()
+        {
+            juce::Rectangle<int> swapChainSize;
+
+            swapChainSize = owner.swap.getSize();
+
+            presentParameters.DirtyRectsCount = 0;
+
+            if (!owner.deferredRepaints.containsRectangle(swapChainSize))
+            {
+                // Allocate enough memory for the array of dirty rectangles
+                dirtyRectangles.resize((size_t)owner.deferredRepaints.getNumRectangles());
+
+                // Fill the array of dirty rectangles, intersecting each paint area with the swap chain buffer
+                presentParameters.pDirtyRects = dirtyRectangles.data();
+
+                for (const auto& area : owner.deferredRepaints)
+                {
+                    if (const auto intersection = area.getIntersection(swapChainSize); !intersection.isEmpty())
+                        presentParameters.pDirtyRects[presentParameters.DirtyRectsCount++] = D2DUtilities::toRECT(intersection);
+                }
+            }
+        }
+
         static constexpr uint32_t swapChainReadyMessageID = WM_USER + 124;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SwapChainThread)
@@ -81,9 +115,27 @@ private:
         Direct2DHwndContext::HwndPimpl& owner;
         HANDLE swapChainEventHandle = nullptr;
         std::function<void()> callback;
+        std::vector<RECT> dirtyRectangles;
+        DXGI_PRESENT_PARAMETERS presentParameters{};
 
+        WindowsScopedEvent framePaintedEvent;
         WindowsScopedEvent quitEvent;
         std::thread thread { [&] { threadLoop(); } };
+
+        void present()
+        {
+            JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(owner.owner.metrics, present1Duration);
+
+            {
+                ScopedMultithread mt{ owner.swapChainMultithread };
+
+                // Present the freshly painted buffer
+                const auto hr = owner.swap.getChain()->Present1(owner.swap.presentSyncInterval, owner.swap.presentFlags, &presentParameters);
+                jassertquiet(SUCCEEDED(hr));
+            }
+
+            JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::direct2dHwndPaintEnd, owner.owner.getFrameId());
+        }
 
         void threadLoop()
         {
@@ -91,7 +143,7 @@ private:
 
             for (;;)
             {
-                const HANDLE handles[] { swapChainEventHandle, quitEvent.getHandle() };
+                const HANDLE handles[] { swapChainEventHandle, framePaintedEvent.getHandle(), quitEvent.getHandle() };
 
                 const auto waitResult = WaitForMultipleObjects ((DWORD) std::size (handles), handles, FALSE, INFINITE);
 
@@ -99,11 +151,23 @@ private:
                 {
                     case WAIT_OBJECT_0:
                     {
+                        // Swap chain event fired
+                        JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::swapChainThreadEvent, owner.owner.getFrameId());
+
                         PostMessage(owner.hwnd, swapChainReadyMessageID, 0, 0);
                         break;
                     }
 
                     case WAIT_OBJECT_0 + 1:
+                    {
+                        // "Frame painted" event fired
+                        JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::present1SwapChainStart, owner.owner.getFrameId());
+
+                        present();
+                        break;
+                    }
+
+                    case WAIT_OBJECT_0 + 2:
                         return;
 
                     case WAIT_FAILED:
@@ -118,16 +182,13 @@ private:
     SwapChain swap;
     ComSmartPtr<ID2D1DeviceContext1> deviceContext;
     std::unique_ptr<SwapChainThread> swapChainThread;
+    ComSmartPtr<ID2D1Multithread> swapChainMultithread;
     std::function<void()> swapChainCallback;
     std::optional<CompositionTree> compositionTree;
 
     // Areas that must be repainted during the next paint call, between startFrame/endFrame
     RectangleList<int> deferredRepaints;
 
-    // Areas that have been updated in the backbuffer, but not presented
-    RectangleList<int> dirtyRegionsInBackBuffer;
-
-    std::vector<RECT> dirtyRectangles;
     int64 lastFinishFrameTicks = 0;
     HWND hwnd = nullptr;
 
@@ -157,15 +218,19 @@ private:
         if (! hwnd || getClientRect().isEmpty())
             return false;
 
-        if (! swap.canPaint())
         {
-            if (auto hr = swap.create (hwnd, getClientRect(), adapter); FAILED (hr))
-                return false;
-        }
+            ScopedMultithread scopedMultithread{ swapChainMultithread };
 
-        if (swapChainThread == nullptr)
-            if (auto* e = swap.getEvent())
-                swapChainThread = std::make_unique<SwapChainThread> (*this, e->getHandle(), swapChainCallback);
+            if (!swap.canPaint())
+            {
+                if (auto hr = swap.create(hwnd, getClientRect(), adapter); FAILED(hr))
+                    return false;
+            }
+
+            if (swapChainThread == nullptr)
+                if (auto* e = swap.getEvent())
+                    swapChainThread = std::make_unique<SwapChainThread>(*this, e->getHandle(), swapChainCallback);
+        }
 
         if (! compositionTree.has_value())
             compositionTree = CompositionTree::create (adapter->dxgiDevice, hwnd, swap.getChain());
@@ -178,9 +243,12 @@ private:
 
     void teardown() override
     {
+        ScopedMultithread scopedMultithread{ swapChainMultithread };
+
         compositionTree.reset();
         swapChainThread = nullptr;
         deviceContext = nullptr;
+
         swap = {};
 
         Pimpl::teardown();
@@ -213,6 +281,8 @@ public:
           hwnd (hwndIn),
           swapChainCallback(swapChainCallbackIn)
     {
+        auto factory = directX->getD2DFactory();
+        factory->QueryInterface(swapChainMultithread.resetAndGetPointerAddress());
     }
 
     ~HwndPimpl() override = default;
@@ -251,14 +321,13 @@ public:
 
     void setSize (Rectangle<int> size)
     {
+        ScopedMultithread scopedMultithread{ swapChainMultithread };
+
         if (size == swap.getSize() || size.isEmpty())
             return;
 
         // Require the entire window to be repainted
         deferredRepaints = size;
-
-        // The backbuffer has no valid content until we paint a full frame
-        dirtyRegionsInBackBuffer.clear();
 
         InvalidateRect (hwnd, nullptr, TRUE);
 
@@ -275,7 +344,7 @@ public:
     {
         deferredRepaints.add (deferredRepaint);
 
-        JUCE_TRACE_EVENT_INT_RECT (etw::repaint, etw::paintKeyword, snappedRectangle);
+        JUCE_TRACE_EVENT_INT_RECT (etw::repaint, etw::paintKeyword, deferredRepaint);
     }
 
     SavedState* startFrame (float dpiScale) override
@@ -290,7 +359,7 @@ public:
         // If a new frame is starting, clear deferredAreas in case repaint is called
         // while the frame is being painted to ensure the new areas are painted on the
         // next frame
-        dirtyRegionsInBackBuffer.add (deferredRepaints);
+        swapChainThread->setupDirtyRectangles();
         deferredRepaints.clear();
 
         JUCE_TRACE_LOG_D2D_PAINT_CALL (etw::direct2dHwndPaintStart, owner.getFrameId());
@@ -301,56 +370,17 @@ public:
     HRESULT finishFrame() override
     {
         const auto result = Pimpl::finishFrame();
-        present();
+
+        swapChainThread->notifyFramePainted();
+
         lastFinishFrameTicks = Time::getHighResolutionTicks();
         return result;
     }
 
-    void present()
-    {
-        JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (owner.metrics, present1Duration);
-
-        if (swap.getBuffer() == nullptr || dirtyRegionsInBackBuffer.isEmpty() || !swapEventReceived)
-            return;
-
-        auto const swapChainSize = swap.getSize();
-        DXGI_PRESENT_PARAMETERS presentParameters{};
-
-        if (! dirtyRegionsInBackBuffer.containsRectangle (swapChainSize))
-        {
-            // Allocate enough memory for the array of dirty rectangles
-            dirtyRectangles.resize ((size_t) dirtyRegionsInBackBuffer.getNumRectangles());
-
-            // Fill the array of dirty rectangles, intersecting each paint area with the swap chain buffer
-            presentParameters.pDirtyRects = dirtyRectangles.data();
-            presentParameters.DirtyRectsCount = 0;
-
-            for (const auto& area : dirtyRegionsInBackBuffer)
-            {
-                if (const auto intersection = area.getIntersection (swapChainSize); ! intersection.isEmpty())
-                    presentParameters.pDirtyRects[presentParameters.DirtyRectsCount++] = D2DUtilities::toRECT (intersection);
-            }
-        }
-
-        // Present the freshly painted buffer
-        const auto hr = swap.getChain()->Present1 (swap.presentSyncInterval, swap.presentFlags, &presentParameters);
-        jassertquiet (SUCCEEDED (hr));
-
-        if (FAILED (hr))
-            return;
-
-        // We managed to present a frame, so we should avoid rendering anything or calling
-        // present again until that frame has been shown on-screen.
-        swapEventReceived = false;
-
-        // There's nothing waiting to be displayed in the backbuffer.
-        dirtyRegionsInBackBuffer.clear();
-
-        JUCE_TRACE_LOG_D2D_PAINT_CALL (etw::direct2dHwndPaintEnd, owner.getFrameId());
-    }
-
     Image createSnapshot() const
     {
+        ScopedMultithread scopedMultithread{ swapChainMultithread };
+
         JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
 
         // This won't capture child windows. Perhaps a better approach would be to use

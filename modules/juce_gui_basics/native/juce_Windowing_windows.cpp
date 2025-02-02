@@ -1429,6 +1429,10 @@ class HWNDComponentPeer final : public ComponentPeer
                               #endif
 {
 public:
+    bool isSizing() const noexcept
+    {
+        return sizing;
+    }
     //==============================================================================
     HWNDComponentPeer (Component& comp,
                        int windowStyleFlags,
@@ -5131,7 +5135,6 @@ public:
 
     void onVBlank() override
     {
-        handleDirect2DPaint();
     }
 
     void handleShowWindow() override
@@ -5152,7 +5155,7 @@ private:
         virtual void addDeferredRepaint (Rectangle<int> area) = 0;
         virtual Image createSnapshot() const = 0;
         virtual void handleShowWindow() = 0;
-        virtual LowLevelGraphicsContext* startFrame (float dpiScale) = 0;
+        virtual LowLevelGraphicsContext* startFrame (float dpiScale, bool sizing) = 0;
         virtual void endFrame() = 0;
         virtual bool supportsTransparency() const = 0;
         virtual void updateAlpha() = 0;
@@ -5193,9 +5196,9 @@ private:
             ctx.handleShowWindow();
         }
 
-        LowLevelGraphicsContext* startFrame (float scale) override
+        LowLevelGraphicsContext* startFrame (float scale, bool sizing) override
         {
-            if (ctx.startFrame (scale))
+            if (ctx.startFrame (scale, sizing))
                 return &ctx;
 
             return nullptr;
@@ -5274,7 +5277,7 @@ private:
             if (context == nullptr)
                 context = std::make_unique<Direct2DImageContext> (deviceContext, bitmap, paintAreas);
 
-            if (! context->startFrame (scale))
+            if (! context->startFrame (scale, false /* sizing */))
                 context = nullptr;
 
             if (context == nullptr)
@@ -5362,7 +5365,7 @@ private:
 
         void handleShowWindow() override {}
 
-        LowLevelGraphicsContext* startFrame (float scale) override
+        LowLevelGraphicsContext* startFrame (float scale, bool /*sizing*/) override
         {
             auto* result = bitmapRenderer.startFrame (peer.getHWND(), scale, deferredRepaints);
 
@@ -5471,7 +5474,7 @@ private:
         //
         // Direct2DLowLevelGraphicsContext::endFrame calls ID2D1DeviceContext::EndDraw to finish painting
         // and then tells the swap chain to present the next swap chain back buffer.
-        if (auto* ctx = direct2DContext->startFrame ((float) peer.getPlatformScaleFactor()))
+        if (auto* ctx = direct2DContext->startFrame ((float) peer.getPlatformScaleFactor(), peer.isSizing()))
         {
             peer.handlePaint (*ctx);
             direct2DContext->endFrame();

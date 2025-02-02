@@ -417,7 +417,7 @@ struct Direct2DPixelData::Context : public Direct2DImageContext
              ComSmartPtr<ID2D1Bitmap1> target)
         : Direct2DImageContext (context, target, D2DUtilities::rectFromSize (target->GetPixelSize())),
           self (selfIn),
-          frameStarted (startFrame (1.0f))
+          frameStarted (startFrame (1.0f, false /* sizing */))
     {
         if (frameStarted)
             self->state = State::drawing;

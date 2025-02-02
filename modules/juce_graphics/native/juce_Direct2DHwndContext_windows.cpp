@@ -40,34 +40,91 @@ struct Direct2DHwndContext::HwndPimpl : public Direct2DGraphicsContext::Pimpl
 private:
     struct SwapChainThread
     {
-        SwapChainThread (Direct2DHwndContext::HwndPimpl& ownerIn, HANDLE swapHandle, std::function<void()> callbackIn)
-            : owner (ownerIn),
-              swapChainEventHandle (swapHandle),
-              callback(callbackIn)
+        SwapChainThread(Direct2DHwndContext::HwndPimpl& ownerIn, HWND hwnd, std::function<void()> callbackIn)
+            : owner(ownerIn),
+            callback(callbackIn)
         {
-            SetWindowSubclass(owner.hwnd, subclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
+            SetWindowSubclass(hwnd, subclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
         }
 
         ~SwapChainThread()
         {
             RemoveWindowSubclass(owner.hwnd, subclassWindowProc, (UINT_PTR)this);
 
-            SetEvent (quitEvent.getHandle());
-            thread.join();
+            stopThread();
+        }
+
+        void startThread()
+        {
+            if (thread.has_value())
+                return;
+
+            DxgiAdapter::Ptr adapter{};
+            if (owner.hwnd)
+                adapter = owner.directX->adapters.getAdapterForHwnd(owner.hwnd);
+
+            if (!adapter)
+                return;
+
+            commandQueueReadIndex = 0;
+            commandQueueWriteIndex = 0;
+            for (auto& command : commandQueue)
+                command = {};
+
+            //
+            // Create a swap chain
+            //
+            if (auto hr = swap.create(owner.hwnd, owner.getClientRect(), adapter); FAILED(hr))
+            {
+                return;
+            }
+
+            swapEventReceived = true;
+            dirtyRectangleCountMask = 0;
+
+            PostMessage(owner.hwnd, swapChainReadyMessageID, 0, 0);
+
+            //
+            // Create the thread
+            //
+            thread = std::thread{ [&] { threadLoop(); } };
+        }
+
+        void stopThread()
+        {
+            if (thread.has_value())
+            {
+                SetEvent(quitEvent.getHandle());
+                thread->join();
+                thread = std::nullopt;
+
+                swap = {};
+            }
+
+            for (auto& command : commandQueue)
+                command = {};
         }
 
         static LRESULT subclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
         {
             auto* that = reinterpret_cast<SwapChainThread*> (referenceData);
 
-            if (message == swapChainReadyMessageID)
+            switch (message)
             {
-                that->owner.swapEventReceived = true;
-
+            case swapChainReadyMessageID:
+            {
                 if (that->callback)
                     that->callback();
 
                 return 0;
+            }
+
+            case presentErrorMessageID:
+            {
+                that->owner.teardown();
+
+                return 0;
+            }
             }
 
             return DefSubclassProc(hwnd, message, wParam, lParam);
@@ -75,19 +132,16 @@ private:
 
         void notifyFramePainted()
         {
-            jassert(owner.swapEventReceived);
+            jassert(swapEventReceived);
 
-            if (owner.swap.getBuffer() == nullptr || !owner.swapEventReceived)
-                return;
-
-            SetEvent(framePaintedEvent.getHandle());
+            addCommand([this]() { present(); });
         }
 
         void setupDirtyRectangles()
         {
             juce::Rectangle<int> swapChainSize;
 
-            swapChainSize = owner.swap.getSize();
+            swapChainSize = swap.getSize();
 
             presentParameters.DirtyRectsCount = 0;
 
@@ -105,33 +159,136 @@ private:
                         presentParameters.pDirtyRects[presentParameters.DirtyRectsCount++] = D2DUtilities::toRECT(intersection);
                 }
             }
+
+            presentParameters.DirtyRectsCount &= dirtyRectangleCountMask;
         }
 
+        bool isReady()
+        {
+            return swap.canPaint() && thread.has_value() && swapEventReceived;
+        }
+
+        bool prepare(Rectangle<int> size, bool sizing)
+        {
+            if (sizing)
+                return false;
+
+            if (size != getSize())
+            {
+                stopThread();
+                createSwapChain(size);
+                startThread();
+            }
+
+            if (!thread.has_value())
+            {
+                startThread();
+            }
+
+            return true;
+        }
+
+        void teardown()
+        {
+            stopThread();
+        }
+
+        void createSwapChain(Rectangle<int> requestedSize)
+        {
+            auto hr = swap.create(owner.hwnd, requestedSize, owner.directX->adapters.getAdapterForHwnd(owner.hwnd));
+            jassert(SUCCEEDED(hr));
+            swapChainSize64.store(((uint64_t)requestedSize.getWidth() << 32) | (uint64_t)requestedSize.getHeight());
+
+            dirtyRectangleCountMask = 0;
+
+            uint32_t messageID = SUCCEEDED(hr) ? swapChainReadyMessageID : presentErrorMessageID;
+            PostMessage(owner.hwnd, messageID, 0, 0);
+
+            return;
+
+            addCommand([&]
+                {
+                    HRESULT hr = S_OK;
+
+                    auto requestedSize = getSize();
+                    if (requestedSize.isEmpty() || swap.getSize() == requestedSize)
+                        return;
+
+                    if (!swap.canPaint())
+                    {
+                        hr = swap.create(owner.hwnd, requestedSize, owner.directX->adapters.getAdapterForHwnd(owner.hwnd));
+                    }
+
+                    hr = swap.resize(requestedSize);
+                    jassert(SUCCEEDED(hr));
+
+                    swapChainSize64.store(((uint64_t)requestedSize.getWidth() << 32) | (uint64_t)requestedSize.getHeight());
+
+                    dirtyRectangleCountMask = 0;
+
+                    uint32_t messageID = SUCCEEDED(hr) ? swapChainReadyMessageID : presentErrorMessageID;
+                    PostMessage(owner.hwnd, messageID, 0, 0);
+                });
+        }
+
+        Rectangle<int> getSize() const noexcept
+        {
+            auto size64 = swapChainSize64.load();
+            return { (int)(size64 >> 32), (int)size64 };
+        }
+
+        SwapChain swap;
+        std::function<void()> swapChainCallback;
+
         static constexpr uint32_t swapChainReadyMessageID = WM_USER + 124;
+        static constexpr uint32_t presentErrorMessageID = WM_USER + 125;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SwapChainThread)
 
     private:
         Direct2DHwndContext::HwndPimpl& owner;
-        HANDLE swapChainEventHandle = nullptr;
         std::function<void()> callback;
         std::vector<RECT> dirtyRectangles;
         DXGI_PRESENT_PARAMETERS presentParameters{};
+        bool swapEventReceived = false;
 
-        WindowsScopedEvent framePaintedEvent;
+        static constexpr auto commandQueueSize = 16;
+        std::array<std::optional<std::function<void()>>, commandQueueSize> commandQueue;
+        int commandQueueWriteIndex = 0;
+        int commandQueueReadIndex = 0;
+        uint32_t dirtyRectangleCountMask = 0;
+
+        WindowsScopedEvent commandEvent;
         WindowsScopedEvent quitEvent;
-        std::thread thread { [&] { threadLoop(); } };
+        std::optional<std::thread> thread;
+        std::atomic<uint64_t> swapChainSize64{};
+
+        void addCommand(std::function<void()> handler)
+        {
+            commandQueue[commandQueueWriteIndex] = std::move(handler);
+            commandQueueWriteIndex = (commandQueueWriteIndex + 1) & (commandQueue.size() - 1);
+            SetEvent(commandEvent.getHandle());
+        }
 
         void present()
         {
             JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME(owner.owner.metrics, present1Duration);
 
-            {
-                ScopedMultithread mt{ owner.swapChainMultithread };
+            // Present the freshly painted buffer
+            swapEventReceived = false;
 
-                // Present the freshly painted buffer
-                const auto hr = owner.swap.getChain()->Present1(owner.swap.presentSyncInterval, owner.swap.presentFlags, &presentParameters);
-                jassertquiet(SUCCEEDED(hr));
+            auto const hr = swap.getChain()->Present1(swap.presentSyncInterval, swap.presentFlags, &presentParameters);
+            jassertquiet(SUCCEEDED(hr));
+
+            if (SUCCEEDED(hr))
+            {
+                dirtyRectangleCountMask = 0xffffffff;
+            }
+            else
+            {
+                PostMessage(owner.hwnd, presentErrorMessageID, 0, 0);
+
+                swap = {};
             }
 
             JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::direct2dHwndPaintEnd, owner.owner.getFrameId());
@@ -139,11 +296,13 @@ private:
 
         void threadLoop()
         {
+            bool running = true;
+
             Thread::setCurrentThreadName ("JUCE D2D swap chain thread");
 
-            for (;;)
+            while (running)
             {
-                const HANDLE handles[] { swapChainEventHandle, framePaintedEvent.getHandle(), quitEvent.getHandle() };
+                const HANDLE handles[] { swap.getEvent()->getHandle(), commandEvent.getHandle(), quitEvent.getHandle()};
 
                 const auto waitResult = WaitForMultipleObjects ((DWORD) std::size (handles), handles, FALSE, INFINITE);
 
@@ -154,37 +313,52 @@ private:
                         // Swap chain event fired
                         JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::swapChainThreadEvent, owner.owner.getFrameId());
 
+                        swapEventReceived = true;
+
                         PostMessage(owner.hwnd, swapChainReadyMessageID, 0, 0);
                         break;
                     }
 
                     case WAIT_OBJECT_0 + 1:
                     {
-                        // "Frame painted" event fired
-                        JUCE_TRACE_LOG_D2D_PAINT_CALL(etw::present1SwapChainStart, owner.owner.getFrameId());
+                        // Command event fired
 
-                        present();
+                        while (commandQueueReadIndex != commandQueueWriteIndex)
+                        {
+                            auto& command = commandQueue[commandQueueReadIndex];
+                            commandQueueReadIndex = (commandQueueReadIndex + 1) & (commandQueue.size() - 1);
+
+                            if (command.has_value())
+                            {
+                                (*command)();
+                                command = {};
+                            }
+                        }
+
                         break;
                     }
 
                     case WAIT_OBJECT_0 + 2:
-                        return;
+                    {
+                        // Quit event fired
+                        running = false;
+                        break;
+                    }
 
                     case WAIT_FAILED:
                     default:
+                        running = false;
                         jassertfalse;
                         break;
                 }
             }
+
+            swap = {};
         }
     };
 
-    SwapChain swap;
     ComSmartPtr<ID2D1DeviceContext1> deviceContext;
-    std::unique_ptr<SwapChainThread> swapChainThread;
-    ComSmartPtr<ID2D1Multithread> swapChainMultithread;
-    std::function<void()> swapChainCallback;
-    std::optional<CompositionTree> compositionTree;
+    SwapChainThread swapChainThread;
 
     // Areas that must be repainted during the next paint call, between startFrame/endFrame
     RectangleList<int> deferredRepaints;
@@ -192,11 +366,7 @@ private:
     int64 lastFinishFrameTicks = 0;
     HWND hwnd = nullptr;
 
-    // Set to true after the swap event is signalled, indicating that we're allowed to try presenting
-    // a new frame.
-    bool swapEventReceived = false;
-
-    bool prepare() override
+    bool prepare(bool sizing) override
     {
         const auto adapter = directX->adapters.getAdapterForHwnd (hwnd);
 
@@ -215,41 +385,23 @@ private:
         if (! deviceResources.has_value())
             return false;
 
-        if (! hwnd || getClientRect().isEmpty())
+        auto clientRect = getClientRect();
+        if (! hwnd || clientRect.isEmpty())
             return false;
 
+        if (!swapChainThread.isReady())
         {
-            ScopedMultithread scopedMultithread{ swapChainMultithread };
-
-            if (!swap.canPaint())
-            {
-                if (auto hr = swap.create(hwnd, getClientRect(), adapter); FAILED(hr))
-                    return false;
-            }
-
-            if (swapChainThread == nullptr)
-                if (auto* e = swap.getEvent())
-                    swapChainThread = std::make_unique<SwapChainThread>(*this, e->getHandle(), swapChainCallback);
+            if (!swapChainThread.prepare(clientRect, sizing))
+                return false;
         }
-
-        if (! compositionTree.has_value())
-            compositionTree = CompositionTree::create (adapter->dxgiDevice, hwnd, swap.getChain());
-
-        if (! compositionTree.has_value())
-            return false;
 
         return true;
     }
 
     void teardown() override
     {
-        ScopedMultithread scopedMultithread{ swapChainMultithread };
-
-        compositionTree.reset();
-        swapChainThread = nullptr;
+        swapChainThread.teardown();
         deviceContext = nullptr;
-
-        swap = {};
 
         Pimpl::teardown();
     }
@@ -278,10 +430,8 @@ public:
     HwndPimpl (Direct2DHwndContext& ownerIn, HWND hwndIn, std::function<void()> swapChainCallbackIn)
         : Pimpl (ownerIn),
           hwnd (hwndIn),
-          swapChainCallback(swapChainCallbackIn)
+          swapChainThread(*this, hwndIn, swapChainCallbackIn)
     {
-        auto factory = directX->getD2DFactory();
-        factory->QueryInterface(swapChainMultithread.resetAndGetPointerAddress());
     }
 
     ~HwndPimpl() override = default;
@@ -291,7 +441,7 @@ public:
         // One of the trickier problems was determining when Direct2D & DXGI resources can be safely created;
         // that's not really spelled out in the documentation.
         // This method is called when the component peer receives WM_SHOWWINDOW
-        prepare();
+        prepare(false /* sizing */);
         deferredRepaints = getClientRect();
     }
 
@@ -315,15 +465,13 @@ public:
 
     ComSmartPtr<ID2D1Image> getDeviceContextTarget() const override
     {
-        return swap.getBuffer();
+        return swapChainThread.swap.getBuffer();
     }
 
-    void setSize (Rectangle<int> size)
+    bool setSwapChainBufferSize (Rectangle<int> size)
     {
-        ScopedMultithread scopedMultithread{ swapChainMultithread };
-
-        if (size == swap.getSize() || size.isEmpty())
-            return;
+        if (size == swapChainThread.getSize() || size.isEmpty())
+            return true;
 
         // Require the entire window to be repainted
         deferredRepaints = size;
@@ -331,12 +479,9 @@ public:
         InvalidateRect (hwnd, nullptr, TRUE);
 
         // Resize/scale the swap chain
-        prepare();
+        prepare(true);
 
-        auto hr = swap.resize (size);
-        jassert (SUCCEEDED (hr));
-        if (FAILED (hr))
-            teardown();
+        return true;
     }
 
     void addDeferredRepaint (Rectangle<int> deferredRepaint)
@@ -346,11 +491,12 @@ public:
         JUCE_TRACE_EVENT_INT_RECT (etw::repaint, etw::paintKeyword, deferredRepaint);
     }
 
-    SavedState* startFrame (float dpiScale) override
+    SavedState* startFrame (float dpiScale, bool sizing) override
     {
-        setSize (getClientRect());
+        if (! setSwapChainBufferSize(getClientRect()))
+            return nullptr;
 
-        auto* savedState = Pimpl::startFrame (dpiScale);
+        auto* savedState = Pimpl::startFrame (dpiScale, sizing);
 
         if (savedState == nullptr)
             return nullptr;
@@ -358,7 +504,7 @@ public:
         // If a new frame is starting, clear deferredAreas in case repaint is called
         // while the frame is being painted to ensure the new areas are painted on the
         // next frame
-        swapChainThread->setupDirtyRectangles();
+        swapChainThread.setupDirtyRectangles();
         deferredRepaints.clear();
 
         JUCE_TRACE_LOG_D2D_PAINT_CALL (etw::direct2dHwndPaintStart, owner.getFrameId());
@@ -370,7 +516,7 @@ public:
     {
         const auto result = Pimpl::finishFrame();
 
-        swapChainThread->notifyFramePainted();
+        swapChainThread.notifyFramePainted();
 
         lastFinishFrameTicks = Time::getHighResolutionTicks();
         return result;
@@ -378,7 +524,8 @@ public:
 
     Image createSnapshot() const
     {
-        ScopedMultithread scopedMultithread{ swapChainMultithread };
+#if 0
+        ScopedLock locker{ swapChainLock };
 
         JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
 
@@ -420,6 +567,9 @@ public:
         swap.getChain()->Present (0, DXGI_PRESENT_DO_NOT_WAIT);
 
         return result;
+#endif
+
+        return {};
     }
 };
 

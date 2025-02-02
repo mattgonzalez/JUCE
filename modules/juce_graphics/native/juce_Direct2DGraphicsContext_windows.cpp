@@ -578,7 +578,7 @@ protected:
 
     std::vector<std::unique_ptr<Direct2DGraphicsContext::SavedState>> savedClientStates;
 
-    virtual bool prepare()
+    virtual bool prepare(bool /* sizing */)
     {
         if (! deviceResources.has_value())
             deviceResources = Direct2DDeviceResources::create (getDeviceContext());
@@ -610,9 +610,9 @@ public:
         popAllSavedStates();
     }
 
-    virtual SavedState* startFrame (float dpiScale)
+    virtual SavedState* startFrame (float dpiScale, bool sizing)
     {
-        prepare();
+        prepare(sizing);
 
         // Anything to paint?
         const auto paintAreas = getPaintAreas();
@@ -895,11 +895,11 @@ private:
 Direct2DGraphicsContext::Direct2DGraphicsContext() = default;
 Direct2DGraphicsContext::~Direct2DGraphicsContext() = default;
 
-bool Direct2DGraphicsContext::startFrame (float dpiScale)
+bool Direct2DGraphicsContext::startFrame (float dpiScale, bool sizing)
 {
     const auto pimpl = getPimpl();
     const auto paintAreas = pimpl->getPaintAreas();
-    currentState = pimpl->startFrame (dpiScale);
+    currentState = pimpl->startFrame (dpiScale, sizing);
 
     if (currentState == nullptr)
         return false;

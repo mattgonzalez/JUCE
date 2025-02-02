@@ -266,9 +266,8 @@ private:
             return false;
 
         bool ready = Pimpl::checkPaintReady();
-        ready &= swap.canPaint();
-        ready &= compositionTree.has_value();
-        ready &= swapEventReceived;
+        ready &= swapChainThread.swap.canPaint();
+        ready &= swapChainThread.isReady();
 
         return ready;
     }

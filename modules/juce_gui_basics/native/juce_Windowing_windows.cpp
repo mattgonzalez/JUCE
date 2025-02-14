@@ -5107,9 +5107,7 @@ public:
         updateRegion.findRECTAndValidate (peer.getHWND());
 
         for (const auto& rect : updateRegion.getRects())
-            direct2DContext->addDeferredRepaint(D2DUtilities::toRectangle(rect));
-
-        handleDirect2DPaint();
+            repaint (D2DUtilities::toRectangle (rect));
 
        #if JUCE_DIRECT2D_METRICS
         lastPaintStartTicks = paintStartTicks;
@@ -5119,9 +5117,6 @@ public:
     void repaint (const Rectangle<int>& area) override
     {
         direct2DContext->addDeferredRepaint (area);
-
-        auto r = D2DUtilities::toRECT(area);
-        InvalidateRect(peer.getHWND(), &r, FALSE);
     }
 
     void dispatchDeferredRepaints() override {}
@@ -5135,6 +5130,7 @@ public:
 
     void onVBlank() override
     {
+        handleDirect2DPaint();
     }
 
     void handleShowWindow() override

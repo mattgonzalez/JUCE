@@ -40,11 +40,11 @@ struct Direct2DHwndContext::HwndPimpl : public Direct2DGraphicsContext::Pimpl
 private:
     struct SwapChainThread
     {
-        SwapChainThread(Direct2DHwndContext::HwndPimpl& ownerIn, HWND hwnd, std::function<void()> callbackIn)
+        SwapChainThread(Direct2DHwndContext::HwndPimpl& ownerIn, HWND hwndIn, std::function<void()> callbackIn)
             : owner(ownerIn),
             callback(callbackIn)
         {
-            SetWindowSubclass(hwnd, subclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
+            SetWindowSubclass(hwndIn, subclassWindowProc, (UINT_PTR)this, (DWORD_PTR)this);
         }
 
         ~SwapChainThread()
@@ -105,7 +105,7 @@ private:
                 command = {};
         }
 
-        static LRESULT subclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
+        static LRESULT __stdcall subclassWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR referenceData)
         {
             auto* that = reinterpret_cast<SwapChainThread*> (referenceData);
 
@@ -205,30 +205,6 @@ private:
             PostMessage(owner.hwnd, messageID, 0, 0);
 
             return;
-
-            addCommand([&]
-                {
-                    HRESULT hr = S_OK;
-
-                    auto requestedSize = getSize();
-                    if (requestedSize.isEmpty() || swap.getSize() == requestedSize)
-                        return;
-
-                    if (!swap.canPaint())
-                    {
-                        hr = swap.create(owner.hwnd, requestedSize, owner.directX->adapters.getAdapterForHwnd(owner.hwnd));
-                    }
-
-                    hr = swap.resize(requestedSize);
-                    jassert(SUCCEEDED(hr));
-
-                    swapChainSize64.store(((uint64_t)requestedSize.getWidth() << 32) | (uint64_t)requestedSize.getHeight());
-
-                    dirtyRectangleCountMask = 0;
-
-                    uint32_t messageID = SUCCEEDED(hr) ? swapChainReadyMessageID : presentErrorMessageID;
-                    PostMessage(owner.hwnd, messageID, 0, 0);
-                });
         }
 
         Rectangle<int> getSize() const noexcept
@@ -254,8 +230,8 @@ private:
 
         static constexpr auto commandQueueSize = 16;
         std::array<std::optional<std::function<void()>>, commandQueueSize> commandQueue;
-        int commandQueueWriteIndex = 0;
-        int commandQueueReadIndex = 0;
+        size_t commandQueueWriteIndex = 0;
+        size_t commandQueueReadIndex = 0;
         uint32_t dirtyRectangleCountMask = 0;
 
         WindowsScopedEvent commandEvent;
@@ -429,8 +405,8 @@ private:
 public:
     HwndPimpl (Direct2DHwndContext& ownerIn, HWND hwndIn, std::function<void()> swapChainCallbackIn)
         : Pimpl (ownerIn),
-          hwnd (hwndIn),
-          swapChainThread(*this, hwndIn, swapChainCallbackIn)
+          swapChainThread(*this, hwndIn, swapChainCallbackIn),
+          hwnd(hwndIn)
     {
     }
 

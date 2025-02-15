@@ -235,7 +235,9 @@ public:
     enum
     {
         getValuesRequest,
-        resetValuesRequest
+        resetValuesRequest,
+        getMaximumTextureMemoryRequest,
+        setMaximumTextureMemoryRequest
     };
 
     struct MetricValues
@@ -253,6 +255,21 @@ public:
         int responseType;
         void* windowHandle;
         MetricValues values[Direct2DMetrics::numStats];
+    };
+
+    struct GetMaximumTextureMemoryResponse
+    {
+        static constexpr size_t maxNumAdapters = 16;
+
+        int responseType = getMaximumTextureMemoryRequest;
+        int numAdapters = 0;
+        uint64_t maximumTextureMemoryPerAdapter[maxNumAdapters]{};
+    };
+
+    struct SetMaximumTextureMemoryRequest
+    {
+        int requestType;
+        uint64_t maximumTextureMemory;
     };
 
     CriticalSection lock;

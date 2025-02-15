@@ -113,6 +113,51 @@ void Direct2DMetricsHub::HubPipeServer::messageReceived (const MemoryBlock& mess
             owner.resetAll();
             break;
         }
+
+        case getMaximumTextureMemoryRequest:
+        {
+            SharedResourcePointer<DirectX> directX;
+            MemoryBlock block{ sizeof(GetMaximumTextureMemoryResponse), true };
+
+            auto* response = (GetMaximumTextureMemoryResponse*)block.getData();
+            response->responseType = getMaximumTextureMemoryRequest;
+
+            const auto& adapters = directX->adapters.getAdapterArray();
+            for (auto const& adapter : adapters)
+            {
+                if (adapter->direct2DDevice)
+                {
+                    response->maximumTextureMemoryPerAdapter[response->numAdapters] = adapter->direct2DDevice->GetMaximumTextureMemory();
+                    response->numAdapters++;
+                }
+
+                if (response->numAdapters >= response->maxNumAdapters)
+                {
+                    break;
+                }
+            }
+
+            sendMessage(block);
+
+            break;
+        }
+
+        case setMaximumTextureMemoryRequest:
+        {
+            SharedResourcePointer<DirectX> directX;
+            auto* request = (SetMaximumTextureMemoryRequest*)message.getData();
+
+            const auto& adapters = directX->adapters.getAdapterArray();
+            for (auto const& adapter : adapters)
+            {
+                if (adapter->direct2DDevice)
+                {
+                    adapter->direct2DDevice->SetMaximumTextureMemory(request->maximumTextureMemory);
+                }
+            }
+
+            break;
+        }
     }
 }
 

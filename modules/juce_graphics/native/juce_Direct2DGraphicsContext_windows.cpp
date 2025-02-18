@@ -778,12 +778,11 @@ public:
                 return transform.translated (r);
             };
 
-            rectangleListSpriteBatch->fillRectangles (deviceContext,
+            return rectangleListSpriteBatch->fillRectangles (deviceContext,
                                                       list,
                                                       owner.currentState->fillType.colour,
                                                       translateRectangle,
                                                       owner.metrics.get());
-            return true;
         }
 
         if (owner.currentState->isCurrentTransformAxisAligned())
@@ -793,12 +792,11 @@ public:
                 return transform.boundsAfterTransform (r);
             };
 
-            rectangleListSpriteBatch->fillRectangles (deviceContext,
+            return rectangleListSpriteBatch->fillRectangles (deviceContext,
                                                       list,
                                                       owner.currentState->fillType.colour,
                                                       transformRectangle,
                                                       owner.metrics.get());
-            return true;
         }
 
         auto checkRectangleWithoutTransforming = [&] (const Rectangle<float>& r) -> Rectangle<float>
@@ -807,13 +805,12 @@ public:
         };
 
         ScopedTransform scopedTransform { *this, owner.currentState };
-        rectangleListSpriteBatch->fillRectangles (deviceContext,
+        return rectangleListSpriteBatch->fillRectangles (deviceContext,
                                                   list,
                                                   owner.currentState->fillType.colour,
                                                   checkRectangleWithoutTransforming,
                                                   owner.metrics.get());
 
-        return true;
     }
 
     template <typename Shape, typename Fn>

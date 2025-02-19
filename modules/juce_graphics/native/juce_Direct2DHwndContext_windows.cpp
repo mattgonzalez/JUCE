@@ -61,7 +61,7 @@ private:
 
             DxgiAdapter::Ptr adapter{};
             if (owner.hwnd)
-                adapter = owner.directX->adapters.getAdapterForHwnd(owner.hwnd);
+                adapter = owner.directX->adapters.getDefaultAdapter();
 
             if (!adapter)
                 return;
@@ -195,7 +195,7 @@ private:
 
         void createSwapChain(Rectangle<int> requestedSize)
         {
-            auto hr = swap.create(owner.hwnd, requestedSize, owner.directX->adapters.getAdapterForHwnd(owner.hwnd));
+            auto hr = swap.create(owner.hwnd, requestedSize, owner.directX->adapters.getDefaultAdapter());
             jassert(SUCCEEDED(hr));
             swapChainSize64.store(((uint64_t)requestedSize.getWidth() << 32) | (uint64_t)requestedSize.getHeight());
 
@@ -344,7 +344,7 @@ private:
 
     bool prepare(bool sizing) override
     {
-        const auto adapter = directX->adapters.getAdapterForHwnd (hwnd);
+        const auto adapter = directX->adapters.getDefaultAdapter();
 
         if (adapter == nullptr)
             return false;

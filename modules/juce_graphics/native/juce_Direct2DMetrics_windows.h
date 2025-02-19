@@ -259,7 +259,7 @@ public:
 
     struct GetMaximumTextureMemoryResponse
     {
-        static constexpr size_t maxNumAdapters = 16;
+        static constexpr int maxNumAdapters = 16;
 
         int responseType = getMaximumTextureMemoryRequest;
         int numAdapters = 0;

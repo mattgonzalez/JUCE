@@ -1412,12 +1412,14 @@ void Direct2DGraphicsContext::fillPath (const Path& p, const AffineTransform& tr
 
     applyPendingClipList();
 
+    // Should always be safe to pre-transform the filled path
     const auto deviceContext = getPimpl()->getDeviceContext();
     const auto brush = currentState->getBrush (SavedState::applyFillTypeTransform);
     const auto factory = getPimpl()->getDirect2DFactory();
+    const auto pathTransform = currentState->currentTransform.getTransformWith (transform);
     const auto geometry = D2DHelpers::pathToPathGeometry (factory,
                                                           p,
-                                                          transform,
+                                                          pathTransform,
                                                           D2D1_FIGURE_BEGIN_FILLED,
                                                           metrics.get());
 
@@ -1426,7 +1428,6 @@ void Direct2DGraphicsContext::fillPath (const Path& p, const AffineTransform& tr
 
     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, fillGeometryTime)
 
-    ScopedTransform scopedTransform { *getPimpl(), currentState };
     deviceContext->FillGeometry (geometry, brush);
 }
 

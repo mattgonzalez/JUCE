@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="mWGLA5" name="Direct2DPlugin" projectType="dll" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+              addUsingNamespaceToJuceHeader="1" jucerFormatVersion="1" defines="DIRECT2D_PLUGIN_EXPORTS=1">
   <MAINGROUP id="InXDSv" name="Direct2DPlugin">
     <GROUP id="{F531D608-9714-9D20-F305-2C6DAF4AC004}" name="Source">
+      <FILE id="k3UX89" name="API.cpp" compile="1" resource="0" file="Source/API.cpp"/>
       <FILE id="wpoA4f" name="Direct2DPluginAPI.h" compile="0" resource="0"
             file="Source/Direct2DPluginAPI.h"/>
     </GROUP>

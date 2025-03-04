@@ -38,7 +38,7 @@ namespace juce
 class PluginGraphicsContext : public LowLevelGraphicsContext
 {
 public:
-    PluginGraphicsContext();
+    PluginGraphicsContext(void* windowHandle);
     ~PluginGraphicsContext() override;
 
     //==============================================================================
@@ -108,12 +108,14 @@ public:
 
     std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override;
 
+    void createResources();
+
 protected:
     Font tempFont{ FontOptions{} };
 
     struct Pimpl;
     std::unique_ptr<Pimpl> pimpl;
-   
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginGraphicsContext)
 };
 

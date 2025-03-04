@@ -5534,7 +5534,8 @@ public:
     static constexpr auto name = "Plugin";
 
     explicit PluginRenderContext(HWNDComponentPeer& peerIn)
-        : peer(peerIn)
+        : peer(peerIn),
+         pluginContext(std::make_unique<PluginGraphicsContext>(peerIn.getHWND()))
     {
     }
 
@@ -5546,6 +5547,7 @@ public:
 
     void handlePaintMessage() override
     {
+        paint();
     }
 
     void repaint(const Rectangle<int>& area) override
@@ -5563,10 +5565,13 @@ public:
 
     void onVBlank() override
     {
+        paint();
     }
 
     void handleShowWindow() override
     {
+        pluginContext->createResources();
+        paint();
     }
 
     std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override
@@ -5574,8 +5579,18 @@ public:
         return std::make_unique<NativeImageType>();
     }
 
+    void paint()
+    {
+        if (pluginContext->startFrame(1.0f, false))
+        {
+            peer.handlePaint(*pluginContext);
+            pluginContext->endFrame();
+        }
+    }
+
 private:
     HWNDComponentPeer& peer;
+    std::unique_ptr<PluginGraphicsContext> pluginContext;
 };
 
 using Constructor = std::unique_ptr<RenderContext> (*) (HWNDComponentPeer&);

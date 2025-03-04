@@ -202,6 +202,7 @@
  #include <juce_graphics/native/juce_Direct2DPixelDataPage_windows.h>
  #include <juce_graphics/native/juce_Direct2DImage_windows.h>
  #include <juce_graphics/native/juce_Direct2DImageContext_windows.h>
+ #include <juce_graphics/native/juce_PluginGraphicsContext_windows.h>
 
  #include "native/accessibility/juce_WindowsUIAWrapper_windows.h"
  #include "native/accessibility/juce_AccessibilityElement_windows.h"

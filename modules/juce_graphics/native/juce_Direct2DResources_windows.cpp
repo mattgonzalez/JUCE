@@ -169,8 +169,8 @@ public:
                 {
                     auto r = rectangles.getRectangle (i);
                     r = transformRectangle (r);
-                    if (r.getWidth() < 1.0f || r.getHeight() < 1.0f)
-                        return false;
+//                    if (r.getWidth() < 1.0f || r.getHeight() < 1.0f)
+                        //return false;
 
                     *destination = D2DUtilities::toRECT_F (r);
                     ++destination;

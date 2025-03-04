@@ -5528,6 +5528,56 @@ private:
    #endif
 };
 
+class PluginRenderContext : public RenderContext
+{
+public:
+    static constexpr auto name = "Plugin";
+
+    explicit PluginRenderContext(HWNDComponentPeer& peerIn)
+        : peer(peerIn)
+    {
+    }
+
+    const char* getName() const override { return name; }
+
+    void updateConstantAlpha() override
+    {
+    }
+
+    void handlePaintMessage() override
+    {
+    }
+
+    void repaint(const Rectangle<int>& area) override
+    {
+    }
+
+    void dispatchDeferredRepaints() override {}
+
+    void performAnyPendingRepaintsNow() override {}
+
+    Image createSnapshot() override
+    {
+        return {};
+    }
+
+    void onVBlank() override
+    {
+    }
+
+    void handleShowWindow() override
+    {
+    }
+
+    std::unique_ptr<ImageType> getPreferredImageTypeForTemporaryImages() const noexcept override
+    {
+        return std::make_unique<NativeImageType>();
+    }
+
+private:
+    HWNDComponentPeer& peer;
+};
+
 using Constructor = std::unique_ptr<RenderContext> (*) (HWNDComponentPeer&);
 struct ContextDescriptor
 {
@@ -5545,7 +5595,7 @@ inline constexpr ContextDescriptor contextDescriptorList[]
 };
 
 // To add a new rendering backend, implement RenderContext for that backend, and then append the backend to this typelist
-inline constexpr auto& contextDescriptors = contextDescriptorList<GDIRenderContext, D2DRenderContext>;
+inline constexpr auto& contextDescriptors = contextDescriptorList<GDIRenderContext, D2DRenderContext, PluginRenderContext>;
 
 void HWNDComponentPeer::setCurrentRenderingEngine (int e)
 {

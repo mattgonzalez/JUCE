@@ -223,6 +223,7 @@ extern "C"
  #include "native/juce_DirectX_windows.h"
  #include "native/juce_Direct2DImage_windows.h"
  #include "native/juce_Direct2DImageContext_windows.h"
+ #include "native/juce_PluginGraphicsContext_windows.h"
 
  #include "native/juce_DirectWriteTypeface_windows.cpp"
  #include "native/juce_IconHelpers_windows.cpp"
@@ -233,6 +234,7 @@ extern "C"
  #include "native/juce_Direct2DImageContext_windows.cpp"
  #include "native/juce_Direct2DImage_windows.cpp"
  #include "native/juce_Direct2DMetrics_windows.cpp"
+ #include "native/juce_PluginGraphicsContext_windows.cpp"
 
 #elif JUCE_LINUX || JUCE_BSD
  #include "native/juce_Fonts_linux.cpp"

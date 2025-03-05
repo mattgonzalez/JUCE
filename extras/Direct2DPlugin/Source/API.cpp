@@ -89,6 +89,11 @@ public:
         context->fillRectList(list);
     }
 
+    void drawLine(const Direct2DPluginLine& line)
+    {
+        context->drawLineWithThickness({ line.x0, line.y0, line.x1, line.y1}, line.thickness);
+    }
+
     void execute(Direct2DPluginOp* op)
     {
         switch (op->op)
@@ -157,12 +162,11 @@ public:
              break;
 
          case Direct2DPluginOp_drawLine:
+         case Direct2DPluginOp_drawLineWithThickness:
+             drawLine(op->u.line);
              break;
 
          case Direct2DPluginOp_drawGlyphs:
-             break;
-
-         case Direct2DPluginOp_drawLineWithThickness:
              break;
 
          case Direct2DPluginOp_drawImage:
@@ -189,7 +193,19 @@ public:
     std::unique_ptr<Direct2DHwndContext> context;
 };
 
-int DIRECT2D_PLUGIN_API D2DPlugin_openHwnd(void *hwnd)
+auto handleToInstance(int handle)
+{
+    auto instance = instances;
+    while (instance)
+    {
+        if (instance->handle == handle)
+            return instance;
+        instance = instance->next;
+    }
+    return (Instance*)nullptr;
+}
+
+int D2DPlugin_openHwnd(void *hwnd)
 {
     return (new Instance{ hwnd })->handle;
 }
@@ -221,17 +237,27 @@ void D2DPlugin_close(int handle)
 
 void D2DPlugin_execute(int handle, Direct2DPluginOp* op)
 {
-    auto instance = instances;
-    while (instance)
+    if (auto instance = handleToInstance(handle))
     {
-        if (instance->handle == handle)
-        {
-            instance->execute(op);
-            return;
-        }
-
-        instance = instance->next;
+        instance->execute(op);
     }
 }
 
+int D2DPlugin_startFrame(int handle, float dpiScale, int sizing)
+{
+    if (auto instance = handleToInstance(handle))
+    {
+        return instance->context->startFrame(dpiScale, sizing);
+    }
+
+    return 0;
+}
+
+void D2DPlugin_endFrame(int handle)
+{
+    if (auto instance = handleToInstance(handle))
+    {
+        return instance->context->endFrame();
+    }
+}
 

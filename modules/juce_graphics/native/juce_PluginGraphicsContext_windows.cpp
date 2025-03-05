@@ -47,11 +47,13 @@ public:
     explicit Pimpl (PluginGraphicsContext& ownerIn, void* windowHandle)
         : owner(ownerIn), hwnd((HWND)windowHandle)
     {
-        if (library.open(R"(C:\JUCE-fork\extras\Direct2DPlugin\Builds\VisualStudio2022\x64\Debug\Dynamic Library\\Direct2DPlugin.dll)"))
+        if (library.open(R"(C:\JUCE\extras\Direct2DPlugin\Builds\VisualStudio2022\x64\Debug\Dynamic Library\\Direct2DPlugin.dll)"))
         {
             D2DPlugin_openHwnd = (decltype(D2DPlugin_openHwnd)) library.getFunction("D2DPlugin_openHwnd");
             D2DPlugin_close = (decltype(D2DPlugin_close))library.getFunction("D2DPlugin_close");
             D2DPlugin_execute = (decltype(D2DPlugin_execute))library.getFunction("D2DPlugin_execute");
+            D2DPlugin_startFrame = (decltype(D2DPlugin_startFrame))library.getFunction("D2DPlugin_startFrame");
+            D2DPlugin_endFrame = (decltype(D2DPlugin_endFrame))library.getFunction("D2DPlugin_endFrame");
 
             if (D2DPlugin_openHwnd)
             {
@@ -62,13 +64,17 @@ public:
 
     ~Pimpl()
     {
+        if (D2DPlugin_close)
+            D2DPlugin_close(pluginHandle);
         library.close();
     }
 
     DynamicLibrary library;
     int (*D2DPlugin_openHwnd)(void* hwnd) = nullptr;
-    void (*D2DPlugin_close)() = nullptr;
+    void (*D2DPlugin_close)(int) = nullptr;
     void (*D2DPlugin_execute)(int, Direct2DPluginOp*) = nullptr;
+    int (*D2DPlugin_startFrame)(int, float, int) = nullptr;
+    int (*D2DPlugin_endFrame)(int) = nullptr;
     HWND const hwnd = nullptr;
     int pluginHandle = -1;
 
@@ -248,12 +254,12 @@ std::unique_ptr<ImageType> PluginGraphicsContext::getPreferredImageTypeForTempor
 
 bool PluginGraphicsContext::startFrame(float dpiScale, bool sizing)
 {
-    return D2DPlugin_startFrame(pimpl->pluginHandle, dpiScale, (int)sizing);
+    return pimpl->D2DPlugin_startFrame(pimpl->pluginHandle, dpiScale, (int)sizing);
 }
 
 void PluginGraphicsContext::endFrame()
 {
-    D2DPlugin_endFrame();
+    pimpl->D2DPlugin_endFrame(pimpl->pluginHandle);
 }
 
 void PluginGraphicsContext::createResources()

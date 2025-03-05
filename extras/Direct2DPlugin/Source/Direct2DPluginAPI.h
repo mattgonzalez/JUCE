@@ -69,6 +69,12 @@ extern "C"
         int replaceExistingContents;
     } Direct2DPluginFillIntRect;
 
+    typedef struct Direct2DPluginLine
+    {
+        float x0, y0, x1, y1;
+        float thickness;
+    } Direct2DPluginLine;
+
     typedef struct Direct2DPluginOp
     {
         int op;
@@ -85,6 +91,7 @@ extern "C"
             Direct2DPluginFillIntRect fillIntRect;
             Direct2DPluginIntRectList intRectList;
             Direct2DPluginFloatRectList floatRectList;
+            Direct2DPluginLine line;
         } u;
     } Direct2DPluginOp;
 
@@ -96,8 +103,8 @@ extern "C"
 
     int DIRECT2D_PLUGIN_API D2DPlugin_openHwnd(void* hwnd);
     void DIRECT2D_PLUGIN_API D2DPlugin_close(int handle);
-    int DIRECT2D_PLUGIN_API D2DPlugin_startFrame(int handle, float dpiScale, bool sizing);
-    void DIRECT2D_PLUGIN_API D2DPlugin_endFrame();
+    int DIRECT2D_PLUGIN_API D2DPlugin_startFrame(int handle, float dpiScale, int sizing);
+    void DIRECT2D_PLUGIN_API D2DPlugin_endFrame(int handle);
     void DIRECT2D_PLUGIN_API D2DPlugin_execute(int handle, Direct2DPluginOp* op);
 
     void DIRECT2D_PLUGIN_API D2DPlugin_setWindowSize(int handle, int width, int height);

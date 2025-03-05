@@ -615,15 +615,16 @@ public:
         prepare(sizing);
 
         // Anything to paint?
-        const auto paintAreas = getPaintAreas();
+        const auto paintAreas = RectangleList<int>{ getFrameSize() };
+        //getPaintAreas();
         const auto paintBounds = paintAreas.getBounds();
 
         if (! getFrameSize().intersects (paintBounds) || paintBounds.isEmpty() || paintAreas.isEmpty())
             return nullptr;
 
         // Is Direct2D ready to paint?
-        if (! checkPaintReady())
-            return nullptr;
+        //if (! checkPaintReady())
+          //  return nullptr;
 
        #if JUCE_DIRECT2D_METRICS
         owner.metrics->startFrame();

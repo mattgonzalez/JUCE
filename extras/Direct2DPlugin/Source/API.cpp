@@ -38,6 +38,17 @@ public:
         scaleFactor = context->getPhysicalPixelScaleFactor();
     }
 
+    void getClipBounds(Direct2DPluginIntRect& r)
+    {
+        auto bounds = context->getClipBounds();
+        r = { bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight() };
+    }
+
+    void isClipEmpty(int& flag)
+    {
+        flag = context->isClipEmpty();
+    }
+
     void clipToRectangle(const Direct2DPluginIntRect& rect)
     {
         context->clipToRectangle({ rect.x, rect.y, rect.width, rect.height });
@@ -110,6 +121,14 @@ public:
             getPhysicalPixelScaleFactor(op->u.scaleFactor);
             break;
 
+        case Direct2DPluginOp_getClipBounds:
+            getClipBounds(op->u.intRect);
+            break;
+
+        case Direct2DPluginOp_isClipEmpty:
+            isClipEmpty(op->u.flag);
+            break;
+
          case Direct2DPluginOp_clipToRectangle:
              clipToRectangle(op->u.intRect);
              break;
@@ -155,6 +174,10 @@ public:
 
          case Direct2DPluginOp_fillIntRect:
              fillIntRect(op->u.fillIntRect);
+             break;
+
+         case Direct2DPluginOp_fillFloatRect:
+             fillFloatRect(op->u.floatRect);
              break;
 
          case Direct2DPluginOp_fillRectList:
@@ -247,6 +270,10 @@ int D2DPlugin_startFrame(int handle, float dpiScale, int sizing)
 {
     if (auto instance = handleToInstance(handle))
     {
+        RECT clientRect;
+        GetClientRect(instance->hwnd, &clientRect);
+        juce::Rectangle<int> r{ clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top };
+        instance->context->addDeferredRepaint(r);
         return instance->context->startFrame(dpiScale, sizing);
     }
 

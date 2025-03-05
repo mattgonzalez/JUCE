@@ -623,8 +623,8 @@ public:
             return nullptr;
 
         // Is Direct2D ready to paint?
-        //if (! checkPaintReady())
-          //  return nullptr;
+        if (! checkPaintReady())
+            return nullptr;
 
        #if JUCE_DIRECT2D_METRICS
         owner.metrics->startFrame();

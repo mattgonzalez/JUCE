@@ -47,7 +47,7 @@ public:
     explicit Pimpl (PluginGraphicsContext& ownerIn, void* windowHandle)
         : owner(ownerIn), hwnd((HWND)windowHandle)
     {
-        if (library.open(R"(C:\JUCE\extras\Direct2DPlugin\Builds\VisualStudio2022\x64\Debug\Dynamic Library\\Direct2DPlugin.dll)"))
+        if (library.open(R"(C:\d2d\Direct2DPlugin.dll)"))
         {
             D2DPlugin_openHwnd = (decltype(D2DPlugin_openHwnd)) library.getFunction("D2DPlugin_openHwnd");
             D2DPlugin_close = (decltype(D2DPlugin_close))library.getFunction("D2DPlugin_close");
@@ -113,7 +113,7 @@ bool PluginGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 bool PluginGraphicsContext::clipToRectangleList (const RectangleList<int>& newClipList)
 {
 
-    return true;
+    return !isClipEmpty();
 }
 
 void PluginGraphicsContext::excludeClipRectangle (const Rectangle<int>& userSpaceExcludedRectangle)
@@ -134,25 +134,37 @@ void PluginGraphicsContext::clipToImageAlpha (const Image& sourceImage, const Af
 
 bool PluginGraphicsContext::clipRegionIntersects (const Rectangle<int>& r)
 {
-   return false;
+   return true;
 }
 
 Rectangle<int> PluginGraphicsContext::getClipBounds() const
 {
-    return {};
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_getClipBounds;
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
+    return { op.u.intRect.x, op.u.intRect.y, op.u.intRect.width, op.u.intRect.height };
 }
 
 bool PluginGraphicsContext::isClipEmpty() const
 {
-    return false;
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_isClipEmpty;
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
+    return op.u.flag;
 }
 
 void PluginGraphicsContext::saveState()
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_saveState;
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 void PluginGraphicsContext::restoreState()
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_restoreState;
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 void PluginGraphicsContext::beginTransparencyLayer (float opacity)
@@ -165,6 +177,10 @@ void PluginGraphicsContext::endTransparencyLayer()
 
 void PluginGraphicsContext::setFill (const FillType& fillType)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_setFlatColourFill;
+    op.u.colour = fillType.colour.getARGB();
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 void PluginGraphicsContext::setOpacity (float newOpacity)
@@ -177,10 +193,18 @@ void PluginGraphicsContext::setInterpolationQuality (Graphics::ResamplingQuality
 
 void PluginGraphicsContext::fillRect (const Rectangle<int>& r, bool replaceExistingContents)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_fillIntRect;
+    op.u.fillIntRect = { r.getX(), r.getY(), r.getWidth(), r.getHeight(), (int)replaceExistingContents };
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 void PluginGraphicsContext::fillRect (const Rectangle<float>& r)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_fillFloatRect;
+    op.u.floatRect = { r.getX(), r.getY(), r.getWidth(), r.getHeight() };
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 void PluginGraphicsContext::fillRectList (const RectangleList<float>& list)

@@ -8,6 +8,8 @@ extern "C"
         Direct2DPluginOp_setOrigin,
         Direct2DPluginOp_addTransform,
         Direct2DPluginOp_getPhysicalPixelScaleFactor,
+        Direct2DPluginOp_getClipBounds,
+        Direct2DPluginOp_isClipEmpty,
         Direct2DPluginOp_clipToRectangle,
         Direct2DPluginOp_clipToRectangleList,
         Direct2DPluginOp_excludeClipRectangle,
@@ -88,6 +90,7 @@ extern "C"
             int colour;
             float opacity;
             int interpolationQuality;
+            int flag;
             Direct2DPluginFillIntRect fillIntRect;
             Direct2DPluginIntRectList intRectList;
             Direct2DPluginFloatRectList floatRectList;

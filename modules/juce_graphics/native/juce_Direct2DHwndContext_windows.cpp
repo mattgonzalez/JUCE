@@ -132,7 +132,7 @@ private:
 
         void notifyFramePainted()
         {
-            //jassert(swapEventReceived);
+            jassert(swapEventReceived);
 
             addCommand([this]() { present(); });
         }

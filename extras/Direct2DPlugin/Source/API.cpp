@@ -14,7 +14,7 @@ Instance* instances = nullptr;
 class Instance
 {
 public:
-    Instance(void *hwndIn) :
+    Instance(void* hwndIn) :
         hwnd((HWND)hwndIn),
         handle(nextHandle++),
         context(new Direct2DHwndContext(hwnd, []() {}))
@@ -30,7 +30,7 @@ public:
 
     void addTransform(const Direct2DPluginTransform& transform)
     {
-        context->addTransform({ transform.m00, transform.m01, transform.m10, transform.m11, transform.dx, transform.dy });
+        context->addTransform({ transform.m00, transform.m01, transform.m02, transform.m10, transform.m11, transform.m12 });
     }
 
     void getPhysicalPixelScaleFactor(float& scaleFactor)
@@ -102,7 +102,15 @@ public:
 
     void drawLine(const Direct2DPluginLine& line)
     {
-        context->drawLineWithThickness({ line.x0, line.y0, line.x1, line.y1}, line.thickness);
+        context->drawLineWithThickness({ line.x0, line.y0, line.x1, line.y1 }, line.thickness);
+    }
+
+    void drawGlyphs(const Direct2DPluginGlyphs& glyphs)
+    {
+        Span<const uint16_t> glyphNumbers{ glyphs.glyphNumbers, glyphs.numGlyphs };
+        Span<const Point<float>> positions{ (Point<float>*)glyphs.positions, glyphs.numGlyphs };
+        AffineTransform transform{ glyphs.transform.m00, glyphs.transform.m01, glyphs.transform.m02, glyphs.transform.m10, glyphs.transform.m11, glyphs.transform.m12 };
+        context->drawGlyphs(glyphNumbers, positions, transform);
     }
 
     void execute(Direct2DPluginOp* op)
@@ -129,83 +137,84 @@ public:
             isClipEmpty(op->u.flag);
             break;
 
-         case Direct2DPluginOp_clipToRectangle:
-             clipToRectangle(op->u.intRect);
-             break;
+        case Direct2DPluginOp_clipToRectangle:
+            clipToRectangle(op->u.intRect);
+            break;
 
-         case Direct2DPluginOp_clipToRectangleList:
-             clipToRectangleList(op->u.intRectList);
-             break;
+        case Direct2DPluginOp_clipToRectangleList:
+            clipToRectangleList(op->u.intRectList);
+            break;
 
-         case Direct2DPluginOp_excludeClipRectangle:
-             excludeClipRectangle(op->u.intRect);
-             break;
+        case Direct2DPluginOp_excludeClipRectangle:
+            excludeClipRectangle(op->u.intRect);
+            break;
 
-         case Direct2DPluginOp_clipToPath:
-             break;
+        case Direct2DPluginOp_clipToPath:
+            break;
 
-         case Direct2DPluginOp_saveState:
-             context->saveState();
-             break;
+        case Direct2DPluginOp_saveState:
+            context->saveState();
+            break;
 
-         case Direct2DPluginOp_restoreState:
-             context->restoreState();
-             break;
+        case Direct2DPluginOp_restoreState:
+            context->restoreState();
+            break;
 
-         case Direct2DPluginOp_beginTransparencyLayer:
-             context->beginTransparencyLayer(op->u.scaleFactor);
-             break;
+        case Direct2DPluginOp_beginTransparencyLayer:
+            context->beginTransparencyLayer(op->u.scaleFactor);
+            break;
 
-         case Direct2DPluginOp_endTransparencyLayer:
-             context->endTransparencyLayer();
-             break;
+        case Direct2DPluginOp_endTransparencyLayer:
+            context->endTransparencyLayer();
+            break;
 
-         case Direct2DPluginOp_setFlatColourFill:
-             setFlatColourFill(op->u.colour);
-             break;
+        case Direct2DPluginOp_setFlatColourFill:
+            setFlatColourFill(op->u.colour);
+            break;
 
-         case Direct2DPluginOp_setOpacity:
-             context->setOpacity(op->u.opacity);
-             break;
+        case Direct2DPluginOp_setOpacity:
+            context->setOpacity(op->u.opacity);
+            break;
 
-         case Direct2DPluginOp_setInterpolationQuality:
-             context->setInterpolationQuality((juce::Graphics::ResamplingQuality)op->u.interpolationQuality);
-             break;
+        case Direct2DPluginOp_setInterpolationQuality:
+            context->setInterpolationQuality((juce::Graphics::ResamplingQuality)op->u.interpolationQuality);
+            break;
 
-         case Direct2DPluginOp_fillIntRect:
-             fillIntRect(op->u.fillIntRect);
-             break;
+        case Direct2DPluginOp_fillIntRect:
+            fillIntRect(op->u.fillIntRect);
+            break;
 
-         case Direct2DPluginOp_fillFloatRect:
-             fillFloatRect(op->u.floatRect);
-             break;
+        case Direct2DPluginOp_fillFloatRect:
+            fillFloatRect(op->u.floatRect);
+            break;
 
-         case Direct2DPluginOp_fillRectList:
-             fillRectList(op->u.floatRectList);
-             break;
+        case Direct2DPluginOp_fillRectList:
+            fillRectList(op->u.floatRectList);
+            break;
 
-         case Direct2DPluginOp_drawLine:
-         case Direct2DPluginOp_drawLineWithThickness:
-             drawLine(op->u.line);
-             break;
+        case Direct2DPluginOp_drawLine:
+        case Direct2DPluginOp_drawLineWithThickness:
+            drawLine(op->u.line);
+            break;
 
-         case Direct2DPluginOp_drawGlyphs:
-             break;
+        case Direct2DPluginOp_drawGlyphs:
+            drawGlyphs(op->u.glyphs);
+            break;
 
-         case Direct2DPluginOp_drawImage:
-             break;
+        case Direct2DPluginOp_drawImage:
+            break;
 
-         case Direct2DPluginOp_setFont:
-             break;
+        case Direct2DPluginOp_setFont:
+            break;
 
-         case Direct2DPluginOp_getFont:
-             break;
+        case Direct2DPluginOp_getFont:
+            break;
 
-         case Direct2DPluginOp_fillPath:
-             break;
+        case Direct2DPluginOp_fillPath:
+            break;
 
-         default:
-             break;
+        default:
+            break;
         }
     }
 
@@ -228,7 +237,7 @@ auto handleToInstance(int handle)
     return (Instance*)nullptr;
 }
 
-int D2DPlugin_openHwnd(void *hwnd)
+int D2DPlugin_openHwnd(void* hwnd)
 {
     return (new Instance{ hwnd })->handle;
 }

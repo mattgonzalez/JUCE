@@ -62,7 +62,7 @@ extern "C"
 
     typedef struct Direct2DPluginTransform
     {
-        float m00, m01, m10, m11, dx, dy;
+        float m00, m01, m02, m10, m11, m12;
     } Direct2DPluginTransform;
 
     typedef struct Direct2DPluginFillIntRect
@@ -76,6 +76,14 @@ extern "C"
         float x0, y0, x1, y1;
         float thickness;
     } Direct2DPluginLine;
+
+    typedef struct Direct2DPluginGlyphs
+    {
+        uint16_t const* glyphNumbers;
+        float const* positions;
+        size_t numGlyphs;
+        Direct2DPluginTransform transform;
+    } Direct2DPluginGlyphs;
 
     typedef struct Direct2DPluginOp
     {
@@ -95,6 +103,7 @@ extern "C"
             Direct2DPluginIntRectList intRectList;
             Direct2DPluginFloatRectList floatRectList;
             Direct2DPluginLine line;
+            Direct2DPluginGlyphs glyphs;
         } u;
     } Direct2DPluginOp;
 

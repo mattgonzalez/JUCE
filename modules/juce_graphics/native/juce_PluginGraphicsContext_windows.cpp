@@ -107,11 +107,21 @@ void PluginGraphicsContext::addTransform (const AffineTransform& transform)
 
 bool PluginGraphicsContext::clipToRectangle (const Rectangle<int>& r)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_clipToRectangle;
+    op.u.intRect = { r.getX(), r.getY(), r.getWidth(), r.getHeight() };
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
+
     return ! isClipEmpty();
 }
 
 bool PluginGraphicsContext::clipToRectangleList (const RectangleList<int>& newClipList)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_clipToRectangleList;
+    op.u.intRectList.numRectangles = newClipList.getNumRectangles();
+    op.u.intRectList.rectangles = (int*)newClipList.begin();
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 
     return !isClipEmpty();
 }
@@ -179,7 +189,7 @@ void PluginGraphicsContext::setFill (const FillType& fillType)
 {
     Direct2DPluginOp op;
     op.op = Direct2DPluginOp_setFlatColourFill;
-    op.u.colour = fillType.colour.getARGB();
+    op.u.colour = fillType.colour.withAlpha(0.75f).getARGB();
     pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
@@ -269,6 +279,13 @@ void PluginGraphicsContext::drawGlyphs (Span<const uint16_t> glyphNumbers,
                                           Span<const Point<float>> positions,
                                           const AffineTransform& transform)
 {
+    Direct2DPluginOp op;
+    op.op = Direct2DPluginOp_drawGlyphs;
+    op.u.glyphs.glyphNumbers = glyphNumbers.data();
+    op.u.glyphs.positions = (float*)positions.data();
+    op.u.glyphs.numGlyphs = glyphNumbers.size();
+    op.u.glyphs.transform = { transform.mat00, transform.mat01, transform.mat02, transform.mat10, transform.mat11, transform.mat12 };
+    pimpl->D2DPlugin_execute(pimpl->pluginHandle, &op);
 }
 
 std::unique_ptr<ImageType> PluginGraphicsContext::getPreferredImageTypeForTemporaryImages() const noexcept
